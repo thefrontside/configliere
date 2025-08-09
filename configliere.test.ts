@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { type } from "arktype";
 import { Configliere } from "./mod.ts";
 import { assert } from "@std/assert";
+import { Config, ParseResult, Sources, Spec } from "./types.ts";
 
 describe("configliere", () => {
   let { parse } = new Configliere({
@@ -67,7 +68,7 @@ describe("configliere", () => {
       expect(result.config).toEqual({ host: "localhost", port: 8000 });
     });
   });
-  describe("env vars", () => {
+  describe("env var", () => {
     it("can set config from environment variables", () => {
       let result = parse({
         env: {
@@ -77,22 +78,59 @@ describe("configliere", () => {
       assert(result.ok, `expected successful result`);
       expect(result.config.port).toEqual(99);
     });
-    it.skip("rejects bad string to number conversions", () => {});
+    it("rejects bad string to number conversions", () => {
+      let result = parse({
+        env: {
+          PORT: "false",
+        },
+      });
+      assert(!result.ok, `expected error result`);
+    });
     it.skip("handles boolean switches", () => {});
   });
 
   describe("cli options", () => {
-    it.skip("handles string to number conversion", () => {
+    it("handles string to number conversion", () => {
+      let result = parse({
+        args: ["--port", "80"],
+      });
+
+      let { config } = assertOk(result);
+      expect(config.port).toEqual(80);
     });
+    it("can use option=value format", () => {
+      let result = parse({
+        args: ["--port=80"],
+      });
+
+      let { config } = assertOk(result);
+      expect(config.port).toEqual(80);
+    });
+    it.skip("can be have positional arguments", () => {});
+    it.skip("points out unrecognized options", () => {});
+    it.skip("points out unrecognized positional arguments", () => {});
     it.skip("rejects bad string to number conversions", () => {});
     it.skip("handles boolean switches", () => {});
-  });
-
-  describe("type", () => {
-    it("allows for a partially specified config", () => {
-    });
+    it.skip("can collection arrays of values", () => {});
+    it.skip("can be aliased", () => {});
+    it.skip("only allows the last positional argument to be an array", () => {});
   });
 });
+
+function assertOk<S extends Spec>(
+  result: ParseResult<S>,
+): { sources: Sources<S>; config: Config<S> } {
+  if (result.ok) {
+    return { config: result.config, sources: result.sources };
+  } else {
+    let { issues } = result;
+    throw new TypeError(
+      `expected successful parse result, but was: ${
+        issues.map((i) => `${i.field.name}: ${i.message}`).join("\n")
+      }`,
+    );
+  }
+}
 
 // union options
 // array options

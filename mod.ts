@@ -1,3 +1,4 @@
+import { parseArgs } from "@std/cli";
 import { toEnvCase, toKebabCase } from "./case.ts";
 import {
   Config,
@@ -28,7 +29,7 @@ export class Configliere<S extends Spec> {
   }
 
   parse = (inputs: Inputs): ParseResult<S> => {
-    let { objects = [], env } = inputs;
+    let { objects = [], env, args = [] } = inputs;
     let sources = objects.reduce((sources, input) => {
       return Object.create(
         sources,
@@ -77,6 +78,25 @@ export class Configliere<S extends Spec> {
         }, {}),
       );
     }
+
+    let options = getArgsSources(args, this);
+
+    sources = Object.create(
+      sources,
+      options.reduce((props, source) => {
+        if (source.type === "args") {
+          return {
+            ...props,
+            [source.key]: {
+              enumerable: true,
+              value: source,
+            },
+          };
+        } else {
+          return props;
+        }
+      }, {}),
+    );
 
     return this.fields.reduce((result, field) => {
       let source = sources[field.name];
@@ -146,7 +166,7 @@ function getValue<S extends Spec, K extends keyof S>(
   source: Source<S, K>,
   field: Field<S, K>,
 ): unknown {
-  if (source.type === "object") {
+  if (source.type === "object" || source.type == "args") {
     return source.value;
   } else if (source.type === "env") {
     let { stringvalue } = source;
@@ -168,4 +188,44 @@ function getValue<S extends Spec, K extends keyof S>(
   } else {
     return undefined;
   }
+}
+
+function getArgsSources<S extends Spec>(
+  args: string[],
+  configliere: Configliere<S>,
+): Extract<Source<S, keyof S>, { type: "args" | "unrecognized" }>[] {
+  let parseOptions = { boolean: [] as string[], collect: [] as string[] };
+
+  for (let field of configliere.fields) {
+    if (field.spec.schema.extends("boolean")) {
+      parseOptions.boolean.push(field.optionName());
+    }
+  }
+
+  let options = parseArgs(args, parseOptions);
+
+  let optionKey2Field = {} as Record<string, Field<S, keyof S>>;
+  for (let field of configliere.fields) {
+    optionKey2Field[field.optionName()] = field;
+  }
+
+  return Object.keys(options).filter((k) => k !== "_").map((optionKey) => {
+    let value = options[optionKey];
+    let field = optionKey2Field[optionKey];
+    if (typeof field !== "undefined") {
+      return {
+        type: "args",
+        key: field.name,
+        optionKey,
+        value,
+      };
+    } else {
+      return {
+        type: "unrecognized",
+        source: "args",
+        sourceName: optionKey,
+        value,
+      };
+    }
+  });
 }

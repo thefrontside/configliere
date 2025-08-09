@@ -50,6 +50,16 @@ export type Source<S extends Spec, K extends keyof S> = {
   key: K;
   envKey: string;
   stringvalue: string;
+} | {
+  type: "args";
+  key: K;
+  optionKey: string;
+  value: string | number | boolean | unknown | string[] | number[] | unknown[];
+} | {
+  type: "unrecognized";
+  source: "object" | "args";
+  sourceName: string;
+  value: unknown;
 };
 
 export type Issue<S extends Spec, K extends keyof S = keyof S> = {
