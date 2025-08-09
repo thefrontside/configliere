@@ -1,5 +1,5 @@
-import type { KebabCase, EnvCase } from "./types.ts";
-import { toSnake} from "ts-case-convert";
+import type { EnvCase, KebabCase } from "./types.ts";
+import { toSnake } from "ts-case-convert";
 
 export function toKebabCase<S extends string>(str: S): KebabCase<S> {
   return toSnake(str).replace("_", "-") as KebabCase<S>;

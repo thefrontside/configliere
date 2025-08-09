@@ -5,16 +5,16 @@ import { Configliere } from "./mod.ts";
 import { assert } from "@std/assert";
 
 describe("configliere", () => {
-  describe("object", () => {
-    let { parse } = new Configliere({
-      port: {
-	schema: type("number")
-      },
-      host: {
-	schema: type("string | undefined")
-      }
-    });
+  let { parse } = new Configliere({
+    port: {
+      schema: type("number"),
+    },
+    host: {
+      schema: type("string | undefined"),
+    },
+  });
 
+  describe("object", () => {
     it("parses config as object", () => {
       let result = parse({
         objects: [{
@@ -32,12 +32,12 @@ describe("configliere", () => {
     });
     it("recognizes bad config", () => {
       let result = parse({
-	objects: [{
-	  source: "app-config.yaml",
-	  value: {
-	    port: true
-	  },
-	}]
+        objects: [{
+          source: "app-config.yaml",
+          value: {
+            port: true,
+          },
+        }],
       });
 
       assert(!result.ok, `bad config should not produce a result`);
@@ -49,41 +49,44 @@ describe("configliere", () => {
 
     it("accepts multiple object configs, with the last one overriding", () => {
       let result = parse({
-	objects: [{
-	  source: "one.json",
-	  value: {
-	    port: 80,
-	    host: "localhost",
-	  },
-	  
-	}, {
-	  source: "two.json",
-	  value: {
-	    port: 8000
-	  }
-	}],	
+        objects: [{
+          source: "one.json",
+          value: {
+            port: 80,
+            host: "localhost",
+          },
+        }, {
+          source: "two.json",
+          value: {
+            port: 8000,
+          },
+        }],
       });
 
       assert(result.ok, "expected successful parse");
-      expect(result.config).toEqual({ host: "localhost", port: 8000});
+      expect(result.config).toEqual({ host: "localhost", port: 8000 });
     });
-
   });
   describe("env vars", () => {
-    it.skip("can set config from environment variables", () => {});
-    it.skip("handles string to number conversion", () => {});
+    it("can set config from environment variables", () => {
+      let result = parse({
+        env: {
+          PORT: "99",
+        },
+      });
+      assert(result.ok, `expected successful result`);
+      expect(result.config.port).toEqual(99);
+    });
     it.skip("rejects bad string to number conversions", () => {});
     it.skip("handles boolean switches", () => {});
   });
-  
+
   describe("cli options", () => {
     it.skip("handles string to number conversion", () => {
     });
     it.skip("rejects bad string to number conversions", () => {});
     it.skip("handles boolean switches", () => {});
   });
-
-
 
   describe("type", () => {
     it("allows for a partially specified config", () => {

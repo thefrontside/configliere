@@ -11,11 +11,12 @@ export type FieldSpec<T> = {
 };
 
 export type Field<S extends Spec, K extends keyof S> = K extends string ? {
-  name: K;
-  spec: S[K];
-  envName(): EnvCase<K>;
-  optionName(): KebabCase<K>;
-} : never;
+    name: K;
+    spec: S[K];
+    envName(): EnvCase<K>;
+    optionName(): KebabCase<K>;
+  }
+  : never;
 
 export interface Inputs {
   objects?: ObjectInput[];
@@ -34,7 +35,7 @@ export type Config<S extends Spec> = {
 
 export type Sources<S extends Spec> = {
   [K in keyof S]: Source<S, K>;
-}
+};
 
 export type Source<S extends Spec, K extends keyof S> = {
   type: "none";
@@ -44,7 +45,12 @@ export type Source<S extends Spec, K extends keyof S> = {
   key: K;
   value: unknown;
   name: string;
-}
+} | {
+  type: "env";
+  key: K;
+  envKey: string;
+  stringvalue: string;
+};
 
 export type Issue<S extends Spec, K extends keyof S = keyof S> = {
   field: Field<S, K>;
