@@ -228,7 +228,7 @@ describe("configliere", () => {
         value: 3000,
       });
     });
-    it("can collection arrays of values", () => {
+    it("can collection arrays of option values", () => {
       let { config } = assertOk(new Configliere({
         user: {
           schema: type("string[]"),
@@ -238,7 +238,16 @@ describe("configliere", () => {
 
       expect(config.user).toEqual(["cowboyd", "mz"]);
     });
-    it.skip("only allows the last positional argument to be an array", () => {});
+    it("can collect arrays of argument values", () => {
+      let { config } = assertOk(new Configliere({
+        user: {
+          schema: type("string[]"),
+          collection: true,
+          cli: "positional",
+        },
+      }).parse({ args: ["cowboyd", "mz"] }));
+      expect(config.user).toEqual(["cowboyd", "mz"]);
+    });   
   });
 });
 

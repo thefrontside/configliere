@@ -108,16 +108,18 @@ export class Configliere<S extends Spec> {
       }, {}),
     );
 
-    let initial: ParseResult<S> = unrecognized.length > 0 ? {
-      ok: false,
-      issues: [],
-      sources,
-      unrecognized
-    } : {
-      ok: true,
-      config: {},
-      sources,
-    } as ParseResult<S>;
+    let initial: ParseResult<S> = unrecognized.length > 0
+      ? {
+        ok: false,
+        issues: [],
+        sources,
+        unrecognized,
+      }
+      : {
+        ok: true,
+        config: {},
+        sources,
+      } as ParseResult<S>;
 
     return this.fields.reduce((result, field) => {
       let source = sources[field.name];
@@ -244,7 +246,7 @@ function getCLISources<S extends Spec>(
       continue;
     }
     if (field.spec.collection) {
-      parseOptions.collect.push(field.optionName())
+      parseOptions.collect.push(field.optionName());
     }
     if (field.spec.cli?.alias) {
       parseOptions.alias[field.spec.cli.alias] = field.optionName();
@@ -288,14 +290,22 @@ function getCLISources<S extends Spec>(
   );
 
   let positionalSources: Source<S, keyof S>[] = [];
+  let rest: (string | number)[] | undefined = undefined;
   options._.forEach((value, i) => {
     let field = positionals[i];
-    if (typeof field !== "undefined") {
+
+    if (rest) {
+      rest.push(value);
+    } else if (typeof field !== "undefined") {
+      let sourceValue: (string | number) | (string | number)[] = value;
+      if (field.spec.collection) {
+        sourceValue = rest = [value];
+      }
       positionalSources.push({
         type: "argument",
         key: field.name,
         index: i,
-        value,
+        value: sourceValue,
       });
     } else {
       positionalSources.push({
