@@ -67,7 +67,25 @@ describe("configliere", () => {
       assert(result.ok, "expected successful parse");
       expect(result.config).toEqual({ host: "localhost", port: 8000 });
     });
-    it.skip("points out unrecognized keys", () => {});
+    it("points out unrecognized keys", () => {
+      let result = parse({
+        objects: [{
+          source: "config.yaml",
+          value: {
+            porp: 80,
+          },
+        }],
+      });
+      assert(!result.ok, `expected parse with unrecognized keys to fail`);
+      const { unrecognized: [source] } = result;
+      expect(source).toEqual({
+        type: "unrecognized",
+        key: "porp",
+        source: "object",
+        sourceName: "config.yaml",
+        value: 80,
+      });
+    });
   });
   describe("env", () => {
     it("can set config from environment variables", () => {
@@ -174,8 +192,42 @@ describe("configliere", () => {
 
       expect(config).toEqual({ host: "localhost", port: 3000 });
     });
-    it.skip("points out unrecognized options", () => {});
-    it.skip("points out unrecognized positional arguments", () => {});
+    it("points out unrecognized options", () => {
+      let result = new Configliere({
+        port: {
+          schema: type("number"),
+          cli: {
+            alias: "p",
+          },
+        },
+      }).parse({ args: ["--plorp=3000"] });
+      assert(!result.ok, `parse with unrecognized option should fail`);
+      let [source] = result.unrecognized;
+      expect(source).toMatchObject({
+        key: "plorp",
+        source: "option",
+        sourceName: "cli",
+        type: "unrecognized",
+        value: 3000,
+      });
+    });
+    it("points out unrecognized positional arguments", () => {
+      let result = new Configliere({
+	host: {
+	  schema: type("string"),
+	  cli: "positional"
+	}
+      }).parse({ args: ["localhost", "3000"]});
+      assert(!result.ok, `expected parse to fail`);
+      let { unrecognized: [source]} = result;
+      expect(source).toEqual({
+	type: "unrecognized",
+	key: "1",
+	source: "argument",
+	sourceName: "cli",
+	value: 3000
+      });
+    });
     it.skip("can collection arrays of values", () => {});
     it.skip("only allows the last positional argument to be an array", () => {});
   });
@@ -187,11 +239,13 @@ function assertOk<S extends Spec>(
   if (result.ok) {
     return { config: result.config, sources: result.sources };
   } else {
-    let { issues } = result;
+    let { issues, unrecognized } = result;
+    let messages = [
+      ...issues.map(i => `${i.field.name}: ${i.message}`),
+      ...unrecognized.map(s => `unrecognized ${s.source} ${s.key}: ${s.value}`),
+    ]
     throw new TypeError(
-      `expected successful parse result, but was: \n${
-        issues.map((i) => `${i.field.name}: ${i.message}`).join("\n")
-      }`,
+      `expected successful parse result, but was: \n${messages.join("\n")}`,
     );
   }
 }

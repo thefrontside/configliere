@@ -29,12 +29,21 @@ export class Configliere<S extends Spec> {
   }
 
   parse = (inputs: Inputs): ParseResult<S> => {
+    let unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[] =
+      [];
     let { objects = [], env, args = [] } = inputs;
     let sources = objects.reduce((sources, input) => {
       return Object.create(
         sources,
         Object.entries(input.value).reduce((props, [key, value]) => {
           if (typeof this.spec[key] == "undefined") {
+            unrecognized.push({
+              type: "unrecognized",
+              key,
+              source: "object",
+              sourceName: input.source,
+              value,
+            });
             return props;
           } else {
             return {
@@ -93,10 +102,22 @@ export class Configliere<S extends Spec> {
             },
           };
         } else {
+          unrecognized.push(source);
           return props;
         }
       }, {}),
     );
+
+    let initial: ParseResult<S> = unrecognized.length > 0 ? {
+      ok: false,
+      issues: [],
+      sources,
+      unrecognized
+    } : {
+      ok: true,
+      config: {},
+      sources,
+    } as ParseResult<S>;
 
     return this.fields.reduce((result, field) => {
       let source = sources[field.name];
@@ -116,6 +137,7 @@ export class Configliere<S extends Spec> {
             ok: false,
             sources,
             issues,
+            unrecognized,
           };
         } else {
           return {
@@ -134,11 +156,7 @@ export class Configliere<S extends Spec> {
       } else {
         return result;
       }
-    }, {
-      ok: true,
-      config: {},
-      sources,
-    } as ParseResult<S>);
+    }, initial);
   };
 
   expect = (inputs: Inputs): Config<S> => {
@@ -241,7 +259,7 @@ function getCLISources<S extends Spec>(
   }
 
   let optionSources: Source<S, keyof S>[] = Object.keys(options).filter((k) =>
-    k !== "_"
+    k !== "_" && !parseOptions.alias[k]
   ).map(
     (optionKey) => {
       let value = options[optionKey];
@@ -256,8 +274,9 @@ function getCLISources<S extends Spec>(
       } else {
         return {
           type: "unrecognized",
+          key: optionKey,
           source: "option",
-          sourceName: optionKey,
+          sourceName: "cli",
           value,
         } as const;
       }
@@ -277,8 +296,9 @@ function getCLISources<S extends Spec>(
     } else {
       positionalSources.push({
         type: "unrecognized",
+        key: String(i),
         source: "argument",
-        sourceName: String(i),
+        sourceName: "cli",
         value,
       });
     }

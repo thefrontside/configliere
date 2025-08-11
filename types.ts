@@ -65,6 +65,7 @@ export type Source<S extends Spec, K extends keyof S> = {
   value: string | number | boolean | string[] | number[] | unknown[];
 } | {
   type: "unrecognized";
+  key: string;
   source: "object" | "option" | "argument";
   sourceName: string;
   value: unknown;
@@ -84,6 +85,7 @@ export type ParseResult<S extends Spec> = {
   ok: false;
   sources: Sources<S>;
   issues: Issue<S>[];
+  unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[]
 };
 
 export type EnvCase<S extends string> = Uppercase<ToSnake<S>>;
