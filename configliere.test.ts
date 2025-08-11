@@ -140,12 +140,26 @@ describe("configliere", () => {
 
       expect(config.test).toEqual(false);
     });
-    it.skip("can be have positional arguments", () => {});
+    it("can be have positional arguments", () => {
+      let result = new Configliere({
+        host: {
+          schema: type("string"),
+          cli: "positional",
+        },
+        port: {
+          schema: type("number"),
+          cli: "positional",
+        },
+      }).parse({ args: ["localhost", "3000"] });
+
+      let { config } = assertOk(result);
+      expect(config.host).toEqual("localhost");
+      expect(config.port).toEqual(3000);
+    });
+    it.skip("can be aliased", () => {});
     it.skip("points out unrecognized options", () => {});
     it.skip("points out unrecognized positional arguments", () => {});
-    it.skip("rejects bad string to number conversions", () => {});
     it.skip("can collection arrays of values", () => {});
-    it.skip("can be aliased", () => {});
     it.skip("only allows the last positional argument to be an array", () => {});
   });
 });
@@ -156,9 +170,10 @@ function assertOk<S extends Spec>(
   if (result.ok) {
     return { config: result.config, sources: result.sources };
   } else {
-    let { issues } = result;
+    let { issues, sources } = result;
+    console.log(sources);
     throw new TypeError(
-      `expected successful parse result, but was: ${
+      `expected successful parse result, but was: \n${
         issues.map((i) => `${i.field.name}: ${i.message}`).join("\n")
       }`,
     );

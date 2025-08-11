@@ -8,6 +8,9 @@ export type Spec = {
 
 export type FieldSpec<T> = {
   schema: Type<T>;
+  cli?: "positional" | {
+    alias: string;
+  };
 };
 
 export type Field<S extends Spec, K extends keyof S> = K extends string ? {
@@ -51,13 +54,18 @@ export type Source<S extends Spec, K extends keyof S> = {
   envKey: string;
   stringvalue: string;
 } | {
-  type: "args";
+  type: "option";
   key: K;
   optionKey: string;
   value: string | number | boolean | unknown | string[] | number[] | unknown[];
 } | {
+  type: "argument";
+  key: K;
+  index: number;
+  value: string | number | boolean | string[] | number[] | unknown[];
+}| {
   type: "unrecognized";
-  source: "object" | "args";
+  source: "object" | "option" | "argument";
   sourceName: string;
   value: unknown;
 };

@@ -79,12 +79,12 @@ export class Configliere<S extends Spec> {
       );
     }
 
-    let options = getArgsSources(args, this);
+    let options = getCLISources(args, this);
 
     sources = Object.create(
       sources,
       options.reduce((props, source) => {
-        if (source.type === "args") {
+        if (source.type === "option" || source.type === "argument") {
           return {
             ...props,
             [source.key]: {
@@ -166,7 +166,7 @@ function getValue<S extends Spec, K extends keyof S>(
   source: Source<S, K>,
   field: Field<S, K>,
 ): unknown {
-  if (source.type === "object" || source.type == "args") {
+  if (source.type === "object" || source.type === "option" || source.type === "argument") {
     return source.value;
   } else if (source.type === "env") {
     let { stringvalue } = source;
@@ -201,13 +201,22 @@ function getValue<S extends Spec, K extends keyof S>(
   }
 }
 
-function getArgsSources<S extends Spec>(
+function getCLISources<S extends Spec>(
   args: string[],
   configliere: Configliere<S>,
-): Extract<Source<S, keyof S>, { type: "args" | "unrecognized" }>[] {
-  let parseOptions = { boolean: [] as string[], collect: [] as string[], negatable: [] as string[] };
+): Extract<Source<S, keyof S>, { type: "option" | "argument" | "unrecognized" }>[] {
+  let parseOptions = {
+    boolean: [] as string[],
+    collect: [] as string[],
+    negatable: [] as string[],
+  };
+
+  let positionals: Field<S, keyof S>[] = [];
 
   for (let field of configliere.fields) {
+    if (typeof field.spec.cli === "string" && field.spec.cli === "positional") {
+      positionals.push(field);
+    }
     if (field.spec.schema.extends("boolean")) {
       parseOptions.boolean.push(field.optionName());
       parseOptions.negatable.push(field.optionName());
@@ -221,23 +230,48 @@ function getArgsSources<S extends Spec>(
     optionKey2Field[field.optionName()] = field;
   }
 
-  return Object.keys(options).filter((k) => k !== "_").map((optionKey) => {
-    let value = options[optionKey];
-    let field = optionKey2Field[optionKey];
+  let optionSources: Source<S, keyof S>[] = Object.keys(options).filter((k) => k !== "_").map(
+    (optionKey) => {
+      let value = options[optionKey];
+      let field = optionKey2Field[optionKey];
+      if (typeof field !== "undefined") {
+        return {
+          type: "option",
+          key: field.name,
+          optionKey,
+          value,
+        } as const;
+      } else {
+        return {
+          type: "unrecognized",
+          source: "option",
+          sourceName: optionKey,
+          value,
+        } as const;
+      }
+    },
+  );
+
+  let positionalSources: Source<S, keyof S>[] = [];
+  options._.forEach((value, i) => {
+    let field = positionals[i];
     if (typeof field !== "undefined") {
-      return {
-        type: "args",
-        key: field.name,
-        optionKey,
-        value,
-      };
+      positionalSources.push({
+	type: "argument",
+	key: field.name,
+	index: i,
+	value,
+      })
     } else {
-      return {
-        type: "unrecognized",
-        source: "args",
-        sourceName: optionKey,
-        value,
-      };
+      positionalSources.push({
+	type: "unrecognized",
+	source: "argument",
+	sourceName: String(i),
+	value,
+      })
     }
-  });
+  })
+  
+  
+  return optionSources.concat(positionalSources) as Extract<Source<S, keyof S>, { type: "args" | "unrecognized" }>[];
 }
