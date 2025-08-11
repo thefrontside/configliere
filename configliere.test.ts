@@ -118,11 +118,32 @@ describe("configliere", () => {
       let { config } = assertOk(result);
       expect(config.port).toEqual(80);
     });
+    it("handles boolean switches", () => {
+      let result = new Configliere({
+        test: {
+          schema: type("boolean"),
+        },
+      }).parse({ args: ["--test"] });
+
+      let { config } = assertOk(result);
+
+      expect(config.test).toEqual(true);
+    });
+    it("can negate boolean values", () => {
+      let result = new Configliere({
+        test: {
+          schema: type("boolean"),
+        },
+      }).parse({ args: ["--no-test"] });
+
+      let { config } = assertOk(result);
+
+      expect(config.test).toEqual(false);
+    });
     it.skip("can be have positional arguments", () => {});
     it.skip("points out unrecognized options", () => {});
     it.skip("points out unrecognized positional arguments", () => {});
     it.skip("rejects bad string to number conversions", () => {});
-    it.skip("handles boolean switches", () => {});
     it.skip("can collection arrays of values", () => {});
     it.skip("can be aliased", () => {});
     it.skip("only allows the last positional argument to be an array", () => {});

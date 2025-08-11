@@ -205,11 +205,12 @@ function getArgsSources<S extends Spec>(
   args: string[],
   configliere: Configliere<S>,
 ): Extract<Source<S, keyof S>, { type: "args" | "unrecognized" }>[] {
-  let parseOptions = { boolean: [] as string[], collect: [] as string[] };
+  let parseOptions = { boolean: [] as string[], collect: [] as string[], negatable: [] as string[] };
 
   for (let field of configliere.fields) {
     if (field.spec.schema.extends("boolean")) {
       parseOptions.boolean.push(field.optionName());
+      parseOptions.negatable.push(field.optionName());
     }
   }
 
