@@ -213,22 +213,31 @@ describe("configliere", () => {
     });
     it("points out unrecognized positional arguments", () => {
       let result = new Configliere({
-	host: {
-	  schema: type("string"),
-	  cli: "positional"
-	}
-      }).parse({ args: ["localhost", "3000"]});
+        host: {
+          schema: type("string"),
+          cli: "positional",
+        },
+      }).parse({ args: ["localhost", "3000"] });
       assert(!result.ok, `expected parse to fail`);
-      let { unrecognized: [source]} = result;
+      let { unrecognized: [source] } = result;
       expect(source).toEqual({
-	type: "unrecognized",
-	key: "1",
-	source: "argument",
-	sourceName: "cli",
-	value: 3000
+        type: "unrecognized",
+        key: "1",
+        source: "argument",
+        sourceName: "cli",
+        value: 3000,
       });
     });
-    it.skip("can collection arrays of values", () => {});
+    it("can collection arrays of values", () => {
+      let { config } = assertOk(new Configliere({
+        user: {
+          schema: type("string[]"),
+          collection: true,
+        },
+      }).parse({ args: ["--user", "cowboyd", "--user", "mz"] }));
+
+      expect(config.user).toEqual(["cowboyd", "mz"]);
+    });
     it.skip("only allows the last positional argument to be an array", () => {});
   });
 });
@@ -241,9 +250,11 @@ function assertOk<S extends Spec>(
   } else {
     let { issues, unrecognized } = result;
     let messages = [
-      ...issues.map(i => `${i.field.name}: ${i.message}`),
-      ...unrecognized.map(s => `unrecognized ${s.source} ${s.key}: ${s.value}`),
-    ]
+      ...issues.map((i) => `${i.field.name}: ${i.message}`),
+      ...unrecognized.map((s) =>
+        `unrecognized ${s.source} ${s.key}: ${s.value}`
+      ),
+    ];
     throw new TypeError(
       `expected successful parse result, but was: \n${messages.join("\n")}`,
     );

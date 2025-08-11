@@ -8,6 +8,7 @@ export type Spec = {
 
 export type FieldSpec<T> = {
   schema: Type<T>;
+  collection?: true,
   cli?: "positional" | {
     alias: string;
   };

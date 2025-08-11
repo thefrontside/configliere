@@ -242,7 +242,11 @@ function getCLISources<S extends Spec>(
     if (typeof field.spec.cli === "string" && field.spec.cli === "positional") {
       positionals.push(field);
       continue;
-    } else if (field.spec.cli?.alias) {
+    }
+    if (field.spec.collection) {
+      parseOptions.collect.push(field.optionName())
+    }
+    if (field.spec.cli?.alias) {
       parseOptions.alias[field.spec.cli.alias] = field.optionName();
     }
     if (field.spec.schema.extends("boolean")) {
