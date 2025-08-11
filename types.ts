@@ -63,7 +63,7 @@ export type Source<S extends Spec, K extends keyof S> = {
   key: K;
   index: number;
   value: string | number | boolean | string[] | number[] | unknown[];
-}| {
+} | {
   type: "unrecognized";
   source: "object" | "option" | "argument";
   sourceName: string;

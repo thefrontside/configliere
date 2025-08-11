@@ -156,7 +156,24 @@ describe("configliere", () => {
       expect(config.host).toEqual("localhost");
       expect(config.port).toEqual(3000);
     });
-    it.skip("can be aliased", () => {});
+    it("can be aliased", () => {
+      let { config } = assertOk(new Configliere({
+        host: {
+          schema: type("string"),
+          cli: {
+            alias: "h",
+          },
+        },
+        port: {
+          schema: type("number"),
+          cli: {
+            alias: "p",
+          },
+        },
+      }).parse({ args: ["-h", "localhost", "-p", "3000"] }));
+
+      expect(config).toEqual({ host: "localhost", port: 3000 });
+    });
     it.skip("points out unrecognized options", () => {});
     it.skip("points out unrecognized positional arguments", () => {});
     it.skip("can collection arrays of values", () => {});
@@ -170,8 +187,7 @@ function assertOk<S extends Spec>(
   if (result.ok) {
     return { config: result.config, sources: result.sources };
   } else {
-    let { issues, sources } = result;
-    console.log(sources);
+    let { issues } = result;
     throw new TypeError(
       `expected successful parse result, but was: \n${
         issues.map((i) => `${i.field.name}: ${i.message}`).join("\n")

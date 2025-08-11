@@ -1,4 +1,4 @@
-import { parseArgs } from "@std/cli/parse-args+patch";
+import { parseArgs, ParseOptions } from "@std/cli/parse-args+patch";
 import { toEnvCase, toKebabCase } from "./case.ts";
 import {
   Config,
@@ -166,7 +166,10 @@ function getValue<S extends Spec, K extends keyof S>(
   source: Source<S, K>,
   field: Field<S, K>,
 ): unknown {
-  if (source.type === "object" || source.type === "option" || source.type === "argument") {
+  if (
+    source.type === "object" || source.type === "option" ||
+    source.type === "argument"
+  ) {
     return source.value;
   } else if (source.type === "env") {
     let { stringvalue } = source;
@@ -204,18 +207,25 @@ function getValue<S extends Spec, K extends keyof S>(
 function getCLISources<S extends Spec>(
   args: string[],
   configliere: Configliere<S>,
-): Extract<Source<S, keyof S>, { type: "option" | "argument" | "unrecognized" }>[] {
+): Extract<
+  Source<S, keyof S>,
+  { type: "option" | "argument" | "unrecognized" }
+>[] {
   let parseOptions = {
+    alias: {} as Record<string, string>,
     boolean: [] as string[],
     collect: [] as string[],
     negatable: [] as string[],
-  };
+  } satisfies ParseOptions;
 
   let positionals: Field<S, keyof S>[] = [];
 
   for (let field of configliere.fields) {
     if (typeof field.spec.cli === "string" && field.spec.cli === "positional") {
       positionals.push(field);
+      continue;
+    } else if (field.spec.cli?.alias) {
+      parseOptions.alias[field.spec.cli.alias] = field.optionName();
     }
     if (field.spec.schema.extends("boolean")) {
       parseOptions.boolean.push(field.optionName());
@@ -230,7 +240,9 @@ function getCLISources<S extends Spec>(
     optionKey2Field[field.optionName()] = field;
   }
 
-  let optionSources: Source<S, keyof S>[] = Object.keys(options).filter((k) => k !== "_").map(
+  let optionSources: Source<S, keyof S>[] = Object.keys(options).filter((k) =>
+    k !== "_"
+  ).map(
     (optionKey) => {
       let value = options[optionKey];
       let field = optionKey2Field[optionKey];
@@ -257,21 +269,23 @@ function getCLISources<S extends Spec>(
     let field = positionals[i];
     if (typeof field !== "undefined") {
       positionalSources.push({
-	type: "argument",
-	key: field.name,
-	index: i,
-	value,
-      })
+        type: "argument",
+        key: field.name,
+        index: i,
+        value,
+      });
     } else {
       positionalSources.push({
-	type: "unrecognized",
-	source: "argument",
-	sourceName: String(i),
-	value,
-      })
+        type: "unrecognized",
+        source: "argument",
+        sourceName: String(i),
+        value,
+      });
     }
-  })
-  
-  
-  return optionSources.concat(positionalSources) as Extract<Source<S, keyof S>, { type: "args" | "unrecognized" }>[];
+  });
+
+  return optionSources.concat(positionalSources) as Extract<
+    Source<S, keyof S>,
+    { type: "args" | "unrecognized" }
+  >[];
 }
