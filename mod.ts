@@ -1,4 +1,4 @@
-import { parseArgs } from "@std/cli";
+import { parseArgs } from "@std/cli/parse-args+patch";
 import { toEnvCase, toKebabCase } from "./case.ts";
 import {
   Config,
@@ -176,7 +176,18 @@ function getValue<S extends Spec, K extends keyof S>(
     } else if (schema.extends("number")) {
       return Number(stringvalue);
     } else if (schema.extends("boolean")) {
-      return Boolean(stringvalue);
+      switch (stringvalue.toLowerCase().trim()) {
+        case "true":
+        case "yes":
+        case "1":
+          return true;
+        case "false":
+        case "no":
+        case "0":
+          return false;
+        default:
+          return stringvalue;
+      }
     } else {
       console.warn(
         "unknown conversion from ",

@@ -67,8 +67,9 @@ describe("configliere", () => {
       assert(result.ok, "expected successful parse");
       expect(result.config).toEqual({ host: "localhost", port: 8000 });
     });
+    it.skip("points out unrecognized keys", () => {});
   });
-  describe("env var", () => {
+  describe("env", () => {
     it("can set config from environment variables", () => {
       let result = parse({
         env: {
@@ -86,10 +87,21 @@ describe("configliere", () => {
       });
       assert(!result.ok, `expected error result`);
     });
-    it.skip("handles boolean switches", () => {});
+    it("handles boolean values", () => {
+      let result = new Configliere({
+        enabled: {
+          schema: type("boolean"),
+        },
+      }).parse({
+        env: {
+          ENABLED: "true",
+        },
+      });
+      expect(assertOk(result).config).toEqual({ enabled: true });
+    });
   });
 
-  describe("cli options", () => {
+  describe("cli", () => {
     it("handles string to number conversion", () => {
       let result = parse({
         args: ["--port", "80"],
