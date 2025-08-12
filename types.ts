@@ -1,5 +1,4 @@
 import { StandardSchemaV1 } from "@standard-schema/spec";
-import type { Type } from "arktype";
 import type { ToSnake } from "ts-case-convert";
 
 export type Spec = {
@@ -7,10 +6,11 @@ export type Spec = {
 };
 
 export type FieldSpec<T> = {
-  schema: Type<T>;
+  schema: StandardSchemaV1<T>;
   collection?: true,
   cli?: "positional" | {
-    alias: string;
+    switch?: true;
+    alias?: string;
   };
 };
 

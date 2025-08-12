@@ -435,7 +435,7 @@ const SPECIAL_CHAR_REGEXP = /\W/;
 
 const NON_WHITESPACE_REGEXP = /\S/;
 
-function isNumber(string: string): boolean {
+export function isNumber(string: string): boolean {
   return NON_WHITESPACE_REGEXP.test(string) && Number.isFinite(Number(string));
 }
 

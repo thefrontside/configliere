@@ -1,4 +1,4 @@
-import { parseArgs, ParseOptions } from "@std/cli/parse-args+patch";
+import { isNumber, parseArgs, ParseOptions } from "@std/cli/parse-args+patch";
 import { toEnvCase, toKebabCase } from "./case.ts";
 import {
   Config,
@@ -123,7 +123,7 @@ export class Configliere<S extends Spec> {
 
     return this.fields.reduce((result, field) => {
       let source = sources[field.name];
-      let value = getValue(source, field);
+      let value = getValue(source);
       let validation = field.spec.schema["~standard"].validate(value);
       if (validation instanceof Promise) {
         throw new Error(`async validation is not supported`);
@@ -184,7 +184,6 @@ export interface ConfigInputs {
 
 function getValue<S extends Spec, K extends keyof S>(
   source: Source<S, K>,
-  field: Field<S, K>,
 ): unknown {
   if (
     source.type === "object" || source.type === "option" ||
@@ -193,34 +192,32 @@ function getValue<S extends Spec, K extends keyof S>(
     return source.value;
   } else if (source.type === "env") {
     let { stringvalue } = source;
-    let { schema } = field.spec;
-    if (schema.extends("string")) {
-      return stringvalue;
-    } else if (schema.extends("number")) {
+    if (isNumber(stringvalue)) {
       return Number(stringvalue);
-    } else if (schema.extends("boolean")) {
-      switch (stringvalue.toLowerCase().trim()) {
-        case "true":
-        case "yes":
-        case "1":
-          return true;
-        case "false":
-        case "no":
-        case "0":
-          return false;
-        default:
-          return stringvalue;
-      }
     } else {
-      console.warn(
-        "unknown conversion from ",
-        stringvalue,
-        "to",
-        schema.description,
-      );
+      let result = parseBoolean(stringvalue);
+      if (typeof result === "boolean") {
+        return result;
+      }
     }
+    return stringvalue;
   } else {
     return undefined;
+  }
+}
+
+function parseBoolean(value: string): boolean | string {
+  switch (value.toLowerCase().trim()) {
+    case "true":
+    case "yes":
+    case "1":
+      return true;
+    case "false":
+    case "no":
+    case "0":
+      return false;
+    default:
+      return value;
   }
 }
 
@@ -251,7 +248,7 @@ function getCLISources<S extends Spec>(
     if (field.spec.cli?.alias) {
       parseOptions.alias[field.spec.cli.alias] = field.optionName();
     }
-    if (field.spec.schema.extends("boolean")) {
+    if (field.spec.cli?.switch) {
       parseOptions.boolean.push(field.optionName());
       parseOptions.negatable.push(field.optionName());
     }

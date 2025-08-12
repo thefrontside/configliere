@@ -151,6 +151,7 @@ describe("configliere", () => {
       let result = new Configliere({
         test: {
           schema: type("boolean"),
+	  cli: { switch: true }
         },
       }).parse({ args: ["--no-test"] });
 
