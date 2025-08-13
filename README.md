@@ -1,4 +1,4 @@
-# Configliere <img src="images/configliere.jpeg" height="40">
+# <img src="images/configliere.jpeg" height="50"> Configliere 
 
 Smart, FP configuration parser that validates all program inputs ahead of time,
 including config files, environment variables, and command line options using a
