@@ -7,7 +7,7 @@ export type Spec = {
 
 export type FieldSpec<T> = {
   schema: StandardSchemaV1<T>;
-  collection?: true,
+  collection?: true;
   cli?: "positional" | {
     switch?: true;
     alias?: string;
@@ -86,7 +86,7 @@ export type ParseResult<S extends Spec> = {
   ok: false;
   sources: Sources<S>;
   issues: Issue<S>[];
-  unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[]
+  unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[];
 };
 
 export type EnvCase<S extends string> = Uppercase<ToSnake<S>>;

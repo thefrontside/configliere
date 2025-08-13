@@ -151,7 +151,7 @@ describe("configliere", () => {
       let result = new Configliere({
         test: {
           schema: type("boolean"),
-	  cli: { switch: true }
+          cli: { switch: true },
         },
       }).parse({ args: ["--no-test"] });
 
@@ -248,7 +248,7 @@ describe("configliere", () => {
         },
       }).parse({ args: ["cowboyd", "mz"] }));
       expect(config.user).toEqual(["cowboyd", "mz"]);
-    });   
+    });
   });
 });
 
