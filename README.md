@@ -10,7 +10,7 @@ Conceptually, "config" is a palette of settings and switches that is accessed
 from various portions of our program to alter its behavior without altering its
 code. However the story around config is often made very messy by the fact that
 it is read at _different_ times during program execution and from many
-_different__ sources such as configuration files and environment variables.
+_different_ sources such as configuration files and environment variables.
 
 <img alt="before configliere" src="images/configliere-before.svg" height="500">
 
