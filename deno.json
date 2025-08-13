@@ -16,5 +16,9 @@
   },
   "lint": {
     "rules": { "exclude": ["prefer-const"] }
+  },
+  "tasks": {
+    "build:npm": "deno run -A tasks/build-npm.ts",
+    "build:jsr": "deno run -A tasks/build-jsr.ts"
   }
 }
