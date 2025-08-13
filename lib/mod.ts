@@ -1,0 +1,326 @@
+import {
+  isNumber,
+  parseArgs,
+  type ParseOptions,
+} from "@std/cli/parse-args+patch";
+import { toEnvCase, toKebabCase } from "./case.ts";
+import type {
+  Config,
+  Field,
+  Inputs,
+  ParseResult,
+  Source,
+  Sources,
+  Spec,
+} from "./types.ts";
+
+export class Configliere<S extends Spec> {
+  fields: Field<S, keyof S>[];
+  sources: Sources<S>;
+  constructor(public spec: S) {
+    this.fields = Object.keys(spec).reduce((fields, name) => {
+      return fields.concat({
+        name,
+        spec: this.spec[name],
+        envName: () => toEnvCase(name),
+        optionName: () => toKebabCase(name),
+      } as Field<S, keyof S>);
+    }, [] as Field<S, keyof S>[]);
+    this.sources = this.fields.reduce((sources, field) => ({
+      ...sources,
+      [field.name]: { type: "none", key: field.name },
+    }), {} as Sources<S>);
+  }
+
+  parse = (inputs: Inputs): ParseResult<S> => {
+    let unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[] =
+      [];
+    let { objects = [], env, args = [] } = inputs;
+    let sources = objects.reduce((sources, input) => {
+      return Object.create(
+        sources,
+        Object.entries(input.value).reduce((props, [key, value]) => {
+          if (typeof this.spec[key] == "undefined") {
+            unrecognized.push({
+              type: "unrecognized",
+              key,
+              source: "object",
+              sourceName: input.source,
+              value,
+            });
+            return props;
+          } else {
+            return {
+              ...props,
+              [key]: {
+                enumerable: true,
+                value: {
+                  type: "object",
+                  key,
+                  value,
+                  name: input.source,
+                },
+              },
+            };
+          }
+        }, {}),
+      ) as Sources<S>;
+    }, this.sources);
+
+    if (env) {
+      sources = Object.create(
+        sources,
+        this.fields.reduce((sources, field) => {
+          let stringvalue = env[field.envName()];
+          if (typeof stringvalue === "undefined") {
+            return sources;
+          } else {
+            return {
+              ...sources,
+              [field.name]: {
+                enumerable: true,
+                value: {
+                  type: "env",
+                  key: field.name,
+                  envKey: field.envName(),
+                  stringvalue,
+                },
+              },
+            };
+          }
+        }, {}),
+      );
+    }
+
+    let options = getCLISources(args, this);
+
+    sources = Object.create(
+      sources,
+      options.reduce((props, source) => {
+        if (source.type === "option" || source.type === "argument") {
+          return {
+            ...props,
+            [source.key]: {
+              enumerable: true,
+              value: source,
+            },
+          };
+        } else {
+          unrecognized.push(source);
+          return props;
+        }
+      }, {}),
+    );
+
+    let initial: ParseResult<S> = unrecognized.length > 0
+      ? {
+        ok: false,
+        issues: [],
+        sources,
+        unrecognized,
+      }
+      : {
+        ok: true,
+        config: {},
+        sources,
+      } as ParseResult<S>;
+
+    return this.fields.reduce((result, field) => {
+      let source = sources[field.name];
+      let value = getValue(source);
+      let validation = field.spec.schema["~standard"].validate(value);
+      if (validation instanceof Promise) {
+        throw new Error(`async validation is not supported`);
+      }
+      if (validation.issues) {
+        let issues = validation.issues.map((i) => ({
+          field,
+          message: i.message,
+          source,
+        }));
+        if (result.ok) {
+          return {
+            ok: false,
+            sources,
+            issues,
+            unrecognized,
+          };
+        } else {
+          return {
+            ...result,
+            issues: result.issues.concat(...issues),
+          };
+        }
+      } else if (result.ok) {
+        return {
+          ...result,
+          config: {
+            ...result.config,
+            [field.name]: validation.value,
+          },
+        };
+      } else {
+        return result;
+      }
+    }, initial);
+  };
+
+  expect = (inputs: Inputs): Config<S> => {
+    let result = this.parse(inputs);
+    if (result.ok) {
+      return result.config;
+    } else {
+      throw new TypeError(result.issues.map((i) => i.message).join("\n"));
+    }
+  };
+}
+
+interface ObjectInput {
+  source: string;
+  value: Record<string, unknown>;
+}
+
+export interface ConfigInputs {
+  objects?: ObjectInput[];
+  env?: Record<string, string>;
+  args?: string[];
+}
+
+function getValue<S extends Spec, K extends keyof S>(
+  source: Source<S, K>,
+): unknown {
+  if (
+    source.type === "object" || source.type === "option" ||
+    source.type === "argument"
+  ) {
+    return source.value;
+  } else if (source.type === "env") {
+    let { stringvalue } = source;
+    if (isNumber(stringvalue)) {
+      return Number(stringvalue);
+    } else {
+      let result = parseBoolean(stringvalue);
+      if (typeof result === "boolean") {
+        return result;
+      }
+    }
+    return stringvalue;
+  } else {
+    return undefined;
+  }
+}
+
+function parseBoolean(value: string): boolean | string {
+  switch (value.toLowerCase().trim()) {
+    case "true":
+    case "yes":
+    case "1":
+      return true;
+    case "false":
+    case "no":
+    case "0":
+      return false;
+    default:
+      return value;
+  }
+}
+
+function getCLISources<S extends Spec>(
+  args: string[],
+  configliere: Configliere<S>,
+): Extract<
+  Source<S, keyof S>,
+  { type: "option" | "argument" | "unrecognized" }
+>[] {
+  let parseOptions = {
+    alias: {} as Record<string, string>,
+    boolean: [] as string[],
+    collect: [] as string[],
+    negatable: [] as string[],
+  } satisfies ParseOptions;
+
+  let positionals: Field<S, keyof S>[] = [];
+
+  for (let field of configliere.fields) {
+    if (typeof field.spec.cli === "string" && field.spec.cli === "positional") {
+      positionals.push(field);
+      continue;
+    }
+    if (field.spec.collection) {
+      parseOptions.collect.push(field.optionName());
+    }
+    if (field.spec.cli?.alias) {
+      parseOptions.alias[field.spec.cli.alias] = field.optionName();
+    }
+    if (field.spec.cli?.switch) {
+      parseOptions.boolean.push(field.optionName());
+      parseOptions.negatable.push(field.optionName());
+    }
+  }
+
+  let options = parseArgs(args, parseOptions);
+
+  let optionKey2Field = {} as Record<string, Field<S, keyof S>>;
+  for (let field of configliere.fields) {
+    optionKey2Field[field.optionName()] = field;
+  }
+
+  let optionSources: Source<S, keyof S>[] = Object.keys(options).filter((k) =>
+    k !== "_" && !parseOptions.alias[k]
+  ).map(
+    (optionKey) => {
+      let value = options[optionKey];
+      let field = optionKey2Field[optionKey];
+      if (typeof field !== "undefined") {
+        return {
+          type: "option",
+          key: field.name,
+          optionKey,
+          value,
+        } as const;
+      } else {
+        return {
+          type: "unrecognized",
+          key: optionKey,
+          source: "option",
+          sourceName: "cli",
+          value,
+        } as const;
+      }
+    },
+  );
+
+  let positionalSources: Source<S, keyof S>[] = [];
+  let rest: (string | number)[] | undefined = undefined;
+  options._.forEach((value, i) => {
+    let field = positionals[i];
+
+    if (rest) {
+      rest.push(value);
+    } else if (typeof field !== "undefined") {
+      let sourceValue: (string | number) | (string | number)[] = value;
+      if (field.spec.collection) {
+        sourceValue = rest = [value];
+      }
+      positionalSources.push({
+        type: "argument",
+        key: field.name,
+        index: i,
+        value: sourceValue,
+      });
+    } else {
+      positionalSources.push({
+        type: "unrecognized",
+        key: String(i),
+        source: "argument",
+        sourceName: "cli",
+        value,
+      });
+    }
+  });
+
+  return optionSources.concat(positionalSources) as Extract<
+    Source<S, keyof S>,
+    { type: "args" | "unrecognized" }
+  >[];
+}

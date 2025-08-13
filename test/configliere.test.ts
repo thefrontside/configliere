@@ -1,9 +1,9 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { type } from "arktype";
-import { Configliere } from "./mod.ts";
+import type { Config, ParseResult, Sources, Spec } from "../mod.ts";
+import { Configliere } from "../mod.ts";
 import { assert } from "@std/assert";
-import { Config, ParseResult, Sources, Spec } from "./types.ts";
 
 describe("configliere", () => {
   let { parse } = new Configliere({
