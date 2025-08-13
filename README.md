@@ -41,7 +41,8 @@ Configliere solves all of these problems by re-imagining "config" not as a
 constellation of globally floating objects from which we can read in values at
 any point, but instead as a _single_, _pre-validated_, type-safe data structure
 that is passed as the input of our program's entry point. It tracks the _source_
-of each value that ends up in the final config, so how a
+of each value that ends up in the final config, so where a parameter is set is
+never a mystery.
 
 <img alt="after configliere" src="images/configliere-after.svg" height="500">
 
