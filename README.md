@@ -1,4 +1,4 @@
-## Configliere
+## Configliere <img src="images/configliere.jpeg" height="60">
 
 Smart, FP configuration parser that validates all program inputs ahead of time,
 including config files, environment variables, and command line options using a
@@ -10,9 +10,12 @@ Conceptually, "config" is a palette of settings and switches that is accessed
 from various portions of our program to alter its behavior without altering its
 code. However the story around config is often made very messy by the fact that
 it is read at _different_ times during program execution and from many
-_different** sources such as configuration files and environment variables. As a
-result, configuration is often fragile and difficult to understand. Some of the
-symptoms of a fragmented config are:
+_different__ sources such as configuration files and environment variables.
+
+![Before][images/configliere-before.svg]
+
+As a result, configuration is often fragile and difficult to understand. Some of
+the symptoms of a fragmented config are:
 
 - **The deferred crash** Happens when a program begins running, perhaps even for
   awhile, but then it reaches for a configuration value via an interface like
