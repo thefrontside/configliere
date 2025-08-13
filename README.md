@@ -1,10 +1,10 @@
-## Configliere <img src="images/configliere.jpeg" height="60">
+# Configliere <img src="images/configliere.jpeg" height="40">
 
 Smart, FP configuration parser that validates all program inputs ahead of time,
 including config files, environment variables, and command line options using a
 single schema.
 
-### Introduction
+## Introduction
 
 Conceptually, "config" is a palette of settings and switches that is accessed
 from various portions of our program to alter its behavior without altering its
@@ -46,7 +46,7 @@ of each value that ends up in the final config, so how a
 This has a profound impact on our program as a whole because it let's us treat
 the entire process as one function call that takes a single value as its input.
 
-### Summary
+## Summary
 
 Configiere uses [Standard Schema][standard-schema] to define the static type of
 each configuration parameter as well as to validate that type at runtime. In
@@ -132,7 +132,7 @@ HOST=localhost node server.js --port 80
 In all cases however, the values of `host` and `port` proceed through the exact
 same validation and error reporting process.
 
-### Configuration Sources
+## Configuration Sources
 
 ### CLI
 
