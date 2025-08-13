@@ -12,7 +12,7 @@ code. However the story around config is often made very messy by the fact that
 it is read at _different_ times during program execution and from many
 _different__ sources such as configuration files and environment variables.
 
-<img alt="before configliere" src="images/configliere-before.svg" height="200">
+<img alt="before configliere" src="images/configliere-before.svg" height="500">
 
 As a result, configuration is often fragile and difficult to understand. Some of
 the symptoms of a fragmented config are:
@@ -43,7 +43,7 @@ any point, but instead as a _single_, _pre-validated_, type-safe data structure
 that is passed as the input of our program's entry point. It tracks the _source_
 of each value that ends up in the final config, so how a
 
-<img alt="after configliere" src="images/configliere-after.svg" height="200">
+<img alt="after configliere" src="images/configliere-after.svg" height="500">
 
 This has a profound impact on our program as a whole because it let's us treat
 the entire process as one function call that takes a single value as its input.
