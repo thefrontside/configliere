@@ -12,7 +12,7 @@ code. However the story around config is often made very messy by the fact that
 it is read at _different_ times during program execution and from many
 _different__ sources such as configuration files and environment variables.
 
-![Before][images/configliere-before.svg]
+![Before](images/configliere-before.svg)
 
 As a result, configuration is often fragile and difficult to understand. Some of
 the symptoms of a fragmented config are:
