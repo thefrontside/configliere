@@ -1,4 +1,4 @@
-# <img src="images/configliere.jpeg" height="50"> Configliere 
+# <img alt="configliere logo" src="images/configliere.jpeg" height="50"> Configliere 
 
 Smart, FP configuration parser that validates all program inputs ahead of time,
 including config files, environment variables, and command line options using a
@@ -12,7 +12,7 @@ code. However the story around config is often made very messy by the fact that
 it is read at _different_ times during program execution and from many
 _different__ sources such as configuration files and environment variables.
 
-![Before](images/configliere-before.svg)
+<img alt="before configliere" src="images/configlierere-before.svg" height="200">
 
 As a result, configuration is often fragile and difficult to understand. Some of
 the symptoms of a fragmented config are:
@@ -42,6 +42,9 @@ constellation of globally floating objects from which we can read in values at
 any point, but instead as a _single_, _pre-validated_, type-safe data structure
 that is passed as the input of our program's entry point. It tracks the _source_
 of each value that ends up in the final config, so how a
+
+
+<img alt="after configliere" src="images/configlierere-after.svg" height="200">
 
 This has a profound impact on our program as a whole because it let's us treat
 the entire process as one function call that takes a single value as its input.
