@@ -2,7 +2,7 @@
   "name": "@frontside/configliere",
   "exports": "./mod.ts",
   "license": "MIT",
-  "publish": { "include": ["lib", "mod.ts", "README.md"] },
+  "publish": { "include": ["vendor", "lib", "mod.ts", "README.md"] },
   "imports": {
     "@standard-schema/spec": "jsr:@standard-schema/spec@^1.0.0",
     "@std/assert": "jsr:@std/assert@1",
