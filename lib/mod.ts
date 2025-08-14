@@ -2,7 +2,7 @@ import {
   isNumber,
   parseArgs,
   type ParseOptions,
-} from "@std/cli/parse-args+patch";
+} from "../vendor/parse_args.ts";
 import { toEnvCase, toKebabCase } from "./case.ts";
 import type {
   Config,

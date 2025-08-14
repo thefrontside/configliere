@@ -1,4 +1,4 @@
-import { build, emptyDir } from "jsr:@deno/dnt@0.41.3";
+import { build, emptyDir } from "jsr:@deno/dnt@0.42.3";
 
 const outDir = "./build/npm";
 
