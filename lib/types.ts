@@ -64,18 +64,37 @@ export type Source<S extends Spec, K extends keyof S> = {
   key: K;
   index: number;
   value: string | number | boolean | string[] | number[] | unknown[];
+};
+
+export type Unrecognized = {
+  sourceType: "option";
+  optionString: string;
+  optionValue:
+    | string
+    | number
+    | boolean
+    | unknown
+    | string[]
+    | number[]
+    | unknown[];
+  summary: string;
 } | {
-  type: "unrecognized";
-  key: string;
-  source: "object" | "option" | "argument";
+  sourceType: "argument";
+  value: string | number | boolean | unknown | string[] | number[] | unknown[];
+  index: number;
+  summary: string;
+} | {
+  sourceType: "object";
   sourceName: string;
-  value: unknown;
+  sourceKey: string;
+  sourceValue: unknown;
+  summary: string;
 };
 
 export type Issue<S extends Spec, K extends keyof S = keyof S> = {
   field: Field<S, K>;
-  message: string;
   source: Source<S, K>;
+  summary: string;
 };
 
 export type ParseResult<S extends Spec> = {
@@ -84,9 +103,10 @@ export type ParseResult<S extends Spec> = {
   config: Config<S>;
 } | {
   ok: false;
+  summary: string;
   sources: Sources<S>;
   issues: Issue<S>[];
-  unrecognized: Extract<Source<S, keyof S>, { type: "unrecognized" }>[];
+  unrecognized: Unrecognized[];
 };
 
 export type EnvCase<S extends string> = Uppercase<ToSnake<S>>;

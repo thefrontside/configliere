@@ -78,12 +78,11 @@ describe("configliere", () => {
       });
       assert(!result.ok, `expected parse with unrecognized keys to fail`);
       const { unrecognized: [source] } = result;
-      expect(source).toEqual({
-        type: "unrecognized",
-        key: "porp",
-        source: "object",
+      expect(source).toMatchObject({
+        sourceType: "object",
+        sourceKey: "porp",
+        sourceValue: 80,
         sourceName: "config.yaml",
-        value: 80,
       });
     });
   });
@@ -205,11 +204,9 @@ describe("configliere", () => {
       assert(!result.ok, `parse with unrecognized option should fail`);
       let [source] = result.unrecognized;
       expect(source).toMatchObject({
-        key: "plorp",
-        source: "option",
-        sourceName: "cli",
-        type: "unrecognized",
-        value: 3000,
+        sourceType: "option",
+        optionString: "--plorp",
+        optionValue: 3000,
       });
     });
     it("points out unrecognized positional arguments", () => {
@@ -221,11 +218,9 @@ describe("configliere", () => {
       }).parse({ args: ["localhost", "3000"] });
       assert(!result.ok, `expected parse to fail`);
       let { unrecognized: [source] } = result;
-      expect(source).toEqual({
-        type: "unrecognized",
-        key: "1",
-        source: "argument",
-        sourceName: "cli",
+      expect(source).toMatchObject({
+        sourceType: "argument",
+        index: 1,
         value: 3000,
       });
     });
@@ -260,10 +255,8 @@ function assertOk<S extends Spec>(
   } else {
     let { issues, unrecognized } = result;
     let messages = [
-      ...issues.map((i) => `${i.field.name}: ${i.message}`),
-      ...unrecognized.map((s) =>
-        `unrecognized ${s.source} ${s.key}: ${s.value}`
-      ),
+      ...issues.map((i) => `${i.field.name}: ${i.summary}`),
+      ...unrecognized.map((u) => u.summary),
     ];
     throw new TypeError(
       `expected successful parse result, but was: \n${messages.join("\n")}`,
