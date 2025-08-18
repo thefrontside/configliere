@@ -31,18 +31,46 @@ describe("help text", () => {
         /Usage: configtest \[target\]/,
       );
     });
-    // it("shows ellipsis after positional arguments", () => {
-    //   expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest <target>.../);
-    // });
-    // it("does shows options if there are options", () => {
-    //   expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest [OPTIONS] <target>/);
-    // });
-    // it("does not show commands if there are no commands", () => {
-    //   expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest [OPTIONS]/);
-    // });
-    // it("shows nothing but the program name if there are no options or arguments", () => {
-    //   expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest/);
-    // })
+    it("shows ellipsis after positional arguments", () => {
+      let { describeCLI } = new Configliere({
+        target: {
+          schema: type("string"),
+          collection: true,
+          cli: "positional",
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(
+        /Usage: configtest <target>.../,
+      );
+    });
+    it("does shows options if there are options", () => {
+      let { describeCLI } = new Configliere({
+        target: {
+          schema: type("string"),
+          cli: "positional",
+        },
+        port: {
+          schema: type("number"),
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(
+        /Usage: configtest \[OPTIONS\] <target>/,
+      );
+    });
+    it("does not show commands if there are no commands", () => {
+      let { describeCLI } = new Configliere({
+        port: {
+          schema: type("number"),
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(
+        /Usage: configtest \[OPTIONS\]/,
+      );
+    });
+    it("shows nothing but the program name if there are no options or arguments", () => {
+      let { describeCLI } = new Configliere({});
+      expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest/);
+    });
   });
 
   it.skip("does not show arguments if there are no arguments", () => {});

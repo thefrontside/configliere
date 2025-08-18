@@ -188,13 +188,19 @@ export class Configliere<S extends Spec> {
   describeCLI = (_inputs: ConfigInputs, progname: string): string => {
     let positionals = this.fields.filter((f) => f.spec.cli === "positional")
       .map((f) => {
+        let ellipsis = f.spec.collection ? "..." : "";
         let t: (val: string) => string = isOptional(f)
           ? (s) => `[${s}]`
           : (s) => `<${s}>`;
-        return t(f.optionName());
+        return t(f.optionName()) + ellipsis;
       });
 
-    return ["Usage:", progname, ...positionals].join(" ");
+    let options =
+      this.fields.filter((f) => f.spec.cli !== "positional").length > 0
+        ? ["[OPTIONS]"]
+        : [];
+
+    return ["Usage:", progname, ...options, ...positionals].join(" ");
   };
 }
 
