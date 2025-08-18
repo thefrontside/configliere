@@ -158,7 +158,10 @@ export class Configliere<S extends Spec> {
         issues,
         sources,
         unrecognized,
-        summary: summarizeResult(issues, unrecognized),
+        summary: unrecognized.map((u) => u.summary).concat(
+          issues.map((i) => i.summary),
+        )
+          .join("\n"),
       };
     } else {
       return {
@@ -312,12 +315,4 @@ function getCLISources<S extends Spec>(
     sources: optionSources.concat(positionalSources),
     unrecognized,
   };
-}
-
-function summarizeResult<S extends Spec>(
-  issues: Issue<S>[],
-  unrecognized: Unrecognized[],
-): string {
-  return unrecognized.map((u) => u.summary).concat(issues.map((i) => i.summary))
-    .join("\n");
 }
