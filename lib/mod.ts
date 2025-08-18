@@ -6,6 +6,7 @@ import {
 import { toEnvCase, toKebabCase } from "./case.ts";
 import {
   InvalidArgument,
+  InvalidDefault,
   InvalidEnv,
   InvalidObject,
   InvalidOption,
@@ -41,7 +42,9 @@ export class Configliere<S extends Spec> {
     }, [] as Field<S, keyof S>[]);
     this.sources = this.fields.reduce((sources, field) => ({
       ...sources,
-      [field.name]: { type: "none", key: field.name },
+      [field.name]: typeof field.spec.default === "undefined"
+        ? { type: "none", key: field.name }
+        : { type: "default", key: field.name, value: field.spec.default },
     }), {} as Sources<S>);
   }
 
@@ -134,6 +137,8 @@ export class Configliere<S extends Spec> {
             return new InvalidOption(field, source, i.message);
           } else if (source.type === "argument") {
             return new InvalidArgument(field, source, i.message);
+          } else if (source.type === "default") {
+            return new InvalidDefault(field, source, i.message);
           } else {
             // source.type === "object"
             return new InvalidObject(field, source, i.message);
@@ -193,7 +198,7 @@ function getValue<S extends Spec, K extends keyof S>(
 ): unknown {
   if (
     source.type === "object" || source.type === "option" ||
-    source.type === "argument"
+    source.type === "argument" || source.type === "default"
   ) {
     return source.value;
   } else if (source.type === "env") {

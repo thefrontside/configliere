@@ -63,6 +63,18 @@ export class InvalidObject<S extends Spec, K extends keyof S>
   }
 }
 
+export class InvalidDefault<S extends Spec, K extends keyof S> {
+  constructor(
+    public field: Field<S, K>,
+    public source: Extract<Source<S, K>, { type: "default" }>,
+    private message: string,
+  ) {}
+
+  get summary() {
+    return `Schema error: invalid default for '${this.field.name}: ${this.message}. This is most likely a bug in the configuration schema`;
+  }
+}
+
 export class UnrecognizedArgument {
   sourceType = "argument" as const;
   constructor(public value: unknown, public index: number) {}

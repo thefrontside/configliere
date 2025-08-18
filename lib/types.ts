@@ -7,6 +7,7 @@ export type Spec = {
 
 export type FieldSpec<T> = {
   schema: StandardSchemaV1<T>;
+  default?: T;
   collection?: true;
   cli?: "positional" | {
     switch?: true;
@@ -44,6 +45,10 @@ export type Sources<S extends Spec> = {
 export type Source<S extends Spec, K extends keyof S> = {
   type: "none";
   key: K;
+} | {
+  type: "default";
+  key: K;
+  value: Config<S>[K];
 } | {
   type: "object";
   key: K;

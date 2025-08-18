@@ -245,6 +245,24 @@ describe("configliere", () => {
       expect(config.user).toEqual(["cowboyd", "mz"]);
     });
   });
+
+  describe("default value", () => {
+    let { parse } = new Configliere({
+      port: {
+        schema: type("number"),
+        default: 3000,
+      },
+    });
+    it("can be specified for a field", () => {
+      expect(assertOk(parse({})).config).toEqual({ port: 3000 });
+    });
+
+    it("has the lowest priority when sourcing values", () => {
+      expect(assertOk(parse({ env: { PORT: "3300" } })).config).toEqual({
+        port: 3300,
+      });
+    });
+  });
 });
 
 function assertOk<S extends Spec>(
