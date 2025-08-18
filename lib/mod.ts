@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import {
   isNumber,
   parseArgs,
@@ -18,6 +19,7 @@ import {
 import type {
   Config,
   Field,
+  FieldOutput,
   Inputs,
   Issue,
   ObjectInput,
@@ -123,10 +125,7 @@ export class Configliere<S extends Spec> {
     let { issues, config } = this.fields.reduce((result, field) => {
       let source = sources[field.name];
       let value = getValue(source);
-      let validation = field.spec.schema["~standard"].validate(value);
-      if (validation instanceof Promise) {
-        throw new Error(`async validation is not supported`);
-      }
+      let validation = validate(field, value);
       if (validation.issues) {
         let issues = validation.issues.map((i) => {
           if (source.type === "none") {
@@ -184,6 +183,18 @@ export class Configliere<S extends Spec> {
     } else {
       throw new TypeError(result.summary);
     }
+  };
+
+  describeCLI = (_inputs: ConfigInputs, progname: string): string => {
+    let positionals = this.fields.filter((f) => f.spec.cli === "positional")
+      .map((f) => {
+        let t: (val: string) => string = isOptional(f)
+          ? (s) => `[${s}]`
+          : (s) => `<${s}>`;
+        return t(f.optionName());
+      });
+
+    return ["Usage:", progname, ...positionals].join(" ");
   };
 }
 
@@ -320,4 +331,22 @@ function getCLISources<S extends Spec>(
     sources: optionSources.concat(positionalSources),
     unrecognized,
   };
+}
+
+function isOptional<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+): boolean {
+  let validation = validate(field, undefined);
+  return !validation.issues;
+}
+
+function validate<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+  value: unknown,
+): StandardSchemaV1.Result<FieldOutput<S, K>> {
+  let validation = field.spec.schema["~standard"].validate(value);
+  if (validation instanceof Promise) {
+    throw new Error(`async validation is not supported`);
+  }
+  return validation;
 }

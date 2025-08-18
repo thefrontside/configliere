@@ -23,6 +23,9 @@ export type Field<S extends Spec, K extends keyof S> = K extends string ? {
   }
   : never;
 
+export type FieldOutput<S extends Spec, K extends keyof S> =
+  StandardSchemaV1.InferOutput<Field<S, K>["spec"]["schema"]>;
+
 export interface Inputs {
   objects?: ObjectInput[];
   env?: Record<string, string>;
