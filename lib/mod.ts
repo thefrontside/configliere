@@ -224,9 +224,7 @@ export class Configliere<S extends Spec> {
           let source = sources[field.name];
           let alias = cli.alias ? ["-" + cli.alias] : [];
           let optionNames = [...alias, `--${field.optionName()}`].join(", ");
-          let optionValue = cli.switch
-            ? []
-            : [getCLIOptionName(field)];
+          let optionValue = cli.switch ? [] : [getCLIOptionName(field)];
           let optionString = [optionNames, ...optionValue].join(" ");
 
           let sourceValue = getCLIHelpSourceValue(source, field);
