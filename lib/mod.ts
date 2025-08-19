@@ -207,6 +207,11 @@ export class Configliere<S extends Spec> {
           let p = getCLIArgName(field);
           let desc = field.spec.description ?? "";
           let source = sources[field.name];
+
+	  // don't show a source in the help if it is invalid
+	  if (validate(field, getValue(source)).issues) {
+	    source = { type: "none", key: field.name };
+	  }
           let sourceValue = getCLIHelpSourceValue(source, field);
           let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
           return sprintf(`   %-25s %s %s`, p, desc, sourceString) as string;
@@ -222,6 +227,11 @@ export class Configliere<S extends Spec> {
           assert(cli !== "positional", "PANIC: bad mapping of cli args");
           let desc = field.spec.description ?? "";
           let source = sources[field.name];
+
+	  // don't show a source in the help if it is invalid
+	  if (validate(field, getValue(source)).issues) {
+	    source = { type: "none", key: field.name };
+	  }
           let alias = cli.alias ? ["-" + cli.alias] : [];
           let optionNames = [...alias, `--${field.optionName()}`].join(", ");
           let optionValue = cli.switch ? [] : [getCLIOptionName(field)];

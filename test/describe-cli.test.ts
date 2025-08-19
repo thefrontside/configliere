@@ -214,6 +214,14 @@ describe("help text", () => {
       });
       expect(help).toMatch(/--port <PORT>\s+ \[default: 3000\]/);
     });
+    it("does not display the source of an option if it is invalid", () => {
+      let help = describeCLI({
+        port: {
+          schema: type("number"),
+        },
+      }, { args: ["--port", "fnjord"] });
+      expect(help).not.toMatch(/fnjord/);
+    });
   });
 });
 
