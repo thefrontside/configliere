@@ -164,10 +164,7 @@ export class Configliere<S extends Spec> {
         issues,
         sources,
         unrecognized,
-        summary: unrecognized.map((u) => u.summary).concat(
-          issues.map((i) => i.summary),
-        )
-          .join("\n"),
+        summary: getResultSummary(issues, unrecognized),
       };
     } else {
       return {
@@ -194,14 +191,7 @@ export class Configliere<S extends Spec> {
       f.spec.cli === "positional" ? [] : [f]
     );
 
-    let positionals = args
-      .map((f) => {
-        let ellipsis = f.spec.collection ? "..." : "";
-        let t: (val: string) => string = isOptional(f)
-          ? (s) => `[${s}]`
-          : (s) => `<${s}>`;
-        return t(f.optionName()) + ellipsis;
-      });
+    let positionals = args.map((field) => getCLIArgName(field));
 
     let withOpts =
       this.fields.filter((f) => f.spec.cli !== "positional").length > 0
@@ -210,16 +200,16 @@ export class Configliere<S extends Spec> {
 
     let Usage = [["Usage:", progname, ...withOpts, ...positionals].join(" ")];
 
-    let Arguments = positionals.length
+    let Arguments = args.length
       ? [[
         "Arguments:",
-        ...positionals.map((p, i) => {
-          let field = args[i];
-          let desc = args[i].spec.description ?? "";
+        ...args.map((field) => {
+          let p = getCLIArgName(field);
+          let desc = field.spec.description ?? "";
           let source = sources[field.name];
           let sourceValue = getCLIHelpSourceValue(source, field);
           let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
-          return sprintf(`    %-30s %s %s`, p, desc, sourceString) as string;
+          return sprintf(`   %-25s %s %s`, p, desc, sourceString) as string;
         }),
       ].join("\n")]
       : [] as string[];
@@ -234,18 +224,15 @@ export class Configliere<S extends Spec> {
           let source = sources[field.name];
           let alias = cli.alias ? ["-" + cli.alias] : [];
           let optionNames = [...alias, `--${field.optionName()}`].join(", ");
-          let t: (name: string) => string = isOptional(field)
-            ? (s) => `[${s}]`
-            : (s) => `<${s}>`;
           let optionValue = cli.switch
             ? []
-            : [t(toKebabCase(field.name).toUpperCase())];
+            : [getCLIOptionName(field)];
           let optionString = [optionNames, ...optionValue].join(" ");
 
           let sourceValue = getCLIHelpSourceValue(source, field);
           let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
 
-          return sprintf(`    %-30s %s %s`, optionString, desc, sourceString);
+          return sprintf(`   %-25s %s %s`, optionString, desc, sourceString);
         }),
       ].join("\n")]
       : [] as string[];
@@ -424,4 +411,91 @@ function getCLIHelpSourceValue<S extends Spec, K extends keyof S>(
   } else {
     return "";
   }
+}
+
+function getResultSummary<S extends Spec>(
+  issues: Issue<S, keyof S>[],
+  unrecognized: Unrecognized[],
+): string {
+  let missing = issues.flatMap((issue) => issue.missing ? [issue] : []);
+  let invalid = issues.flatMap((issue) => !issue.missing ? [issue] : []);
+
+  let section = {
+    missing: missing.length
+      ? [[
+        "missing:",
+        ...missing.map((issue) => {
+          let field = issue.field;
+          let cliUsage = field.spec.cli === "positional"
+            ? `[argument]: ${getCLIArgName(field)}`
+            : `[option]: ${getCLIOptionKeys(field)}`;
+          return [
+            `  - ${issue.field.spec.description ?? field.name}`,
+            `    use:`,
+            `      ${cliUsage}`,
+            `      [env]: ${field.envName()}`,
+          ].join("\n");
+        }),
+      ].join("\n")]
+      : [],
+    invalid: invalid.length
+      ? [[
+        "invalid:",
+        ...invalid.map((issue) => `  ${issue.summary}`),
+      ].join("\n")]
+      : [],
+    unrecognized: unrecognized.length
+      ? [[
+        "unrecognized:",
+        ...unrecognized.map((u) => {
+          if (u.sourceType === "option") {
+            let value = typeof u.optionValue === "boolean"
+              ? [u.optionString]
+              : [u.optionString, u.optionValue];
+            return `  [option]: ${value.join(" ")}`;
+          } else if (u.sourceType === "argument") {
+            return `  [argument]: ${u.index} ${u.value}`;
+          } else {
+            return `  [${u.sourceName}]: ${u.sourceKey}=${u.sourceValue}`;
+          }
+        }),
+      ].join("\n")]
+      : [],
+  };
+  return [...section.missing, ...section.invalid, ...section.unrecognized].join(
+    "\n\n",
+  );
+}
+
+function getCLIName<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+): (name: string) => string {
+  let ellipsis = field.spec.collection ? "..." : "";
+
+  return isOptional(field) ? (s) => `[${s}]` : (s) => `<${s}>` + ellipsis;
+}
+
+function getCLIArgName<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+): string {
+  return getCLIName(field)(field.optionName());
+}
+
+function getCLIOptionName<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+): string {
+  return getCLIName(field)(field.optionName().toUpperCase());
+}
+
+function getCLIOptionKeys<S extends Spec, K extends keyof S>(
+  field: Field<S, K>,
+): string {
+  let { cli } = field.spec;
+  let alias = typeof cli === "object" && cli.alias ? ["-" + cli.alias] : [];
+  let varName: string[] = typeof cli === "object" && cli.switch
+    ? []
+    : [getCLIOptionName(field)];
+  return [[...alias, `--${field.optionName()}`].join(", "), ...varName].join(
+    " ",
+  );
 }

@@ -101,6 +101,7 @@ export type Unrecognized = {
 };
 
 export type Issue<S extends Spec, K extends keyof S = keyof S> = {
+  missing?: true;
   field: Field<S, K>;
   source: Source<S, K>;
   summary: string;

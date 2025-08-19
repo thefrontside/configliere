@@ -1,6 +1,7 @@
 import type { Field, Issue, Source, Spec } from "./types.ts";
 
 export class Missing<S extends Spec, K extends keyof S> implements Issue<S> {
+  missing = true as const;
   constructor(public field: Field<S, K>, public source: Source<S, K>) {}
 
   get summary() {
