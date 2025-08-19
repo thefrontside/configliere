@@ -6,6 +6,7 @@ export type Spec = {
 };
 
 export type FieldSpec<T> = {
+  description?: string;
   schema: StandardSchemaV1<T>;
   default?: T;
   collection?: true;

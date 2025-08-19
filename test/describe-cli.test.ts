@@ -73,18 +73,79 @@ describe("help text", () => {
     });
   });
 
-  it.skip("does not show arguments if there are no arguments", () => {});
+  describe("argument description", () => {
+    it("shows a listing of all arguments", () => {
+      let { describeCLI } = new Configliere({
+        source: {
+          schema: type("string"),
+          cli: "positional",
+        },
+        target: {
+          schema: type("string"),
+          cli: "positional",
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(/Arguments:/);
+      expect(describeCLI({}, "configtest")).toMatch(/<source>/);
+      expect(describeCLI({}, "configtest")).toMatch(/<target>/);
+      expect(describeCLI({}, "configtest")).not.toMatch(/undefined/);
+    });
+    it("renders description of arguments if present", () => {
+      let { describeCLI } = new Configliere({
+        source: {
+          description: "file to copy",
+          schema: type("string"),
+          cli: "positional",
+        },
+        target: {
+          description: "destination of copied file",
+          schema: type("string"),
+          cli: "positional",
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(/<source>.* file to copy/);
+      expect(describeCLI({}, "configtest")).toMatch(
+        /<target>.* destination of/,
+      );
+    });
+    it("shows the default if there is one", () => {
+      let { describeCLI } = new Configliere({
+        port: {
+          schema: type("number"),
+          default: 3000,
+          cli: "positional",
+        },
+      });
+      expect(describeCLI({}, "configtest")).toMatch(/<port>.*\[default: 3000]/);
+    });
 
-  it.skip("shows the default if there is one", () => {
-  });
+    it("shows the current env source if there is one", () => {
+      let { describeCLI } = new Configliere({
+        port: {
+          schema: type("number"),
+          default: 3000,
+          cli: "positional",
+        },
+      });
+      let env = { PORT: "3300" };
+      expect(describeCLI({ env }, "configtest")).toMatch(
+        /<port>.*\[env: PORT=3300]/,
+      );
+    });
 
-  it.skip("shows the current env source if there is one", () => {
-  });
-
-  it.skip("shows the curent object source if there is none", () => {
-  });
-
-  it.skip("does not show current sources if they are invalid", () => {
+    it("shows the current object source if there is none", () => {
+      let { describeCLI } = new Configliere({
+        port: {
+          schema: type("number"),
+          default: 3000,
+          cli: "positional",
+        },
+      });
+      let objects = [{ source: "config.json", value: { port: 3500 } }];
+      expect(describeCLI({ objects }, "configtest")).toMatch(
+        /<port>.*\[config.json: port=3500]/,
+      );
+    });
   });
 });
 

@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { sprintf } from "sprintf-js";
 import {
   isNumber,
   parseArgs,
@@ -185,8 +186,10 @@ export class Configliere<S extends Spec> {
     }
   };
 
-  describeCLI = (_inputs: ConfigInputs, progname: string): string => {
-    let positionals = this.fields.filter((f) => f.spec.cli === "positional")
+  describeCLI = (inputs: ConfigInputs, progname: string): string => {
+    let { sources } = this.parse(inputs);
+    let args = this.fields.filter((f) => f.spec.cli === "positional");
+    let positionals = args
       .map((f) => {
         let ellipsis = f.spec.collection ? "..." : "";
         let t: (val: string) => string = isOptional(f)
@@ -200,7 +203,23 @@ export class Configliere<S extends Spec> {
         ? ["[OPTIONS]"]
         : [];
 
-    return ["Usage:", progname, ...options, ...positionals].join(" ");
+    let Usage = [["Usage:", progname, ...options, ...positionals].join(" ")];
+
+    let Arguments = positionals.length
+      ? [[
+        "Arguments:",
+        ...positionals.map((p, i) => {
+          let field = args[i];
+          let desc = args[i].spec.description ?? "";
+          let source = sources[field.name];
+          let sourceValue = getCLIHelpSourceValue(source, field);
+          let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
+          return sprintf(`     %-25s %s %s`, p, desc, sourceString) as string;
+        }),
+      ].join("\n")]
+      : [] as string[];
+
+    return [...Usage, ...Arguments].join("\n\n");
   };
 }
 
@@ -355,4 +374,23 @@ function validate<S extends Spec, K extends keyof S>(
     throw new Error(`async validation is not supported`);
   }
   return validation;
+}
+
+function getCLIHelpSourceValue<S extends Spec, K extends keyof S>(
+  source: Source<S, K>,
+  field: Field<S, K>,
+): string {
+  if (source.type === "default") {
+    return `default: ${source.value}`;
+  } else if (source.type === "object") {
+    return `${source.name}: ${field.name}=${source.value}`;
+  } else if (source.type === "env") {
+    return `env: ${field.envName()}=${source.stringvalue}`;
+  } else if (source.type === "option") {
+    return `--${source.optionKey} ${source.value}`;
+  } else if (source.type === "argument") {
+    return `argument ${source.index}: ${source.value}`;
+  } else {
+    return "";
+  }
 }
