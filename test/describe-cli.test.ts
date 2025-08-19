@@ -1,12 +1,12 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { type } from "arktype";
-import { Configliere } from "../mod.ts";
+import { type ConfigInputs, Configliere, type Spec } from "../mod.ts";
 
 describe("help text", () => {
   describe("usage", () => {
     it("shows usage of positional arguments after their names", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         source: {
           schema: type("string"),
           cli: "positional",
@@ -16,35 +16,35 @@ describe("help text", () => {
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(
-        /Usage: configtest <source> <target>/,
-      );
+
+      expect(help).toMatch(/Usage: configtest <source> <target>/);
     });
+
     it("shows brackets around optional positional arguments", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         target: {
           schema: type("string | undefined"),
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(
-        /Usage: configtest \[target\]/,
-      );
+
+      expect(help).toMatch(/Usage: configtest \[target\]/);
     });
+
     it("shows ellipsis after positional arguments", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         target: {
           schema: type("string"),
           collection: true,
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(
-        /Usage: configtest <target>.../,
-      );
+
+      expect(help).toMatch(/Usage: configtest <target>.../);
     });
+
     it("does shows options if there are options", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         target: {
           schema: type("string"),
           cli: "positional",
@@ -53,29 +53,30 @@ describe("help text", () => {
           schema: type("number"),
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(
-        /Usage: configtest \[OPTIONS\] <target>/,
-      );
+
+      expect(help).toMatch(/Usage: configtest \[OPTIONS\] <target>/);
     });
+
     it("does not show commands if there are no commands", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         port: {
           schema: type("number"),
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(
-        /Usage: configtest \[OPTIONS\]/,
-      );
+
+      expect(help).toMatch(/Usage: configtest \[OPTIONS\]/);
     });
+
     it("shows nothing but the program name if there are no options or arguments", () => {
-      let { describeCLI } = new Configliere({});
-      expect(describeCLI({}, "configtest")).toMatch(/Usage: configtest/);
+      let help = describeCLI({});
+
+      expect(help).toMatch(/Usage: configtest/);
     });
   });
 
   describe("argument description", () => {
     it("shows a listing of all arguments", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         source: {
           schema: type("string"),
           cli: "positional",
@@ -85,13 +86,15 @@ describe("help text", () => {
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(/Arguments:/);
-      expect(describeCLI({}, "configtest")).toMatch(/<source>/);
-      expect(describeCLI({}, "configtest")).toMatch(/<target>/);
-      expect(describeCLI({}, "configtest")).not.toMatch(/undefined/);
+
+      expect(help).toMatch(/Arguments:/);
+      expect(help).toMatch(/<source>/);
+      expect(help).toMatch(/<target>/);
+      expect(help).not.toMatch(/undefined/);
     });
+
     it("renders description of arguments if present", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         source: {
           description: "file to copy",
           schema: type("string"),
@@ -103,51 +106,123 @@ describe("help text", () => {
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(/<source>.* file to copy/);
-      expect(describeCLI({}, "configtest")).toMatch(
-        /<target>.* destination of/,
-      );
+
+      expect(help).toMatch(/<source>.* file to copy/);
+      expect(help).toMatch(/<target>.* destination of/);
     });
+
     it("shows the default if there is one", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         port: {
           schema: type("number"),
           default: 3000,
           cli: "positional",
         },
       });
-      expect(describeCLI({}, "configtest")).toMatch(/<port>.*\[default: 3000]/);
+
+      expect(help).toMatch(/<port>.*\[default: 3000]/);
     });
 
     it("shows the current env source if there is one", () => {
-      let { describeCLI } = new Configliere({
+      let help = describeCLI({
         port: {
           schema: type("number"),
           default: 3000,
           cli: "positional",
         },
-      });
-      let env = { PORT: "3300" };
-      expect(describeCLI({ env }, "configtest")).toMatch(
-        /<port>.*\[env: PORT=3300]/,
-      );
+      }, { env: { PORT: "3300" } });
+
+      expect(help).toMatch(/<port>.*\[env: PORT=3300]/);
     });
 
-    it("shows the current object source if there is none", () => {
-      let { describeCLI } = new Configliere({
+    it("shows the current object source if there is one", () => {
+      let help = describeCLI({
         port: {
           schema: type("number"),
           default: 3000,
           cli: "positional",
         },
+      }, { objects: [{ source: "config.json", value: { port: 3500 } }] });
+
+      expect(help).toMatch(/<port>.*\[config.json: port=3500]/);
+    });
+  });
+
+  describe("options section", () => {
+    it("is show when there are options", () => {
+      let help = describeCLI({
+        port: { schema: type("number") },
       });
-      let objects = [{ source: "config.json", value: { port: 3500 } }];
-      expect(describeCLI({ objects }, "configtest")).toMatch(
-        /<port>.*\[config.json: port=3500]/,
-      );
+      expect(help).toMatch(/Options:/);
+    });
+    it("shows option and aliases for the field", () => {
+      let help = describeCLI({
+        port: {
+          schema: type("number"),
+          cli: {
+            alias: "p",
+          },
+        },
+      });
+      expect(help).toMatch(/-p, --port <PORT>/);
+    });
+    it("shows as a switch if the field is boolean", () => {
+      let help = describeCLI({
+        awesome: {
+          schema: type("number"),
+          cli: {
+            alias: "a",
+            switch: true,
+          },
+        },
+      });
+      expect(help).toMatch(/--awesome/);
+      expect(help).not.toMatch(/<AWESOME>/);
+    });
+    it("indicates optional fields", () => {
+      let help = describeCLI({
+        port: {
+          schema: type("number | undefined"),
+        },
+      });
+      expect(help).toMatch(/--port \[PORT\]/);
+    });
+    it("shows an ellipsis on multi-value fields", () => {
+      let help = describeCLI({
+        user: {
+          schema: type("string[]"),
+          collection: true,
+        },
+      });
+      expect(help).toMatch(/--user <USER>... /);
+    });
+    it("displays the description of an option", () => {
+      let help = describeCLI({
+        port: {
+          description: "port on which to run server",
+          schema: type("number"),
+        },
+      });
+      expect(help).toMatch(/--port <PORT>\s+ port on which to run server/);
+    });
+    it("displays the source of an option", () => {
+      let help = describeCLI({
+        port: {
+          schema: type("number"),
+          default: 3000,
+        },
+      });
+      expect(help).toMatch(/--port <PORT>\s+ \[default: 3000\]/);
     });
   });
 });
+
+function describeCLI<S extends Spec>(
+  spec: S,
+  inputs: ConfigInputs = {},
+): string {
+  return new Configliere(spec).describeCLI(inputs, "configtest");
+}
 
 /*
   Help Text Format Tests

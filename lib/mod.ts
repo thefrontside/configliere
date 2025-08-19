@@ -30,6 +30,7 @@ import type {
   Spec,
   Unrecognized,
 } from "./types.ts";
+import { assert } from "@std/assert";
 
 export class Configliere<S extends Spec> {
   fields: Field<S, keyof S>[];
@@ -189,6 +190,10 @@ export class Configliere<S extends Spec> {
   describeCLI = (inputs: ConfigInputs, progname: string): string => {
     let { sources } = this.parse(inputs);
     let args = this.fields.filter((f) => f.spec.cli === "positional");
+    let options = this.fields.flatMap((f) =>
+      f.spec.cli === "positional" ? [] : [f]
+    );
+
     let positionals = args
       .map((f) => {
         let ellipsis = f.spec.collection ? "..." : "";
@@ -198,12 +203,12 @@ export class Configliere<S extends Spec> {
         return t(f.optionName()) + ellipsis;
       });
 
-    let options =
+    let withOpts =
       this.fields.filter((f) => f.spec.cli !== "positional").length > 0
         ? ["[OPTIONS]"]
         : [];
 
-    let Usage = [["Usage:", progname, ...options, ...positionals].join(" ")];
+    let Usage = [["Usage:", progname, ...withOpts, ...positionals].join(" ")];
 
     let Arguments = positionals.length
       ? [[
@@ -214,12 +219,38 @@ export class Configliere<S extends Spec> {
           let source = sources[field.name];
           let sourceValue = getCLIHelpSourceValue(source, field);
           let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
-          return sprintf(`     %-25s %s %s`, p, desc, sourceString) as string;
+          return sprintf(`    %-30s %s %s`, p, desc, sourceString) as string;
         }),
       ].join("\n")]
       : [] as string[];
 
-    return [...Usage, ...Arguments].join("\n\n");
+    let Options = options.length
+      ? [[
+        "Options:",
+        ...options.map((field) => {
+          let cli = field.spec.cli ?? {};
+          assert(cli !== "positional", "PANIC: bad mapping of cli args");
+          let desc = field.spec.description ?? "";
+          let source = sources[field.name];
+          let alias = cli.alias ? ["-" + cli.alias] : [];
+          let optionNames = [...alias, `--${field.optionName()}`].join(", ");
+          let t: (name: string) => string = isOptional(field)
+            ? (s) => `[${s}]`
+            : (s) => `<${s}>`;
+          let optionValue = cli.switch
+            ? []
+            : [t(toKebabCase(field.name).toUpperCase())];
+          let optionString = [optionNames, ...optionValue].join(" ");
+
+          let sourceValue = getCLIHelpSourceValue(source, field);
+          let sourceString = source.type !== "none" ? `[${sourceValue}]` : "";
+
+          return sprintf(`    %-30s %s %s`, optionString, desc, sourceString);
+        }),
+      ].join("\n")]
+      : [] as string[];
+
+    return [...Usage, ...Arguments, ...Options].join("\n\n");
   };
 }
 
