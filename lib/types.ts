@@ -1,125 +1,89 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { ToSnake } from "ts-case-convert";
 
-export type Spec = {
-  [key: string]: FieldSpec<unknown>;
-};
+export interface Step<T, TData> {
+  value: T;
+  data: TData;
+}
 
-export type FieldSpec<T> = {
+export type AnyStep = Step<unknown, unknown>;
+
+export interface Done<V = unknown, D = unknown> {
+  ok: true;
+  value: V;
+  data: D;
+  remainder: Input;
+}
+
+export interface Fail {
+  ok: false;
+  error: Error;
+  remainder: Input;
+}
+
+export interface Next<V, Rest extends [unknown, ...unknown[]]>
+  extends Parser<ToSteps<Rest>> {
+  ok: true;
+  value: V;
+  data: unknown;
+  remainder: Input;
+}
+
+export type ToSteps<Values extends [unknown, ...unknown[]]> = {
+  [K in keyof Values]: Step<Values[K], unknown>;
+} extends infer U extends [AnyStep, ...AnyStep[]] ? U : never;
+
+export type Increment<Steps extends AnyStep[] = AnyStep[]> = Steps extends
+  [infer S extends AnyStep] ? Done<S["value"], S["data"]> | Fail
+  : Steps extends
+    [infer S extends AnyStep, ...infer Rest extends [AnyStep, ...AnyStep[]]] ?
+      | Next<
+        S["value"],
+        {
+          [K in keyof Rest]: Rest[K] extends AnyStep ? Rest[K]["value"] : never;
+        } extends infer U extends [unknown, ...unknown[]] ? U : never
+      >
+      | Fail
+  : Done | Fail;
+
+export interface Parser<Steps extends [AnyStep, ...AnyStep[]] = [AnyStep]> {
+  path: string[];
   description?: string;
-  schema: StandardSchemaV1<T>;
-  default?: T;
-  collection?: true;
-  cli?: "positional" | {
-    switch?: true;
-    alias?: string;
-  };
-};
+  aliases?: string[];
+  parse(input: Input): Increment<Steps>;
+}
 
-export type Field<S extends Spec, K extends keyof S> = K extends string ? {
-    name: K;
-    spec: S[K];
-    envName(): EnvCase<K>;
-    optionName(): KebabCase<K>;
-  }
-  : never;
-
-export type FieldOutput<S extends Spec, K extends keyof S> =
-  StandardSchemaV1.InferOutput<Field<S, K>["spec"]["schema"]>;
-
-export interface Inputs {
-  objects?: ObjectInput[];
-  env?: Record<string, string>;
+export interface Input {
+  values?: {
+    name: string;
+    value: unknown;
+  }[];
+  envs?: {
+    name: string;
+    value: Record<string, string>;
+  }[];
   args?: string[];
 }
 
-export interface ObjectInput {
-  value: Record<string, unknown>;
-  source: string;
+export interface FieldData<T> {
+  source: Source<T>;
+  sources: Source<T>[];
 }
 
-export type Config<S extends Spec> = {
-  [K in keyof S]: StandardSchemaV1.InferOutput<S[K]["schema"]>;
-};
+export interface Field<T> extends Parser<[Step<T, FieldData<T>>]> {
+  mods: Mods;
+  schema: StandardSchemaV1<T>;
+  required: boolean;
+}
 
-export type Sources<S extends Spec> = {
-  [K in keyof S]: Source<S, K>;
-};
-
-export type Source<S extends Spec, K extends keyof S> = {
-  type: "none";
-  key: K;
-} | {
-  type: "default";
-  key: K;
-  value: Config<S>[K];
-} | {
-  type: "object";
-  key: K;
-  value: unknown;
-  name: string;
-} | {
-  type: "env";
-  key: K;
-  envKey: string;
-  stringvalue: string;
-} | {
-  type: "option";
-  key: K;
-  optionKey: string;
-  value: string | number | boolean | unknown | string[] | number[] | unknown[];
-} | {
-  type: "argument";
-  key: K;
-  index: number;
-  value: string | number | boolean | string[] | number[] | unknown[];
-};
-
-export type Unrecognized = {
-  sourceType: "option";
-  optionString: string;
-  optionValue:
-    | string
-    | number
-    | boolean
-    | unknown
-    | string[]
-    | number[]
-    | unknown[];
-  summary: string;
-} | {
-  sourceType: "argument";
-  value: string | number | boolean | unknown | string[] | number[] | unknown[];
-  index: number;
-  summary: string;
-} | {
-  sourceType: "object";
+export type Source<T> = {
+  issues?: readonly StandardSchemaV1.Issue[];
+  value: T;
+  sourceType: string;
   sourceName: string;
-  sourceKey: string;
-  sourceValue: unknown;
-  summary: string;
 };
 
-export type Issue<S extends Spec, K extends keyof S = keyof S> = {
-  missing?: true;
-  field: Field<S, K>;
-  source: Source<S, K>;
-  summary: string;
-};
-
-export type ParseResult<S extends Spec> = {
-  ok: true;
-  sources: Sources<S>;
-  config: Config<S>;
-} | {
-  ok: false;
-  summary: string;
-  sources: Sources<S>;
-  issues: Issue<S>[];
-  unrecognized: Unrecognized[];
-};
-
-export type EnvCase<S extends string> = Uppercase<ToSnake<S>>;
-
-export type KebabCase<S extends string> = ToSnake<S> extends
-  `${infer Head}_${infer Tail}` ? `${Head}-${KebabCase<Tail>}` : S;
+export interface Mods {
+  default?: unknown;
+  argument: boolean;
+  array: boolean;
+}
