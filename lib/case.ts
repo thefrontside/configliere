@@ -1,5 +1,9 @@
-import type { EnvCase, KebabCase } from "./types.ts";
-import { toSnake } from "ts-case-convert";
+import { type ToSnake, toSnake } from "ts-case-convert";
+
+export type EnvCase<S extends string> = Uppercase<ToSnake<S>>;
+
+export type KebabCase<S extends string> = ToSnake<S> extends
+  `${infer Head}_${infer Tail}` ? `${Head}-${KebabCase<Tail>}` : S;
 
 export function toKebabCase<S extends string>(str: S): KebabCase<S> {
   return toSnake(str).replace("_", "-") as KebabCase<S>;
