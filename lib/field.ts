@@ -89,9 +89,9 @@ export function field<T>(
         value: undefined as T,
         issues,
       };
+      sources.push(source);
 
       if (!issues) {
-        sources.push(source);
         return {
           ok: true as const,
           value: source.value,

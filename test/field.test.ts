@@ -97,4 +97,11 @@ describe("field", () => {
 
     it.skip("supports custom parsers", () => {});
   });
+
+  it("includes validation issues in the error when no input is provided", () => {
+    let result = parseSync(field(type("number")), {});
+    assert(!result.ok);
+    assert(result.error instanceof ValidationError);
+    expect(result.error.message).toMatch(/must be a number/);
+  });
 });
