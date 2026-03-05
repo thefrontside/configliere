@@ -6,7 +6,7 @@ export type KebabCase<S extends string> = ToSnake<S> extends
   `${infer Head}_${infer Tail}` ? `${Head}-${KebabCase<Tail>}` : S;
 
 export function toKebabCase<S extends string>(str: S): KebabCase<S> {
-  return toSnake(str).replace("_", "-") as KebabCase<S>;
+  return toSnake(str).replaceAll("_", "-") as KebabCase<S>;
 }
 
 export function toEnvCase<S extends string>(str: S): EnvCase<S> {
