@@ -240,6 +240,16 @@ describe("object", () => {
 
       expect(result.user).toEqual(["cowboyd", "mz"]);
     });
+    it("kebab-cases multi-word camelCase options", () => {
+      let result = parseOk(
+        object({
+          inspectWatchScopes: field(type("boolean")),
+        }),
+        { args: ["--inspect-watch-scopes"] },
+      );
+
+      expect(result.inspectWatchScopes).toEqual(true);
+    });
     it("can collect arrays of argument values", () => {
       let result = parseOk(
         object({
