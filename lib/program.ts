@@ -1,7 +1,7 @@
 import type { AnyStep, Input, Parser } from "./types.ts";
 import { object } from "./object.ts";
 import { format, inspect } from "./help.ts";
-import { assert } from "@std/assert";
+import assert from "node:assert";
 
 export interface Program<P extends Parser<[AnyStep, ...AnyStep[]]>> {
   name: string;

@@ -46,6 +46,13 @@ Strongly prefer one-word variable and function names (e.g. `dir` not `tmpDir`,
   (`deno run`) without errors
 - **Build**: `deno task build:npm` (dnt) and `deno task build:jsr`
 
+### Dependencies
+
+When adding dependencies to the import map in `deno.json`, strongly prefer
+`npm:` specifiers over `jsr:` specifiers whenever a package is available on npm.
+Some packages (e.g. `@std/*`, `@deno/*`) are only available on JSR, and that is
+fine.
+
 ### Git
 
 - Use gitmoji for commit messages

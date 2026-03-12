@@ -2,9 +2,9 @@ import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { type } from "arktype";
 import { field } from "../lib/field.ts";
-import { assert } from "@std/assert/assert";
+import assert from "node:assert";
 import { ValidationError } from "../lib/validate.ts";
-import { parseSync } from "../lib/parse.ts";
+import { parseSync } from "./test-helpers.ts";
 
 describe("field", () => {
   describe("from js", () => {
