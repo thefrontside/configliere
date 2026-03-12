@@ -3,11 +3,10 @@ import { expect } from "@std/expect";
 import { type } from "arktype";
 import { object } from "../lib/object.ts";
 import { cli, field } from "../lib/field.ts";
-import { assert } from "@std/assert";
+import assert from "node:assert";
 import { ValidationError } from "../lib/validate.ts";
 import { ObjectValidationError } from "../lib/object.ts";
-import { parseSync } from "../lib/parse.ts";
-import { parseNotOk, parseOk } from "./test-helpers.ts";
+import { parseNotOk, parseOk, parseSync } from "./test-helpers.ts";
 
 describe("object", () => {
   let configuration = object({

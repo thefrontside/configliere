@@ -1,6 +1,5 @@
-import { assert } from "@std/assert/assert";
-import type { Input, Parser, Step } from "../lib/types.ts";
-import { parseSync } from "../lib/parse.ts";
+import assert from "node:assert";
+import type { Done, Fail, Input, Parser, Step } from "../lib/types.ts";
 
 export function parseOk<V>(
   parser: Parser<[Step<V, unknown>]>,
@@ -18,4 +17,16 @@ export function parseNotOk(
   let result = parseSync(parser, input);
   assert(!result.ok, "expected parse to fail, but succeeded");
   return result.error;
+}
+
+export function parseSync<V, D>(
+  parser: Parser<[Step<V, D>]>,
+  input: Input = {},
+): Done<V, D> | Fail {
+  let result = parser.parse(input);
+  assert(
+    !("parse" in result && typeof result.parse === "function"),
+    "parser did not complete in a single step",
+  );
+  return result;
 }

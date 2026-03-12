@@ -4,7 +4,7 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { type Attrs, object } from "../lib/object.ts";
 import type { Input } from "../lib/types.ts";
-import { parseSync } from "../lib/parse.ts";
+import { parseSync } from "./test-helpers.ts";
 import { format, inspect } from "../lib/help.ts";
 
 function exam<T extends object>(attrs: Attrs<T>, input?: Input): string {
