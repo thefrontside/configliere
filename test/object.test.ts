@@ -1,6 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { type } from "arktype";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { object } from "../lib/object.ts";
 import { cli, field } from "../lib/field.ts";
 import assert from "node:assert";
@@ -261,6 +262,29 @@ describe("object", () => {
   });
 
   describe("default value", () => {
+    it("applies schema-level defaults when no input is provided", () => {
+      let boolWithDefault: StandardSchemaV1<boolean> = {
+        "~standard": {
+          version: 1,
+          vendor: "test",
+          validate(value) {
+            if (value === undefined) return { value: false };
+            if (value === true || value === false) return { value };
+            return { issues: [{ message: "expected boolean" }] };
+          },
+        },
+      };
+
+      let result = parseOk(
+        object({
+          port: field(type("number"), field.default(3000)),
+          debug: field(boolWithDefault),
+        }),
+        {},
+      );
+      expect(result.port).toEqual(3000);
+      expect(result.debug).toEqual(false);
+    });
   });
 
   describe("nested", () => {

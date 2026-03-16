@@ -26,12 +26,12 @@ export function field<T>(
 
       // collect object sources
       for (let value of input.values ?? []) {
-        let { issues } = validate(schema, value.value);
+        let result = validate(schema, value.value);
         sources.push({
           sourceName: value.name,
           sourceType: "object",
-          value: value.value as T,
-          issues,
+          value: (result.issues ? value.value : result.value) as T,
+          issues: result.issues,
         });
       }
 
@@ -41,12 +41,12 @@ export function field<T>(
         let strval = env.value[key];
         if (strval === undefined) continue;
         let value = parseEnvValue(field, strval);
-        let { issues } = validate(schema, value);
+        let result = validate(schema, value);
         sources.push({
           sourceName: env.name,
           sourceType: "env",
-          value: value as T,
-          issues,
+          value: (result.issues ? value : result.value) as T,
+          issues: result.issues,
         });
       }
 
@@ -63,15 +63,15 @@ export function field<T>(
 
       // try default
       if (mods.default !== undefined) {
-        let { issues } = validate(schema, mods.default);
+        let result = validate(schema, mods.default);
         let source: Source<T> = {
           sourceName: "default",
           sourceType: "default",
-          value: mods.default as T,
-          issues,
+          value: (result.issues ? mods.default : result.value) as T,
+          issues: result.issues,
         };
         sources.push(source);
-        if (!issues) {
+        if (!result.issues) {
           return {
             ok: true as const,
             value: source.value,
@@ -81,17 +81,17 @@ export function field<T>(
         }
       }
 
-      // try undefined (optional fields)
-      let { issues } = validate(schema, undefined);
+      // try undefined (optional fields or schema-level defaults)
+      let result = validate(schema, undefined);
       let source: Source<T> = {
         sourceName: "none",
         sourceType: "none",
-        value: undefined as T,
-        issues,
+        value: (result.issues ? undefined : result.value) as T,
+        issues: result.issues,
       };
       sources.push(source);
 
-      if (!issues) {
+      if (!result.issues) {
         return {
           ok: true as const,
           value: source.value,
