@@ -55,34 +55,39 @@ let app = program({
 });
 
 console.log("=== -h ===\n");
-let r1 = app.createParser({ args: ["-h"] });
-assert(r1.type === "help");
-console.log(r1.print());
+let r1 = app.parse({ args: ["-h"] });
+assert(r1.ok);
+assert(r1.value.type === "help");
+console.log(r1.value.text);
 
 console.log("\n=== -v ===\n");
-let r2 = app.createParser({ args: ["-v"] });
-assert(r2.type === "version");
-console.log(r2.print());
+let r2 = app.parse({ args: ["-v"] });
+assert(r2.ok);
+assert(r2.value.type === "version");
+console.log(r2.value.text);
 
 console.log("\n=== help dev ===\n");
-let r3 = app.createParser({ args: ["help", "dev"] });
-assert(r3.type === "main");
-let hr = r3.parse();
+let r3 = app.parse({ args: ["help", "dev"] });
+assert(r3.ok);
+assert(r3.value.type === "main");
+let hr = r3.value.parser.parse({});
 assert(hr.ok);
 assert(hr.value.name === "help");
 console.log(hr.value.config.text);
 
 console.log("\n=== help help ===\n");
-let r3b = app.createParser({ args: ["help", "help"] });
-assert(r3b.type === "main");
-let hr2 = r3b.parse();
+let r3b = app.parse({ args: ["help", "help"] });
+assert(r3b.ok);
+assert(r3b.value.type === "main");
+let hr2 = r3b.value.parser.parse({});
 assert(hr2.ok);
 assert(hr2.value.name === "help");
 console.log(hr2.value.config.text);
 
 console.log("\n=== dev --open -p 4000 ===\n");
-let r4 = app.createParser({ args: ["dev", "--open", "-p", "4000"] });
-assert(r4.type === "main");
-let result = r4.parse();
+let r4 = app.parse({ args: ["dev", "--open", "-p", "4000"] });
+assert(r4.ok);
+assert(r4.value.type === "main");
+let result = r4.value.parser.parse({});
 assert(result.ok);
 console.log(result.value);

@@ -31,18 +31,21 @@ let serve = program({
 });
 
 console.log("=== --help ===\n");
-let r1 = serve.createParser({ args: ["--help"] });
-assert(r1.type === "help");
-console.log(r1.print());
+let r1 = serve.parse({ args: ["--help"] });
+assert(r1.ok);
+assert(r1.value.type === "help");
+console.log(r1.value.text);
 
 console.log("\n=== --version ===\n");
-let r2 = serve.createParser({ args: ["--version"] });
-assert(r2.type === "version");
-console.log(r2.print());
+let r2 = serve.parse({ args: ["--version"] });
+assert(r2.ok);
+assert(r2.value.type === "version");
+console.log(r2.value.text);
 
 console.log("\n=== app.ts -p 8080 --debug ===\n");
-let r3 = serve.createParser({ args: ["app.ts", "-p", "8080", "--debug"] });
-assert(r3.type === "main");
-let result = r3.parse();
+let r3 = serve.parse({ args: ["app.ts", "-p", "8080", "--debug"] });
+assert(r3.ok);
+assert(r3.value.type === "main");
+let result = r3.value.parser.parse({});
 assert(result.ok);
 console.log(result.value);

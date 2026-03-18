@@ -65,20 +65,23 @@ let app = program({
 });
 
 console.log("=== --help ===\n");
-let rh = app.createParser({ args: ["--help"] });
-assert(rh.type === "help");
-console.log(rh.print());
+let rh = app.parse({ args: ["--help"] });
+assert(rh.ok);
+assert(rh.value.type === "help");
+console.log(rh.value.text);
 
 console.log("\n=== --version ===\n");
-let rv = app.createParser({ args: ["--version"] });
-assert(rv.type === "version");
-console.log(rv.print());
+let rv = app.parse({ args: ["--version"] });
+assert(rv.ok);
+assert(rv.value.type === "version");
+console.log(rv.value.text);
 
 console.log("\n=== -c app.json serve -p 8080 ===\n");
-let r = app.createParser({ args: ["-c", "app.json", "serve", "-p", "8080"] });
-assert(r.type === "main");
+let r = app.parse({ args: ["-c", "app.json", "serve", "-p", "8080"] });
+assert(r.ok);
+assert(r.value.type === "main");
 
-let phase1 = r.parse();
+let phase1 = r.value.parser.parse({});
 assert(phase1.ok);
 console.log("phase 1:", phase1.value.config);
 console.log("remainder:", phase1.remainder.args);
