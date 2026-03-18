@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { validate, ValidationError } from "./validate.ts";
-import type { Field, FieldInfo, Mods, Source } from "./types.ts";
+import type { Field, FieldInfo, Input, Source } from "./types.ts";
 import { toSnake } from "ts-case-convert";
 import { isBoolean } from "./parse-args.ts";
 import { format } from "./help.ts";
@@ -18,19 +18,62 @@ export function field<T>(
   } as Mods);
 
   let field: Field<T> = {
+    type: "field",
     path: [],
     required: !!validate(schema, undefined).issues,
     schema,
-    mods,
+    argument: mods.argument,
+    array: mods.array,
+    default: mods.default,
+    boolean: isBoolean(schema),
+    source: { sourceName: "none", sourceType: "none", value: undefined },
+    sources: [],
     parse(input) {
+      let info = this.inspect(input);
+      let { source } = info;
+
+      if (source.issues) {
+        return {
+          ok: false as const,
+          error: new ValidationError(info.sources),
+          remainder: input,
+        };
+      } else {
+        return {
+          ok: true as const,
+          value: source.value as T,
+          remainder: input,
+        };
+      }
+    },
+    inspect(input: Input = {}): FieldInfo {
       let sources: Source<T>[] = [];
 
-      // collect object sources
+      // none is always a source (lowest priority)
+      sources.push({
+        sourceName: "none",
+        sourceType: "none",
+        value: undefined as T,
+        issues: validate(schema, undefined).issues,
+      });
+
+      // default comes after none but before actual input sources
+      if (this.default !== undefined) {
+        let { issues } = validate(schema, this.default);
+        sources.push({
+          sourceName: "default",
+          sourceType: "default",
+          value: this.default as T,
+          issues,
+        });
+      }
+
+      // collect value sources
       for (let value of input.values ?? []) {
         let result = validate(schema, value.value);
         sources.push({
           sourceName: value.name,
-          sourceType: "object",
+          sourceType: "value",
           value: (result.issues ? value.value : result.value) as T,
           issues: result.issues,
         });
@@ -51,95 +94,26 @@ export function field<T>(
         });
       }
 
-      // pick the best valid source from inputs (last one wins)
-      let winner = sources.findLast((s) => !s.issues);
-      if (winner) {
-        return {
-          ok: true as const,
-          value: winner.value,
-          data: { source: winner, sources },
-          remainder: input,
-        };
-      }
-
-      // try default
-      if (mods.default !== undefined) {
-        let result = validate(schema, mods.default);
-        let source: Source<T> = {
-          sourceName: "default",
-          sourceType: "default",
-          value: (result.issues ? mods.default : result.value) as T,
-          issues: result.issues,
-        };
-        sources.push(source);
-        if (!result.issues) {
-          return {
-            ok: true as const,
-            value: source.value,
-            data: { source, sources },
-            remainder: input,
-          };
-        }
-      }
-
-      // try undefined (optional fields or schema-level defaults)
-      let result = validate(schema, undefined);
-      let source: Source<T> = {
-        sourceName: "none",
-        sourceType: "none",
-        value: (result.issues ? undefined : result.value) as T,
-        issues: result.issues,
-      };
-      sources.push(source);
-
-      if (!result.issues) {
-        return {
-          ok: true as const,
-          value: source.value,
-          data: { source, sources },
-          remainder: input,
-        };
-      }
+      // pick the best valid source (last one wins), fall back to last source
+      let winner = sources.findLast((s) => !s.issues)
+        ?? sources[sources.length - 1];
 
       return {
-        ok: false as const,
-        error: new ValidationError(sources),
-        remainder: input,
-      };
-    },
-    inspect(input = {}) {
-      let info: FieldInfo = {
-        path: this.path.length > 0 ? this.path : ["value"],
-        required: field.required,
-        argument: mods.argument,
-        array: mods.array,
-        aliases: this.aliases ?? [],
+        type: "field",
+        path: this.path,
+        required: this.required,
+        argument: this.argument,
+        array: this.array,
+        aliases: this.aliases,
         description: this.description,
-        default: mods.default,
-        boolean: isBoolean(schema),
+        default: this.default,
+        boolean: this.boolean,
+        source: winner,
+        sources,
       };
-
-      let source = resolveSource(this, schema, input);
-      if (source) {
-        info.source = {
-          value: source.value,
-          sourceName: source.sourceName,
-          sourceType: source.sourceType,
-        };
-      }
-
-      let args: FieldInfo[] = [];
-      let opts: FieldInfo[] = [];
-      if (mods.argument) {
-        args.push(info);
-      } else {
-        opts.push(info);
-      }
-
-      return { args, opts, commands: [] };
     },
-    help(input = {}) {
-      return format(this.inspect(input), this.path.join(".") || "field");
+    help(input: Input = {}) {
+      return format(this.inspect(input), this.path.join("."));
     },
   };
   return field;
@@ -147,46 +121,10 @@ export function field<T>(
 
 // --- internal ---
 
-function resolveSource<T>(
-  self: Field<T>,
-  schema: StandardSchemaV1<T>,
-  input: { values?: { name: string; value: unknown }[]; envs?: { name: string; value: Record<string, string> }[] },
-): Source<T> | undefined {
-  let sources: Source<T>[] = [];
-
-  for (let value of input.values ?? []) {
-    let { issues } = validate(schema, value.value);
-    sources.push({
-      sourceName: value.name,
-      sourceType: "object",
-      value: value.value as T,
-      issues,
-    });
-  }
-
-  let key = self.path.map((el) => toSnake(el).toUpperCase()).join("_");
-  for (let env of input.envs ?? []) {
-    let strval = env.value[key];
-    if (strval === undefined) continue;
-    let value = parseEnvValue(self, strval);
-    let { issues } = validate(schema, value);
-    sources.push({
-      sourceName: env.name,
-      sourceType: "env",
-      value: value as T,
-      issues,
-    });
-  }
-
-  let winner = sources.findLast((s) => !s.issues);
-  if (winner && winner.sourceType !== "none") return winner;
-  return undefined;
-}
-
 function parseEnvValue<T>(field: Field<T>, value: string): unknown {
   if (isBoolean(field.schema)) {
     return parseEnvBoolean(value);
-  } else if (field.mods.array) {
+  } else if (field.array) {
     return parseEnvArray(field, value);
   } else if (!isNaN(Number(value))) {
     return Number(value);
@@ -245,4 +183,10 @@ export interface CLIMods {
 
 export interface Mod {
   (mods: Mods): Mods;
+}
+
+interface Mods {
+  default?: unknown;
+  argument: boolean;
+  array: boolean;
 }

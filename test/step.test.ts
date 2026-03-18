@@ -6,7 +6,8 @@ import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands } from "../lib/commands.ts";
 import { step } from "../lib/step.ts";
-import type { Input } from "../lib/types.ts";
+import { constant } from "../lib/constant.ts";
+import type { FieldInfo, Input, ObjectInfo, Parser } from "../lib/types.ts";
 
 describe("step", () => {
   it("runs phase 1 and returns a resume function in the value", () => {
@@ -18,7 +19,7 @@ describe("step", () => {
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
-          resume,
+          resume: constant(resume),
         }),
     });
 
@@ -27,12 +28,12 @@ describe("step", () => {
     expect(result.value.config).toEqual("myapp.json");
     expect(typeof result.value.resume).toEqual("function");
 
-    let parser2 = result.value.resume({ port: 8080 });
-    let result2 = parser2.parse({
+    let resume = result.value.resume as unknown as (deps: { port: number }) => Parser;
+    let result2 = resume({ port: 8080 }).parse({
       values: [{ name: "config", value: { port: 9090 } }],
     });
     assert(result2.ok);
-    expect(result2.value.port).toEqual(9090);
+    expect(result2.value).toEqual({ port: 9090 });
   });
 
   it("bakes the remainder into the resume parser", () => {
@@ -44,7 +45,7 @@ describe("step", () => {
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
-          resume,
+          resume: constant(resume),
         }),
     });
 
@@ -57,10 +58,10 @@ describe("step", () => {
     expect(result.value.config).toEqual("myapp.json");
 
     // remainder (--port 8080) should be baked into the resume parser
-    let parser2 = result.value.resume(undefined);
-    let result2 = parser2.parse({});
+    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let result2 = resume(undefined).parse({});
     assert(result2.ok);
-    expect(result2.value.port).toEqual(8080);
+    expect(result2.value).toEqual({ port: 8080 });
   });
 
   it("merges enrichment on top of baked remainder", () => {
@@ -73,7 +74,7 @@ describe("step", () => {
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
-          resume,
+          resume: constant(resume),
         }),
     });
 
@@ -85,13 +86,12 @@ describe("step", () => {
     assert(result.ok);
 
     // remainder has --port 8080, enrichment adds host via values
-    let parser2 = result.value.resume(undefined);
-    let result2 = parser2.parse({
+    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let result2 = resume(undefined).parse({
       values: [{ name: "config", value: { host: "localhost" } }],
     });
     assert(result2.ok);
-    expect(result2.value.port).toEqual(8080);
-    expect(result2.value.host).toEqual("localhost");
+    expect(result2.value).toEqual({ port: 8080, host: "localhost" });
   });
 
   it("fails early if phase 1 fails", () => {
@@ -103,7 +103,7 @@ describe("step", () => {
       from: (resume) =>
         object({
           config: field(type("string")),
-          resume,
+          resume: constant(resume),
         }),
     });
 
@@ -123,13 +123,13 @@ describe("step", () => {
           from: (resume) =>
             object({
               host: field(type("string"), field.default("localhost")),
-              resume,
+              resume: constant(resume),
             }),
         }),
       from: (resume) =>
         object({
           config: field(type("string"), field.default("app.json")),
-          resume,
+          resume: constant(resume),
         }),
     });
 
@@ -137,13 +137,15 @@ describe("step", () => {
     assert(result1.ok);
     expect(result1.value.config).toEqual("app.json");
 
-    let result2 = result1.value.resume(["plugin-a"]).parse({});
+    let resume1 = result1.value.resume as unknown as (deps: string[]) => Parser;
+    let result2 = resume1(["plugin-a"]).parse({});
     assert(result2.ok);
-    expect(result2.value.host).toEqual("localhost");
+    expect((result2.value as Record<string, unknown>).host).toEqual("localhost");
 
-    let result3 = result2.value.resume({ debug: true }).parse({});
+    let resume2 = (result2.value as Record<string, unknown>).resume as (deps: { debug: boolean }) => Parser;
+    let result3 = resume2({ debug: true }).parse({});
     assert(result3.ok);
-    expect(result3.value.port).toEqual(3000);
+    expect(result3.value).toEqual({ port: 3000 });
   });
 
   it("works with commands as the resume target", () => {
@@ -160,15 +162,15 @@ describe("step", () => {
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
-          resume,
+          resume: constant(resume),
         }),
     });
 
     let result = parser.parse({ args: ["app.json", "serve", "--port", "9090"] });
     assert(result.ok);
 
-    let parser2 = result.value.resume(undefined);
-    let result2 = parser2.parse({});
+    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let result2 = resume(undefined).parse({});
     assert(result2.ok);
     expect(result2.value).toEqual({ name: "serve", config: { port: 9090 } });
   });
@@ -185,15 +187,13 @@ describe("step", () => {
             description: "config file path",
             ...field(type("string")),
           },
-          resume,
+          resume: constant(resume),
         }),
     });
 
-    let info = parser.inspect();
-    let names = info.opts.map((o) => o.path[0]);
-    expect(names).toContain("config");
-    expect(info.opts.find((o) => o.path[0] === "config")?.description).toEqual(
-      "config file path",
-    );
+    let info = parser.inspect() as ObjectInfo;
+    let config = info.attrs["config"] as FieldInfo;
+    expect(config).toBeDefined();
+    expect(config.description).toEqual("config file path");
   });
 });

@@ -19,10 +19,9 @@ export function parseNotOk(
   return result.error;
 }
 
-export function parseSync<V, D = unknown>(
+export function parseSync<V>(
   parser: Parser<V>,
   input: Input = {},
-): Done<V, D> | Fail {
-  let result = parser.parse(input);
-  return result as Done<V, D> | Fail;
+): Done<V> | Fail {
+  return parser.parse(input);
 }

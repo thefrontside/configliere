@@ -6,3 +6,4 @@ export * from "./commands.ts";
 export * from "./help.ts";
 export * from "./program.ts";
 export * from "./step.ts";
+export * from "./lazy.ts";

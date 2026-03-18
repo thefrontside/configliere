@@ -1,9 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-export interface Done<T = unknown, D = unknown> {
+export type ParseResult<T> = Done<T> | Fail;
+
+export interface Done<T = unknown> {
   ok: true;
   value: T;
-  data: D;
   remainder: Input;
 }
 
@@ -18,7 +19,7 @@ export interface Parser<T = unknown> {
   description?: string;
   aliases?: string[];
   parse(input: Input): Done<T> | Fail;
-  inspect(input?: Input): HelpInfo;
+  inspect(input?: Input): ParserInfo;
   help(input?: Input): string;
 }
 
@@ -34,45 +35,52 @@ export interface Input {
   args?: string[];
 }
 
-export interface FieldInfo {
+export interface ParserInfo {
+  type: string;
+}
+
+export interface FieldInfo extends ParserInfo {
+  type: "field";
   path: string[];
   required: boolean;
   argument: boolean;
   array: boolean;
-  aliases: string[];
+  aliases?: string[];
   description?: string;
   default?: unknown;
   boolean: boolean;
-  source?: {
-    value: unknown;
-    sourceName: string;
-    sourceType: string;
-  };
+  source: Source<unknown>;
+  sources: Source<unknown>[];
 }
 
-export interface CommandInfo {
+export interface CommandInfo extends ParserInfo {
+  type: "command";
   name: string;
   description?: string;
   aliases?: string[];
-  args: FieldInfo[];
-  opts: FieldInfo[];
+  config: ParserInfo;
 }
 
-export interface HelpInfo {
+export interface ObjectInfo extends ParserInfo {
+  type: "object";
+  attrs: Record<string, ParserInfo>;
+}
+
+export interface ConstantInfo<T = unknown> extends ParserInfo {
+  type: "constant";
+  value: T;
+}
+
+export interface HelpInfo extends ParserInfo {
+  type: "help";
   args: FieldInfo[];
   opts: FieldInfo[];
   commands: CommandInfo[];
 }
 
-export interface FieldData<T> {
-  source: Source<T>;
-  sources: Source<T>[];
-}
-
-export interface Field<T> extends Parser<T> {
-  mods: Mods;
+export interface Field<T> extends Parser<T>, FieldInfo {
   schema: StandardSchemaV1<T>;
-  required: boolean;
+  inspect(input?: Input): FieldInfo;
 }
 
 export type Source<T> = {
@@ -82,8 +90,3 @@ export type Source<T> = {
   sourceName: string;
 };
 
-export interface Mods {
-  default?: unknown;
-  argument: boolean;
-  array: boolean;
-}

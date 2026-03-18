@@ -33,19 +33,18 @@ let serve = program({
 console.log("=== --help ===\n");
 let r1 = serve.parse({ args: ["--help"] });
 assert(r1.ok);
-assert(r1.value.type === "help");
-console.log(r1.value.text);
+assert(r1.value.help);
+console.log(serve.help());
 
 console.log("\n=== --version ===\n");
 let r2 = serve.parse({ args: ["--version"] });
 assert(r2.ok);
-assert(r2.value.type === "version");
-console.log(r2.value.text);
+assert(r2.value.version);
+console.log("1.0.0");
 
 console.log("\n=== app.ts -p 8080 --debug ===\n");
 let r3 = serve.parse({ args: ["app.ts", "-p", "8080", "--debug"] });
 assert(r3.ok);
-assert(r3.value.type === "main");
 let result = r3.value.parser.parse({});
 assert(result.ok);
 console.log(result.value);

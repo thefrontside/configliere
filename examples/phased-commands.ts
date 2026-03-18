@@ -4,7 +4,9 @@ import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands, help } from "../lib/commands.ts";
 import { step } from "../lib/step.ts";
+import { constant } from "../lib/constant.ts";
 import { program } from "../lib/program.ts";
+import type { Parser } from "../lib/types.ts";
 
 let app = program({
   name: "myctl",
@@ -59,7 +61,7 @@ let app = program({
           aliases: ["-c"],
           ...field(type("string")),
         },
-        resume,
+        resume: constant(resume),
       }),
   }),
 });
@@ -67,27 +69,26 @@ let app = program({
 console.log("=== --help ===\n");
 let rh = app.parse({ args: ["--help"] });
 assert(rh.ok);
-assert(rh.value.type === "help");
-console.log(rh.value.text);
+assert(rh.value.help);
+console.log(app.help());
 
 console.log("\n=== --version ===\n");
 let rv = app.parse({ args: ["--version"] });
 assert(rv.ok);
-assert(rv.value.type === "version");
-console.log(rv.value.text);
+assert(rv.value.version);
+console.log("2.0.0");
 
 console.log("\n=== -c app.json serve -p 8080 ===\n");
 let r = app.parse({ args: ["-c", "app.json", "serve", "-p", "8080"] });
 assert(r.ok);
-assert(r.value.type === "main");
 
 let phase1 = r.value.parser.parse({});
 assert(phase1.ok);
-console.log("phase 1:", phase1.value.config);
-console.log("remainder:", phase1.remainder.args);
+console.log("phase 1:", (phase1.value as Record<string, unknown>).config);
 
 // simulate loading config, resume into phase 2
-let parser2 = phase1.value.resume({ serve: { host: "0.0.0.0" } });
+let resume = (phase1.value as Record<string, unknown>).resume as (deps: { serve?: { host?: string } }) => Parser;
+let parser2 = resume({ serve: { host: "0.0.0.0" } });
 let phase2 = parser2.parse({
   values: [{ name: "app.json", value: { serve: { host: "0.0.0.0" } } }],
 });
