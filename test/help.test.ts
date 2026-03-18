@@ -4,18 +4,12 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { type Attrs, object } from "../lib/object.ts";
 import type { Input } from "../lib/types.ts";
-import { parseSync } from "./test-helpers.ts";
-import { format, inspect } from "../lib/help.ts";
+import { format } from "../lib/help.ts";
+import { createContext } from "../lib/context.ts";
 
 function exam<T extends object>(attrs: Attrs<T>, input?: Input): string {
   let parser = object(attrs);
-  if (input) {
-    let result = parseSync(parser, input);
-    if (result.ok) {
-      return format(inspect(parser, result.data), "configtest");
-    }
-  }
-  return format(inspect(parser), "configtest");
+  return format(parser.inspect(createContext(input)), "configtest");
 }
 
 describe("help text", () => {

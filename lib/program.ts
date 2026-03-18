@@ -1,88 +1,121 @@
-import type { AnyStep, Input, Parser } from "./types.ts";
-import { object } from "./object.ts";
-import { format, inspect } from "./help.ts";
-import assert from "node:assert";
+import type {
+  ConfigType,
+  FieldInfo,
+  Input,
+  ParseContext,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
+import { format } from "./help.ts";
+import { createContext } from "./context.ts";
 
-export interface Program<P extends Parser<[AnyStep, ...AnyStep[]]>> {
-  name: string;
+export interface Program<T> {
+  help?: boolean;
   version?: string;
-  config: P;
-  createParser(input: Input): {
-    type: "help";
-    print(): string;
-  } | {
-    type: "version";
-    print(): string;
-  } | {
-    type: "main";
-    parse(): ReturnType<P["parse"]>;
-  };
+  config: T;
 }
 
-export function program<P extends Parser<[AnyStep, ...AnyStep[]]>>(
+export type ProgramType<P extends Parser<Program<unknown>>> =
+  ConfigType<P> extends Program<infer T> ? T : never;
+
+export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
+  type: "program";
+  name: string;
+  version?: string;
+  main: ParserInfo<T>;
+}
+
+export function program<T>(
   opts: {
     name: string;
     version?: string;
-    config: P;
+    config: Parser<T>;
   },
-): Program<P> {
+): Parser<Program<T>, ProgramInfo<T>> {
   let { name, version, config } = opts;
 
-  return {
-    name,
-    version,
-    config,
-    createParser(input: Input): ReturnType<Program<P>["createParser"]> {
-      const preamble = object({
-        help: {
-          description: "show help",
-          aliases: ["-h"],
-        },
-        ...(version
-          ? {
-            version: {
-              description: "show version",
-              aliases: ["-v"],
-            },
-          }
-          : {}),
-      });
+  let parser = {
+    parse(input: Input, ctx?: ParseContext) {
+      return parser.inspect(ctx ?? createContext(input)).result;
+    },
+    inspect(ctx: ParseContext): ProgramInfo<T> {
+      let args = ctx.args;
+      let help = false;
+      let ver: string | undefined;
 
-      let probe = preamble.parse(input);
-      assert(probe.ok);
+      if (args[0] === "--help" || args[0] === "-h") {
+        help = true;
+        args = args.slice(1);
+      } else if (version && (args[0] === "--version" || args[0] === "-v")) {
+        ver = version;
+        args = args.slice(1);
+      }
 
-      if (probe.value.help) {
-        return { type: "help", print: () => printHelp(name, config, preamble) };
-      }
-      if ((probe.value as { version?: boolean }).version) {
-        return {
-          type: "version",
-          print: () => version!,
-        };
-      }
+      let rootCtx = { ...ctx, progname: [name], args };
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
+      let main = config.inspect(rootCtx);
+
+      let value: Program<T> = {
+        ...(help ? { help: true } : {}),
+        ...(ver ? { version: ver } : {}),
+        config: main.result.ok ? main.result.value : undefined as T,
+      };
+
+      let result = (main.result.ok || help || ver)
+        ? {
+          ok: true as const,
+          value,
+          remainder: main.result.ok ? main.result.remainder : remainder,
+        }
+        : main.result;
 
       return {
-        type: "main",
-        parse: () => config.parse(probe.remainder),
-        // deno-lint-ignore no-explicit-any
-      } as any;
+        type: "program",
+        parser,
+        result,
+        remainder,
+        name,
+        version,
+        main,
+        help: {
+          progname: [name],
+          args: main.help.args,
+          opts: [
+            ...main.help.opts,
+            ...preamble(version),
+          ],
+          commands: main.help.commands,
+        },
+      };
     },
-  };
+    help(input: Input = {}, ctx?: ParseContext): string {
+      return format(parser.inspect(ctx ?? createContext(input)));
+    },
+  } as Parser<Program<T>, ProgramInfo<T>>;
+
+  return parser;
 }
 
 // --- internal ---
 
-function printHelp(
-  name: string,
-  config: Parser,
-  preamble: Parser,
-): string {
-  let info = inspect(config);
-  let extra = inspect(preamble);
+export const helpOpt = {
+  path: ["help"],
+  aliases: ["-h"],
+  boolean: true,
+  description: "show help",
+} as FieldInfo<unknown>;
 
-  for (let opt of extra.opts) {
-    info.opts.push(opt);
+function preamble(version?: string): FieldInfo<unknown>[] {
+  if (version) {
+    return [
+      helpOpt,
+      {
+        path: ["version"],
+        aliases: ["-v"],
+        boolean: true,
+        description: "show version",
+      } as FieldInfo<unknown>,
+    ];
   }
-
-  return format(info, name);
+  return [helpOpt];
 }
