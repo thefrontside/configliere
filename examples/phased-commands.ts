@@ -10,7 +10,7 @@ let app = program({
   name: "myctl",
   version: "2.0.0",
   config: step({
-    resume: (_config: { serve?: { host?: string } }) =>
+    to: (_config: { serve?: { host?: string } }) =>
       commands({
         help,
         init: {
@@ -52,7 +52,7 @@ let app = program({
           }),
         },
       }),
-    schema: (resume) =>
+    from: (resume) =>
       object({
         config: {
           description: "config file",
@@ -93,3 +93,14 @@ let phase2 = parser2.parse({
 });
 assert(phase2.ok);
 console.log("phase 2:", phase2.value);
+
+console.log("\n=== inspect() (phase 1 fields) ===\n");
+console.log(JSON.stringify(app.inspect(), null, 2));
+
+console.log("\n=== help() ===\n");
+console.log(app.help());
+
+console.log("\n=== phase 2 help() with config source ===\n");
+console.log(parser2.help({
+  values: [{ name: "app.json", value: { serve: { host: "0.0.0.0" } } }],
+}));

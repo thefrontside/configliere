@@ -1,9 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { validate, ValidationError } from "./validate.ts";
-import type { Field, Mods, Source } from "./types.ts";
+import type { Field, FieldInfo, Mods, Source } from "./types.ts";
 import { toSnake } from "ts-case-convert";
 import { isBoolean } from "./parse-args.ts";
+import { format } from "./help.ts";
 
 export function field<T>(
   schema: StandardSchemaV1<T>,
@@ -106,8 +107,80 @@ export function field<T>(
         remainder: input,
       };
     },
+    inspect(input = {}) {
+      let info: FieldInfo = {
+        path: this.path.length > 0 ? this.path : ["value"],
+        required: field.required,
+        argument: mods.argument,
+        array: mods.array,
+        aliases: this.aliases ?? [],
+        description: this.description,
+        default: mods.default,
+        boolean: isBoolean(schema),
+      };
+
+      let source = resolveSource(this, schema, input);
+      if (source) {
+        info.source = {
+          value: source.value,
+          sourceName: source.sourceName,
+          sourceType: source.sourceType,
+        };
+      }
+
+      let args: FieldInfo[] = [];
+      let opts: FieldInfo[] = [];
+      if (mods.argument) {
+        args.push(info);
+      } else {
+        opts.push(info);
+      }
+
+      return { args, opts, commands: [] };
+    },
+    help(input = {}) {
+      return format(this.inspect(input), this.path.join(".") || "field");
+    },
   };
   return field;
+}
+
+// --- internal ---
+
+function resolveSource<T>(
+  self: Field<T>,
+  schema: StandardSchemaV1<T>,
+  input: { values?: { name: string; value: unknown }[]; envs?: { name: string; value: Record<string, string> }[] },
+): Source<T> | undefined {
+  let sources: Source<T>[] = [];
+
+  for (let value of input.values ?? []) {
+    let { issues } = validate(schema, value.value);
+    sources.push({
+      sourceName: value.name,
+      sourceType: "object",
+      value: value.value as T,
+      issues,
+    });
+  }
+
+  let key = self.path.map((el) => toSnake(el).toUpperCase()).join("_");
+  for (let env of input.envs ?? []) {
+    let strval = env.value[key];
+    if (strval === undefined) continue;
+    let value = parseEnvValue(self, strval);
+    let { issues } = validate(schema, value);
+    sources.push({
+      sourceName: env.name,
+      sourceType: "env",
+      value: value as T,
+      issues,
+    });
+  }
+
+  let winner = sources.findLast((s) => !s.issues);
+  if (winner && winner.sourceType !== "none") return winner;
+  return undefined;
 }
 
 function parseEnvValue<T>(field: Field<T>, value: string): unknown {

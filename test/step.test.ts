@@ -6,17 +6,16 @@ import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands } from "../lib/commands.ts";
 import { step } from "../lib/step.ts";
-import { inspect } from "../lib/help.ts";
 import type { Input } from "../lib/types.ts";
 
 describe("step", () => {
   it("runs phase 1 and returns a resume function in the value", () => {
     let parser = step({
-      resume: (_deps: { port: number }) =>
+      to: (_deps: { port: number }) =>
         object({
           port: field(type("number")),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume,
@@ -38,11 +37,11 @@ describe("step", () => {
 
   it("bakes the remainder into the resume parser", () => {
     let parser = step({
-      resume: (_deps: void) =>
+      to: (_deps: void) =>
         object({
           port: field(type("number")),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume,
@@ -66,12 +65,12 @@ describe("step", () => {
 
   it("merges enrichment on top of baked remainder", () => {
     let parser = step({
-      resume: (_deps: void) =>
+      to: (_deps: void) =>
         object({
           port: field(type("number")),
           host: field(type("string")),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume,
@@ -97,11 +96,11 @@ describe("step", () => {
 
   it("fails early if phase 1 fails", () => {
     let parser = step({
-      resume: (_deps: void) =>
+      to: (_deps: void) =>
         object({
           port: field(type("number")),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string")),
           resume,
@@ -115,19 +114,19 @@ describe("step", () => {
 
   it("supports nested steps (3 phases)", () => {
     let parser = step({
-      resume: (_plugins: string[]) =>
+      to: (_plugins: string[]) =>
         step({
-          resume: (_runtime: { debug: boolean }) =>
+          to: (_runtime: { debug: boolean }) =>
             object({
               port: field(type("number"), field.default(3000)),
             }),
-          schema: (resume) =>
+          from: (resume) =>
             object({
               host: field(type("string"), field.default("localhost")),
               resume,
             }),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string"), field.default("app.json")),
           resume,
@@ -149,7 +148,7 @@ describe("step", () => {
 
   it("works with commands as the resume target", () => {
     let parser = step({
-      resume: (_deps: void) =>
+      to: (_deps: void) =>
         commands({
           serve: object({
             port: field(type("number"), field.default(3000)),
@@ -158,7 +157,7 @@ describe("step", () => {
             output: field(type("string"), field.default("dist")),
           }),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume,
@@ -176,11 +175,11 @@ describe("step", () => {
 
   it("allows inspect() to see phase 1 fields through a step parser", () => {
     let parser = step({
-      resume: (_deps: void) =>
+      to: (_deps: void) =>
         object({
           port: field(type("number")),
         }),
-      schema: (resume) =>
+      from: (resume) =>
         object({
           config: {
             description: "config file path",
@@ -190,7 +189,7 @@ describe("step", () => {
         }),
     });
 
-    let info = inspect(parser);
+    let info = parser.inspect();
     let names = info.opts.map((o) => o.path[0]);
     expect(names).toContain("config");
     expect(info.opts.find((o) => o.path[0] === "config")?.description).toEqual(

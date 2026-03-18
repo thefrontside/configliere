@@ -11,5 +11,11 @@ export function constant<const T>(value: T): Parser<T> {
         remainder: input,
       };
     },
+    inspect() {
+      return { args: [], opts: [], commands: [] };
+    },
+    help() {
+      return "";
+    },
   };
 }

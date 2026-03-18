@@ -1,10 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { Input, Parser } from "./types.ts";
+import type { CommandInfo, HelpInfo, Input, Parser } from "./types.ts";
 import { constant } from "./constant.ts";
 import { toSnake } from "ts-case-convert";
 import { cli, field } from "./field.ts";
 import { object } from "./object.ts";
-import { format, inspect } from "./help.ts";
+import { format } from "./help.ts";
 import { string } from "./schema.ts";
 
 export interface Help {
@@ -53,8 +53,7 @@ export const help: Parser<Help> = Object.assign(
       if (!result.ok) return result;
 
       let cmd = cmds[result.value.command];
-      let info = inspect(cmd.parser);
-      let text = format(info, result.value.command);
+      let text = cmd.help(input);
 
       return {
         ok: true as const,
@@ -62,6 +61,38 @@ export const help: Parser<Help> = Object.assign(
         data: void 0,
         remainder: result.remainder,
       };
+    },
+    inspect(input: Input = {}): HelpInfo {
+      let cmds: Record<string, CommandParser<unknown, string>> =
+        (this as unknown as CommandParser<unknown, string>).commands ?? {};
+      let cmdInfos: CommandInfo[] = Object.entries(cmds)
+        .filter(([name]) => name !== "help")
+        .map(([name, cmd]) => {
+          let info = cmd.parser.inspect(scope(name, input));
+          return {
+            name,
+            description: cmd.parser.description,
+            aliases: cmd.parser.aliases,
+            args: info.args,
+            opts: info.opts,
+          };
+        });
+      return {
+        args: [{
+          path: ["command"],
+          required: true,
+          argument: true,
+          array: false,
+          aliases: [],
+          description: "command to show help for",
+          boolean: false,
+        }],
+        opts: [],
+        commands: cmdInfos,
+      };
+    },
+    help(input: Input = {}): string {
+      return format(this.inspect(input), "help");
     },
   },
   {
@@ -125,6 +156,22 @@ export function commands<T extends Record<string, CommandEntry>>(
 
       return matched.parse(scope(matched.name, { ...input, args: remainder }));
     },
+    inspect(input: Input = {}): HelpInfo {
+      let cmdInfos: CommandInfo[] = Object.entries(cmds).map(([name, cmd]) => {
+        let info = cmd.parser.inspect(scope(name, input));
+        return {
+          name,
+          description: cmd.parser.description,
+          aliases: cmd.parser.aliases,
+          args: info.args,
+          opts: info.opts,
+        };
+      });
+      return { args: [], opts: [], commands: cmdInfos };
+    },
+    help(input: Input = {}): string {
+      return format(this.inspect(input), this.path.join(".") || "commands");
+    },
   } as CommandsParser<V>;
 }
 
@@ -175,6 +222,12 @@ function command<T, const Name extends string>(
       }
 
       return result;
+    },
+    inspect(input: Input = {}): HelpInfo {
+      return parser.inspect(input);
+    },
+    help(input: Input = {}): string {
+      return format(parser.inspect(input), name);
     },
   };
 }

@@ -4,7 +4,7 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands, NoCommandMatchError } from "../lib/commands.ts";
-import { format, inspect } from "../lib/help.ts";
+import { format } from "../lib/help.ts";
 import { parseNotOk, parseOk } from "./test-helpers.ts";
 
 describe("commands", () => {
@@ -150,7 +150,7 @@ describe("commands", () => {
     });
 
     it("includes descriptions in help info", () => {
-      let info = inspect(withDescs);
+      let info = withDescs.inspect();
       let run = info.commands.find((c) => c.name === "run")!;
       expect(run.description).toBe("Start the dev server");
       let build = info.commands.find((c) => c.name === "build")!;
@@ -158,7 +158,7 @@ describe("commands", () => {
     });
 
     it("renders descriptions in formatted help", () => {
-      let text = format(inspect(withDescs), "myapp");
+      let text = format(withDescs.inspect(), "myapp");
       expect(text).toMatch(/run\s+Start the dev server/);
       expect(text).toMatch(/build\s+Build for production/);
     });
@@ -175,27 +175,27 @@ describe("commands", () => {
     });
 
     it("includes aliases in help info", () => {
-      let info = inspect(withAliases);
+      let info = withAliases.inspect();
       let h = info.commands.find((c) => c.name === "help")!;
       expect(h.aliases).toEqual(["--help", "-h"]);
     });
 
     it("renders aliases in formatted help", () => {
-      let text = format(inspect(withAliases), "myapp");
+      let text = format(withAliases.inspect(), "myapp");
       expect(text).toMatch(/help \(--help, -h\)\s+Show help information/);
     });
   });
 
   describe("help", () => {
     it("lists all commands in help output", () => {
-      let info = inspect(cli_);
+      let info = cli_.inspect();
       expect(info.commands).toHaveLength(2);
       expect(info.commands[0].name).toBe("run");
       expect(info.commands[1].name).toBe("build");
     });
 
     it("includes each command's fields", () => {
-      let info = inspect(cli_);
+      let info = cli_.inspect();
       let run = info.commands.find((c) => c.name === "run")!;
       expect(run.args.map((a) => a.path[0])).toContain("host");
       expect(run.opts.map((o) => o.path[0])).toContain("port");
@@ -205,7 +205,7 @@ describe("commands", () => {
     });
 
     it("shows commands in formatted help", () => {
-      let text = format(inspect(cli_), "myapp");
+      let text = format(cli_.inspect(), "myapp");
       expect(text).toMatch(/Usage: myapp <COMMAND>/);
       expect(text).toMatch(/Commands:/);
       expect(text).toMatch(/run/);

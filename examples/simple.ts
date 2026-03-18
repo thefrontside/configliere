@@ -49,3 +49,14 @@ assert(r3.value.type === "main");
 let result = r3.value.parser.parse({});
 assert(result.ok);
 console.log(result.value);
+
+console.log("\n=== inspect() ===\n");
+console.log(serve.inspect());
+
+console.log("\n=== help() ===\n");
+console.log(serve.help());
+
+console.log("\n=== inspect() with env source ===\n");
+console.log(serve.inspect({
+  envs: [{ name: "env", value: { PORT: "9090" } }],
+}));

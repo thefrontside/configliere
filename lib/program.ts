@@ -1,6 +1,6 @@
-import type { Input, Parser } from "./types.ts";
+import type { HelpInfo, Input, Parser } from "./types.ts";
 import { object } from "./object.ts";
-import { format, inspect } from "./help.ts";
+import { format, merge } from "./help.ts";
 import assert from "node:assert";
 
 export type Program<T> =
@@ -41,7 +41,7 @@ export function program<T>(
       if (probe.value.help) {
         return {
           ok: true as const,
-          value: { type: "help" as const, text: printHelp(name, config, preamble) },
+          value: { type: "help" as const, text: printHelp(name, config, preamble, input) },
           data: probe.data,
           remainder: probe.remainder,
         };
@@ -68,6 +68,12 @@ export function program<T>(
         remainder,
       };
     },
+    inspect(input: Input = {}): HelpInfo {
+      return merge(config.inspect(input), preamble.inspect(input));
+    },
+    help(input: Input = {}): string {
+      return format(this.inspect(input), name);
+    },
   };
 }
 
@@ -77,13 +83,22 @@ function withBase<T>(parser: Parser<T>, base: Input): Parser<T> {
   return {
     ...parser,
     parse(enrichment: Input) {
-      let merged: Input = {
-        args: base.args ?? [],
-        values: [...(base.values ?? []), ...(enrichment.values ?? [])],
-        envs: [...(base.envs ?? []), ...(enrichment.envs ?? [])],
-      };
-      return parser.parse(merged);
+      return parser.parse(mergeInput(base, enrichment));
     },
+    inspect(enrichment: Input = {}): HelpInfo {
+      return parser.inspect(mergeInput(base, enrichment));
+    },
+    help(enrichment: Input = {}): string {
+      return parser.help(mergeInput(base, enrichment));
+    },
+  };
+}
+
+function mergeInput(base: Input, enrichment: Input): Input {
+  return {
+    args: base.args ?? [],
+    values: [...(base.values ?? []), ...(enrichment.values ?? [])],
+    envs: [...(base.envs ?? []), ...(enrichment.envs ?? [])],
   };
 }
 
@@ -91,13 +106,7 @@ function printHelp(
   name: string,
   config: Parser,
   preamble: Parser,
+  input: Input,
 ): string {
-  let info = inspect(config);
-  let extra = inspect(preamble);
-
-  for (let opt of extra.opts) {
-    info.opts.push(opt);
-  }
-
-  return format(info, name);
+  return format(merge(config.inspect(input), preamble.inspect(input)), name);
 }

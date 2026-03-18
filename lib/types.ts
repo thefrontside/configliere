@@ -18,6 +18,8 @@ export interface Parser<T = unknown> {
   description?: string;
   aliases?: string[];
   parse(input: Input): Done<T> | Fail;
+  inspect(input?: Input): HelpInfo;
+  help(input?: Input): string;
 }
 
 export interface Input {
@@ -30,6 +32,36 @@ export interface Input {
     value: Record<string, string>;
   }[];
   args?: string[];
+}
+
+export interface FieldInfo {
+  path: string[];
+  required: boolean;
+  argument: boolean;
+  array: boolean;
+  aliases: string[];
+  description?: string;
+  default?: unknown;
+  boolean: boolean;
+  source?: {
+    value: unknown;
+    sourceName: string;
+    sourceType: string;
+  };
+}
+
+export interface CommandInfo {
+  name: string;
+  description?: string;
+  aliases?: string[];
+  args: FieldInfo[];
+  opts: FieldInfo[];
+}
+
+export interface HelpInfo {
+  args: FieldInfo[];
+  opts: FieldInfo[];
+  commands: CommandInfo[];
 }
 
 export interface FieldData<T> {
