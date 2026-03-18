@@ -1,4 +1,4 @@
-import type { AnyStep, Field, Input, Parser, Step } from "./types.ts";
+import type { Field, Input, Parser } from "./types.ts";
 import {
   matchAll,
   parseArgument,
@@ -13,57 +13,50 @@ import { optionalBoolean } from "./schema.ts";
 
 export type Attrs<T extends object> =
   & {
-    [K in keyof T]: Parser<[Step<T[K], AnyStep["data"]>]>;
+    [K in keyof T]: Parser<T[K]>;
   }
   & {};
 
-export type ObjectValue<T extends Record<string, Partial<Parser<[AnyStep]>>>> =
+export type ObjectValue<T extends Record<string, Partial<Parser>>> =
   & {
-    [K in keyof T]: T[K] extends Parser<[Step<infer V, AnyStep["data"]>]> ? V
+    [K in keyof T]: T[K] extends Parser<infer V> ? V
       : boolean | undefined;
   }
   & {};
 
-export type ObjectData<A extends Attrs<object>> =
-  & {
-    [K in keyof A]: A[K] extends Parser<[Step<unknown, infer TData>]> ? TData
-      : never;
-  }
-  & {};
-
 export interface ObjectParser<T extends object>
-  extends Parser<[Step<T, ObjectData<Attrs<T>>>]> {
+  extends Parser<T> {
   attrs: Attrs<T>;
 }
 
-export function object<T extends Record<string, Partial<Parser<[AnyStep]>>>>(
+export function object<T extends Record<string, Partial<Parser>>>(
   attrs: T,
 ): ObjectParser<ObjectValue<T>> {
   type V = ObjectValue<T>;
   let resolved = Object.fromEntries(
     Object.entries(attrs).map(([key, entry]) => {
       let parser = typeof entry.parse === "function"
-        ? entry as Parser<[AnyStep]>
+        ? entry as Parser
         : { ...field(optionalBoolean), ...entry };
       return [key, parser];
     }),
   ) as Attrs<V>;
   let entries = Object.entries(resolved) as [
     keyof V,
-    Parser<[Step<V[keyof V], AnyStep["data"]>]>,
+    Parser,
   ][];
   let parsers = entries.map(([key, parser]) => {
     return [key, {
       ...parser,
       path: [String(key), ...parser.path],
-    }] as [keyof V, Parser<[Step<V[keyof V], AnyStep["data"]>]>];
+    }] as [keyof V, Parser];
   });
   return {
     attrs: resolved,
     path: [],
     parse(input) {
       let value = {} as Record<keyof V, unknown>;
-      let data = {} as ObjectData<Attrs<V>>;
+      let data = {} as Record<string, unknown>;
       let errors: { path: string[]; error: Error }[] = [];
 
       // extract CLI args into per-key values
@@ -133,7 +126,7 @@ export function object<T extends Record<string, Partial<Parser<[AnyStep]>>>>(
 
         if (parsed.ok) {
           value[key] = parsed.value;
-          data[key] = parsed.data as ObjectData<Attrs<V>>[keyof V];
+          data[String(key)] = parsed.data;
         } else {
           errors.push({ path: parser.path, error: parsed.error });
         }
@@ -158,6 +151,8 @@ export function object<T extends Record<string, Partial<Parser<[AnyStep]>>>>(
     },
   };
 }
+
+// --- internal ---
 
 function asField(parser: Parser): Field<unknown> | undefined {
   return "mods" in parser ? parser as Field<unknown> : undefined;

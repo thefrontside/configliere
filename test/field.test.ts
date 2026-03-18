@@ -5,12 +5,13 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { field } from "../lib/field.ts";
 import assert from "node:assert";
 import { ValidationError } from "../lib/validate.ts";
+import type { FieldData } from "../lib/types.ts";
 import { parseSync } from "./test-helpers.ts";
 
 describe("field", () => {
   describe("from js", () => {
     it("can be set from a valid value", () => {
-      let result = parseSync(field(type("number")), {
+      let result = parseSync<number, FieldData<number>>(field(type("number")), {
         values: [{ name: "test", value: 5 }],
       });
       assert(result.ok);
@@ -28,7 +29,7 @@ describe("field", () => {
     });
 
     it("includes a source for every passed value", () => {
-      let result = parseSync(field(type("number")), {
+      let result = parseSync<number, FieldData<number>>(field(type("number")), {
         values: [
           { name: "ausente", value: undefined },
           { name: "invalido", value: "not a number" },
@@ -47,14 +48,14 @@ describe("field", () => {
     });
 
     it("can be valid even with no input", () => {
-      let result = parseSync(field(type("number|undefined")), { values: [] });
+      let result = parseSync<number | undefined, FieldData<number | undefined>>(field(type("number|undefined")), { values: [] });
       assert(result.ok);
       expect(result.value).toBeUndefined();
       expect(result.data.source.sourceType).toEqual("none");
     });
 
     it("uses a default value if no source is found", () => {
-      let result = parseSync(field(type("number"), field.default(3000)), {
+      let result = parseSync<number, FieldData<number>>(field(type("number"), field.default(3000)), {
         values: [],
       });
       assert(result.ok);
@@ -86,7 +87,7 @@ describe("field", () => {
 
   describe("from env", () => {
     it("parses a number", () => {
-      let result = parseSync(field(type("number")), {
+      let result = parseSync<number, FieldData<number>>(field(type("number")), {
         envs: [{ name: "ENV", value: { "": "5" } }],
       });
       assert(result.ok);

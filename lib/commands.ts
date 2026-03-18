@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { AnyStep, Input, Parser, Step } from "./types.ts";
+import type { Input, Parser } from "./types.ts";
 import { constant } from "./constant.ts";
 import { toSnake } from "ts-case-convert";
 import { cli, field } from "./field.ts";
@@ -12,15 +12,15 @@ export interface Help {
   text: string;
 }
 
-export type CommandEntry = Partial<Parser<[AnyStep]>>;
+export type CommandEntry = Partial<Parser>;
 
-export const help: Parser<[Step<Help, void>]> = Object.assign(
+export const help: Parser<Help> = Object.assign(
   {
     path: [] as string[],
     description: "show help for a command",
     parse(input: Input) {
-      let cmds: Record<string, CommandParser<AnyStep, string>> =
-        (this as unknown as CommandParser<AnyStep, string>).commands ?? {};
+      let cmds: Record<string, CommandParser<unknown, string>> =
+        (this as unknown as CommandParser<unknown, string>).commands ?? {};
       let names = Object.keys(cmds);
 
       let schema: StandardSchemaV1<string> = {
@@ -79,16 +79,16 @@ export interface Command<T, Name extends string> {
   config: T;
 }
 
-export interface CommandParser<S extends AnyStep, Name extends string>
-  extends Parser<[Step<Command<S["value"], Name>, S["data"]>]> {
+export interface CommandParser<T, Name extends string>
+  extends Parser<Command<T, Name>> {
   name: Name;
-  commands: Record<string, CommandParser<AnyStep, string>>;
-  parser: Parser<[S]>;
+  commands: Record<string, CommandParser<unknown, string>>;
+  parser: Parser<T>;
 }
 
 export interface CommandsParser<V = unknown>
-  extends Parser<[Step<V, unknown>]> {
-  commands: Record<string, CommandParser<AnyStep, string>>;
+  extends Parser<V> {
+  commands: Record<string, CommandParser<unknown, string>>;
   default?: string;
 }
 
@@ -96,10 +96,10 @@ export function commands<T extends Record<string, CommandEntry>>(
   map: T,
   opts?: { default?: string },
 ): CommandsParser<CommandValue<T>> {
-  let cmds: Record<string, CommandParser<AnyStep, string>> = {};
+  let cmds: Record<string, CommandParser<unknown, string>> = {};
   for (let [name, entry] of Object.entries(map) as [string, CommandEntry][]) {
     let parser = typeof entry.parse === "function"
-      ? entry as Parser<[AnyStep]>
+      ? entry as Parser
       : { ...constant(true), ...entry };
     cmds[name] = command(name, parser, cmds);
   }
@@ -139,9 +139,9 @@ export class NoCommandMatchError extends Error {
 
 function match(
   args: string[],
-  cmds: Record<string, CommandParser<AnyStep, string>>,
+  cmds: Record<string, CommandParser<unknown, string>>,
   opts?: { default?: string },
-): [CommandParser<AnyStep, string> | undefined, string[]] {
+): [CommandParser<unknown, string> | undefined, string[]] {
   if (args.length > 0) {
     if (args[0] in cmds) return [cmds[args[0]], args.slice(1)];
     for (let [, cmd] of Object.entries(cmds)) {
@@ -152,11 +152,11 @@ function match(
   return [undefined, args];
 }
 
-function command<S extends AnyStep, const Name extends string>(
+function command<T, const Name extends string>(
   name: Name,
-  parser: Parser<[S]>,
-  cmds: Record<string, CommandParser<AnyStep, string>>,
-): CommandParser<S, Name> {
+  parser: Parser<T>,
+  cmds: Record<string, CommandParser<unknown, string>>,
+): CommandParser<T, Name> {
   return {
     name,
     parser,
@@ -168,8 +168,8 @@ function command<S extends AnyStep, const Name extends string>(
       if (result.ok) {
         return {
           ok: true as const,
-          value: { name, config: result.value } as Command<S["value"], Name>,
-          data: result.data as S["data"],
+          value: { name, config: result.value } as Command<T, Name>,
+          data: result.data,
           remainder: { ...input, args: result.remainder.args },
         };
       }
@@ -204,7 +204,7 @@ function scope(name: string, input: Input): Input {
 type CommandValue<T extends Record<string, CommandEntry>> =
   & {
     [K in keyof T & string]: T[K] extends
-      Parser<[Step<infer V, AnyStep["data"]>]> ? { name: K; config: V }
+      Parser<infer V> ? { name: K; config: V }
       : { name: K; config: true };
   }
   & {} extends infer U ? U[keyof U & keyof T & string] : never;

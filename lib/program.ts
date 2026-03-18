@@ -1,12 +1,12 @@
-import type { AnyStep, Input, Parser } from "./types.ts";
+import type { Done, Fail, Input, Parser } from "./types.ts";
 import { object } from "./object.ts";
 import { format, inspect } from "./help.ts";
 import assert from "node:assert";
 
-export interface Program<P extends Parser<[AnyStep, ...AnyStep[]]>> {
+export interface Program<T> {
   name: string;
   version?: string;
-  config: P;
+  config: Parser<T>;
   createParser(input: Input): {
     type: "help";
     print(): string;
@@ -15,24 +15,24 @@ export interface Program<P extends Parser<[AnyStep, ...AnyStep[]]>> {
     print(): string;
   } | {
     type: "main";
-    parse(): ReturnType<P["parse"]>;
+    parse(): Done<T> | Fail;
   };
 }
 
-export function program<P extends Parser<[AnyStep, ...AnyStep[]]>>(
+export function program<T>(
   opts: {
     name: string;
     version?: string;
-    config: P;
+    config: Parser<T>;
   },
-): Program<P> {
+): Program<T> {
   let { name, version, config } = opts;
 
   return {
     name,
     version,
     config,
-    createParser(input: Input): ReturnType<Program<P>["createParser"]> {
+    createParser(input: Input): ReturnType<Program<T>["createParser"]> {
       const preamble = object({
         help: {
           description: "show help",
@@ -64,8 +64,7 @@ export function program<P extends Parser<[AnyStep, ...AnyStep[]]>>(
       return {
         type: "main",
         parse: () => config.parse(probe.remainder),
-        // deno-lint-ignore no-explicit-any
-      } as any;
+      };
     },
   };
 }

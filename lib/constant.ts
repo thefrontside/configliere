@@ -1,6 +1,6 @@
-import type { Parser, Step } from "./types.ts";
+import type { Parser } from "./types.ts";
 
-export function constant<const T>(value: T): Parser<[Step<T, void>]> {
+export function constant<const T>(value: T): Parser<T> {
   return {
     path: [],
     parse(input) {
