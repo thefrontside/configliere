@@ -12,6 +12,15 @@ let app = program({
   name: "myctl",
   version: "2.0.0",
   config: step({
+    from: (resume) =>
+      object({
+        config: {
+          description: "config file",
+          aliases: ["-c"],
+          ...field(type("string")),
+        },
+        resume: constant(resume),
+      }),
     to: (_config: { serve?: { host?: string } }) =>
       commands({
         help,
@@ -53,15 +62,6 @@ let app = program({
             },
           }),
         },
-      }),
-    from: (resume) =>
-      object({
-        config: {
-          description: "config file",
-          aliases: ["-c"],
-          ...field(type("string")),
-        },
-        resume: constant(resume),
       }),
   }),
 });

@@ -12,14 +12,14 @@ import type { FieldInfo, Input, ObjectInfo, Parser } from "../lib/types.ts";
 describe("step", () => {
   it("runs phase 1 and returns a resume function in the value", () => {
     let parser = step({
-      to: (_deps: { port: number }) =>
-        object({
-          port: field(type("number")),
-        }),
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume: constant(resume),
+        }),
+      to: (_deps: { port: number }) =>
+        object({
+          port: field(type("number")),
         }),
     });
 
@@ -38,14 +38,14 @@ describe("step", () => {
 
   it("bakes the remainder into the resume parser", () => {
     let parser = step({
-      to: (_deps: void) =>
-        object({
-          port: field(type("number")),
-        }),
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume: constant(resume),
+        }),
+      to: (_deps: void) =>
+        object({
+          port: field(type("number")),
         }),
     });
 
@@ -66,15 +66,15 @@ describe("step", () => {
 
   it("merges enrichment on top of baked remainder", () => {
     let parser = step({
-      to: (_deps: void) =>
-        object({
-          port: field(type("number")),
-          host: field(type("string")),
-        }),
       from: (resume) =>
         object({
           config: field(type("string"), cli.argument()),
           resume: constant(resume),
+        }),
+      to: (_deps: void) =>
+        object({
+          port: field(type("number")),
+          host: field(type("string")),
         }),
     });
 
@@ -96,14 +96,14 @@ describe("step", () => {
 
   it("fails early if phase 1 fails", () => {
     let parser = step({
-      to: (_deps: void) =>
-        object({
-          port: field(type("number")),
-        }),
       from: (resume) =>
         object({
           config: field(type("string")),
           resume: constant(resume),
+        }),
+      to: (_deps: void) =>
+        object({
+          port: field(type("number")),
         }),
     });
 
@@ -114,22 +114,22 @@ describe("step", () => {
 
   it("supports nested steps (3 phases)", () => {
     let parser = step({
+      from: (resume) =>
+        object({
+          config: field(type("string"), field.default("app.json")),
+          resume: constant(resume),
+        }),
       to: (_plugins: string[]) =>
         step({
-          to: (_runtime: { debug: boolean }) =>
-            object({
-              port: field(type("number"), field.default(3000)),
-            }),
           from: (resume) =>
             object({
               host: field(type("string"), field.default("localhost")),
               resume: constant(resume),
             }),
-        }),
-      from: (resume) =>
-        object({
-          config: field(type("string"), field.default("app.json")),
-          resume: constant(resume),
+          to: (_runtime: { debug: boolean }) =>
+            object({
+              port: field(type("number"), field.default(3000)),
+            }),
         }),
     });
 
@@ -150,6 +150,11 @@ describe("step", () => {
 
   it("works with commands as the resume target", () => {
     let parser = step({
+      from: (resume) =>
+        object({
+          config: field(type("string"), cli.argument()),
+          resume: constant(resume),
+        }),
       to: (_deps: void) =>
         commands({
           serve: object({
@@ -158,11 +163,6 @@ describe("step", () => {
           build: object({
             output: field(type("string"), field.default("dist")),
           }),
-        }),
-      from: (resume) =>
-        object({
-          config: field(type("string"), cli.argument()),
-          resume: constant(resume),
         }),
     });
 
@@ -177,10 +177,6 @@ describe("step", () => {
 
   it("allows inspect() to see phase 1 fields through a step parser", () => {
     let parser = step({
-      to: (_deps: void) =>
-        object({
-          port: field(type("number")),
-        }),
       from: (resume) =>
         object({
           config: {
@@ -188,6 +184,10 @@ describe("step", () => {
             ...field(type("string")),
           },
           resume: constant(resume),
+        }),
+      to: (_deps: void) =>
+        object({
+          port: field(type("number")),
         }),
     });
 
