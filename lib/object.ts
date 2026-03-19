@@ -62,7 +62,14 @@ export function object<T extends object>(
         ? { ok: false as const, error: new ObjectValidationError(errors), remainder }
         : { ok: true as const, value: value as T, remainder };
 
-      return { type: "object", parser, result, attrs } as ObjectInfo<T>;
+      let help = { progname: [] as string[], args: [], opts: [], commands: [] } as ObjectInfo<T>["help"];
+      for (let child of Object.values(attrs) as ParserInfo<unknown>[]) {
+        help.args.push(...child.help.args);
+        help.opts.push(...child.help.opts);
+        help.commands.push(...child.help.commands);
+      }
+
+      return { type: "object", parser, result, attrs, help } as ObjectInfo<T>;
     },
     help(input: Input = {}): string {
       return format(parser.inspect(input), parser.path.join("."));

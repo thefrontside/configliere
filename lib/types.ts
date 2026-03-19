@@ -35,10 +35,18 @@ export interface Input {
   args?: string[];
 }
 
+export interface HelpInfo {
+  progname: string[];
+  args: FieldInfo<unknown>[];
+  opts: FieldInfo<unknown>[];
+  commands: CommandInfo<Command<unknown, string>>[];
+}
+
 export interface ParserInfo<T> {
   type: string;
   parser: Parser<T>;
   result: ParseResult<T>;
+  help: HelpInfo;
 }
 
 export interface FieldInfo<T> extends ParserInfo<T> {

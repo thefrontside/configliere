@@ -12,6 +12,7 @@ export function constant<const T>(value: T): Parser<T, ConstantInfo<T>> {
         parser,
         value,
         result: { ok: true, value, remainder: input },
+        help: { progname: [], args: [], opts: [], commands: [] },
       };
     },
     help() {

@@ -3,6 +3,7 @@ import type {
   Command,
   CommandInfo,
   CommandsInfo,
+  HelpInfo,
   Input,
   Parser,
   ParserInfo,
@@ -63,18 +64,20 @@ export const help: Parser<Help> = {
       });
 
       let parsed = inner.parse(input);
+      let self = inner.inspect(input).help;
 
       if (!parsed.ok) {
         return {
           type: "help",
           parser: this as unknown as Parser<Help>,
           result: { ok: false, error: parsed.error, remainder: parsed.remainder },
+          help: self,
         };
       }
 
       let cmd = cmds[parsed.value.command];
       let info = cmd.inspect(parsed.remainder);
-      let text = cmd.help(parsed.remainder);
+      let text = format(info);
 
       return {
         type: "help",
@@ -84,10 +87,11 @@ export const help: Parser<Help> = {
           value: { info, text },
           remainder: parsed.remainder,
         },
+        help: self,
       };
     },
     help(input: Input = {}): string {
-      return format(this.inspect(input), "help");
+      return format(this.inspect(input));
     },
   };
 
@@ -98,6 +102,7 @@ export interface CommandParser<C extends Command<unknown, string>>
 
 export interface CommandsParser<T extends Command<unknown, string>>
   extends Parser<T, CommandsInfo<T>> {
+  progname: string[];
   commands: Record<string, CommandParser<Command<unknown, string>>>;
   default?: string;
 }
@@ -108,16 +113,9 @@ export function commands<T extends Command<unknown, string>>(
   opts?: { default?: string },
 ): CommandsParser<T> {
   let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
-  for (
-    let [name, entry] of Object.entries(map) as [string, CommandEntry][]
-  ) {
-    let p = typeof entry.parse === "function"
-      ? entry as Parser<unknown>
-      : Object.assign(constant(true), entry);
-    cmds[name] = command(name, p, cmds) as CommandParser<Command<unknown, string>>;
-  }
 
   let parser = {
+    progname: [] as string[],
     commands: cmds,
     default: opts?.default,
     path: [],
@@ -130,17 +128,19 @@ export function commands<T extends Command<unknown, string>>(
       let infos: Record<string, CommandInfo<Command<unknown, string>>> = {};
       for (let [name, cmd] of Object.entries(cmds)) {
         let info = cmd.inspect(scope(name, input));
-        infos[name] = {
-          type: "command",
-          parser: cmd,
-          result: info.result,
-          name,
+        infos[name] = info;
+      }
+
+      let help = {
+        progname: parser.progname,
+        args: [] as HelpInfo["args"],
+        opts: [] as HelpInfo["opts"],
+        commands: Object.values(infos).map((info) => ({
+          name: info.name,
           description: info.description,
           aliases: info.aliases,
-          config: info.config,
-          commands: {},
-        };
-      }
+        })) as HelpInfo["commands"],
+      };
 
       if (!matched) {
         return {
@@ -152,6 +152,7 @@ export function commands<T extends Command<unknown, string>>(
             remainder: input,
           },
           commands: infos,
+          help,
         } as unknown as CommandsInfo<T>;
       }
 
@@ -163,12 +164,22 @@ export function commands<T extends Command<unknown, string>>(
         parser,
         result: inner.result,
         commands: infos,
+        help,
       } as unknown as CommandsInfo<T>;
     },
     help(input: Input = {}): string {
-      return format(parser.inspect(input), parser.path.join("."));
+      return format(parser.inspect(input));
     },
   } as CommandsParser<T>;
+
+  for (
+    let [name, entry] of Object.entries(map) as [string, CommandEntry][]
+  ) {
+    let p = typeof entry.parse === "function"
+      ? entry as Parser<unknown>
+      : Object.assign(constant(true), entry);
+    cmds[name] = command(name, p, parser) as CommandParser<Command<unknown, string>>;
+  }
 
   return parser;
 }
@@ -202,10 +213,10 @@ function match(
 function command<T, const Name extends string>(
   name: Name,
   inner: Parser<T>,
-  cmds: Record<string, CommandParser<Command<unknown, string>>>,
+  parent: CommandsParser<Command<unknown, string>>,
 ): CommandParser<Command<T, Name>> {
   let parser: CommandParser<Command<T, Name>> = {
-    commands: cmds,
+    commands: parent.commands,
     path: [name, ...inner.path],
     description: inner.description,
     aliases: inner.aliases,
@@ -231,10 +242,16 @@ function command<T, const Name extends string>(
         aliases: inner.aliases,
         config,
         commands: {},
+        help: {
+          progname: [...parent.progname, name],
+          args: config.help.args,
+          opts: config.help.opts,
+          commands: config.help.commands,
+        },
       };
     },
     help(input: Input = {}): string {
-      return format(inner.inspect.call(parser, input), name);
+      return format(parser.inspect(input));
     },
   };
   return parser;

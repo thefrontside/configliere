@@ -84,7 +84,7 @@ export function field<T>(
         ? { ok: false as const, error: new ValidationError(sources), remainder: input }
         : { ok: true as const, value: winner.value as T, remainder: input };
 
-      return {
+      let info: FieldInfo<T> = {
         type: "field",
         parser: this,
         result,
@@ -98,7 +98,14 @@ export function field<T>(
         boolean: this.boolean,
         source: winner,
         sources,
+        help: { progname: [], args: [], opts: [], commands: [] },
       };
+      if (this.argument) {
+        info.help.args.push(info);
+      } else {
+        info.help.opts.push(info);
+      }
+      return info;
     },
     help(input: Input = {}) {
       return format(this.inspect(input), this.path.join("."));

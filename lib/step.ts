@@ -6,8 +6,9 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
     from: (next: To) => Parser<T>;
     to: To;
   },
-): Parser<T> {
-  let parser: Parser<T> = {
+): Parser<T> & { progname: string[] } {
+  let parser: Parser<T> & { progname: string[] } = {
+    progname: [],
     path: [],
     parse(input: Input) {
       return parser.inspect(input).result;
@@ -16,18 +17,31 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
       let remainder = input;
       let next = ((...deps: unknown[]) => {
         let p = opts.to(...deps as never[]);
-        return {
+        if ("progname" in p) {
+          (p as { progname: string[] }).progname = parser.progname;
+        }
+        let wrapped = {
           ...p,
           parse(enrichment: Input) {
             return p.parse(concat(remainder, enrichment));
           },
           inspect(enrichment: Input = {}) {
-            return p.inspect(concat(remainder, enrichment));
+            let phase2 = p.inspect(concat(remainder, enrichment));
+            return {
+              ...phase2,
+              help: {
+                progname: parser.progname.length ? parser.progname : info.help.progname.length ? info.help.progname : phase2.help.progname,
+                args: [...info.help.args, ...phase2.help.args],
+                opts: [...info.help.opts, ...phase2.help.opts],
+                commands: [...info.help.commands, ...phase2.help.commands],
+              },
+            };
           },
           help(enrichment: Input = {}) {
-            return p.help(concat(remainder, enrichment));
+            return format(wrapped.inspect(enrichment));
           },
         };
+        return wrapped;
       }) as unknown as To;
 
       let outer = opts.from(next);
@@ -38,7 +52,7 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
       return { ...info, parser } as ParserInfo<T>;
     },
     help(input: Input = {}): string {
-      return format(parser.inspect(input), parser.path.join("."));
+      return format(parser.inspect(input));
     },
   };
   return parser;

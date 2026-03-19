@@ -89,8 +89,5 @@ let result = r4.value.parser.parse({});
 assert(result.ok);
 console.log(result.value);
 
-console.log("\n=== inspect() ===\n");
-console.log(JSON.stringify(app.inspect(), null, 2));
-
 console.log("\n=== help() ===\n");
 console.log(app.help());

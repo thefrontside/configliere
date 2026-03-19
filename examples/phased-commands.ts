@@ -95,9 +95,6 @@ let phase2 = parser2.parse({
 assert(phase2.ok);
 console.log("phase 2:", phase2.value);
 
-console.log("\n=== inspect() (phase 1 fields) ===\n");
-console.log(JSON.stringify(app.inspect(), null, 2));
-
 console.log("\n=== help() ===\n");
 console.log(app.help());
 

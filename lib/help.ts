@@ -1,20 +1,16 @@
 import type {
-  Command,
-  CommandInfo,
-  CommandsInfo,
   FieldInfo,
-  ObjectInfo,
   ParserInfo,
 } from "./types.ts";
-import type { ProgramInfo } from "./program.ts";
 import { optionKey } from "./parse-args.ts";
 
-export function format(info: ParserInfo<unknown>, progname: string): string {
-  let { args, opts, commands } = classify(info);
+export function format(info: ParserInfo<unknown>, name?: string): string {
+  let { progname, args, opts, commands } = info.help;
   let sections: string[] = [];
 
   // usage line
-  let usage = [`Usage: ${progname}`];
+  let label = progname.length ? progname.join(" ") : name ?? "";
+  let usage = [`Usage: ${label}`];
   if (commands.length > 0) usage.push("<COMMAND>");
   if (opts.length > 0) usage.push("[OPTIONS]");
   for (let arg of args) {
@@ -66,59 +62,6 @@ export function format(info: ParserInfo<unknown>, progname: string): string {
 }
 
 // --- internal ---
-
-interface Classified {
-  args: FieldInfo<unknown>[];
-  opts: FieldInfo<unknown>[];
-  commands: CommandInfo<Command<unknown, string>>[];
-}
-
-function classify(info: ParserInfo<unknown>): Classified {
-  let args: FieldInfo<unknown>[] = [];
-  let opts: FieldInfo<unknown>[] = [];
-  let commands: CommandInfo<Command<unknown, string>>[] = [];
-
-  switch (info.type) {
-    case "field": {
-      let field = info as FieldInfo<unknown>;
-      if (field.argument) {
-        args.push(field);
-      } else {
-        opts.push(field);
-      }
-      break;
-    }
-    case "command": {
-      commands.push(info as CommandInfo<Command<unknown, string>>);
-      break;
-    }
-    case "object": {
-      for (let child of Object.values((info as ObjectInfo<object>).attrs)) {
-        let classified = classify(child);
-        args.push(...classified.args);
-        opts.push(...classified.opts);
-        commands.push(...classified.commands);
-      }
-      break;
-    }
-    case "commands": {
-      let cmds = info as CommandsInfo<Command<unknown, string>>;
-      commands.push(...Object.values(cmds.commands));
-      break;
-    }
-    case "program": {
-      let prog = info as ProgramInfo<unknown>;
-      let c1 = classify(prog.preamble);
-      let c2 = classify(prog.main);
-      args.push(...c1.args, ...c2.args);
-      opts.push(...c1.opts, ...c2.opts);
-      commands.push(...c1.commands, ...c2.commands);
-      break;
-    }
-  }
-
-  return { args, opts, commands };
-}
 
 function printArg(info: FieldInfo<unknown>): string {
   let key = info.path.join(".");
