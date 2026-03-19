@@ -82,7 +82,7 @@ console.log("\n=== -c app.json serve -p 8080 ===\n");
 let r = app.parse({ args: ["-c", "app.json", "serve", "-p", "8080"] });
 assert(r.ok);
 
-let phase1 = r.value.parser.parse({});
+let phase1 = r.value.main.parse({});
 assert(phase1.ok);
 console.log("phase 1:", (phase1.value as Record<string, unknown>).config);
 

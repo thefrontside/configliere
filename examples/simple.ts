@@ -45,7 +45,7 @@ console.log("1.0.0");
 console.log("\n=== app.ts -p 8080 --debug ===\n");
 let r3 = serve.parse({ args: ["app.ts", "-p", "8080", "--debug"] });
 assert(r3.ok);
-let result = r3.value.parser.parse({});
+let result = r3.value.main.parse({});
 assert(result.ok);
 console.log(result.value);
 

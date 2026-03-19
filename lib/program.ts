@@ -7,7 +7,7 @@ import { step } from "./step.ts";
 export interface Program<T> {
   help?: boolean;
   version?: boolean;
-  parser: Parser<T>;
+  main: Parser<T>;
 }
 
 export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
@@ -60,7 +60,7 @@ export function program<T>(
             },
           }
           : {}),
-        parser: lazy(next),
+        main: lazy(next),
       }),
     to: () => named,
   });
