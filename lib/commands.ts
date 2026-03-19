@@ -28,73 +28,75 @@ export interface Help {
 // help uses `this` intentionally — when spread into a CommandParser,
 // `this.commands` gives access to the sibling commands map
 export const help: Parser<Help> = {
-    progname: [],
-    path: [] as string[],
-    description: "show help for a command",
-    parse(input: Input) {
-      return this.inspect(input).result;
-    },
-    inspect(input: Input = {}): ParserInfo<Help> {
-      let cmds = (this as unknown as CommandParser<Command<unknown, string>>).commands ?? {};
-      let names = Object.keys(cmds);
+  progname: [],
+  path: [] as string[],
+  description: "show help for a command",
+  parse(input: Input) {
+    return this.inspect(input).result;
+  },
+  inspect(input: Input = {}): ParserInfo<Help> {
+    let cmds =
+      (this as unknown as CommandParser<Command<unknown, string>>).commands ??
+        {};
+    let names = Object.keys(cmds);
 
-      let schema: StandardSchemaV1<string> = {
-        "~standard": {
-          version: 1,
-          vendor: "configliere",
-          validate(value) {
-            if (typeof value === "string" && names.includes(value)) {
-              return { value };
-            }
-            return {
-              issues: [{
-                message: `unknown command: ${value}. available: ${
-                  names.join(", ")
-                }`,
-              }],
-            };
-          },
+    let schema: StandardSchemaV1<string> = {
+      "~standard": {
+        version: 1,
+        vendor: "configliere",
+        validate(value) {
+          if (typeof value === "string" && names.includes(value)) {
+            return { value };
+          }
+          return {
+            issues: [{
+              message: `unknown command: ${value}. available: ${
+                names.join(", ")
+              }`,
+            }],
+          };
         },
-      };
+      },
+    };
 
-      let inner = object({
-        command: {
-          description: "command to show help for",
-          ...field(schema, cli.argument()),
-        },
-      });
+    let inner = object({
+      command: {
+        description: "command to show help for",
+        ...field(schema, cli.argument()),
+      },
+    });
 
-      let parsed = inner.parse(input);
-      let self = inner.inspect(input).help;
+    let parsed = inner.parse(input);
+    let self = inner.inspect(input).help;
 
-      if (!parsed.ok) {
-        return {
-          type: "help",
-          parser: this as unknown as Parser<Help>,
-          result: { ok: false, error: parsed.error, remainder: parsed.remainder },
-          help: self,
-        };
-      }
-
-      let cmd = cmds[parsed.value.command];
-      let info = cmd.inspect(parsed.remainder);
-      let text = format(info);
-
+    if (!parsed.ok) {
       return {
         type: "help",
         parser: this as unknown as Parser<Help>,
-        result: {
-          ok: true,
-          value: { info, text },
-          remainder: parsed.remainder,
-        },
+        result: { ok: false, error: parsed.error, remainder: parsed.remainder },
         help: self,
       };
-    },
-    help(input: Input = {}): string {
-      return format(this.inspect(input));
-    },
-  };
+    }
+
+    let cmd = cmds[parsed.value.command];
+    let info = cmd.inspect(parsed.remainder);
+    let text = format(info);
+
+    return {
+      type: "help",
+      parser: this as unknown as Parser<Help>,
+      result: {
+        ok: true,
+        value: { info, text },
+        remainder: parsed.remainder,
+      },
+      help: self,
+    };
+  },
+  help(input: Input = {}): string {
+    return format(this.inspect(input));
+  },
+};
 
 export interface CommandParser<C extends Command<unknown, string>>
   extends Parser<C, CommandInfo<C>> {
@@ -106,7 +108,6 @@ export interface CommandsParser<T extends Command<unknown, string>>
   commands: Record<string, CommandParser<Command<unknown, string>>>;
   default?: string;
 }
-
 
 export function commands<T extends Command<unknown, string>>(
   map: CommandParsers<T>,
@@ -178,7 +179,9 @@ export function commands<T extends Command<unknown, string>>(
     let p = typeof entry.parse === "function"
       ? entry as Parser<unknown>
       : Object.assign(constant(true), entry);
-    cmds[name] = command(name, p, parser) as CommandParser<Command<unknown, string>>;
+    cmds[name] = command(name, p, parser) as CommandParser<
+      Command<unknown, string>
+    >;
   }
 
   return parser;

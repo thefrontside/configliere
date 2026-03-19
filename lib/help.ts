@@ -1,7 +1,4 @@
-import type {
-  FieldInfo,
-  ParserInfo,
-} from "./types.ts";
+import type { FieldInfo, ParserInfo } from "./types.ts";
 import { optionKey } from "./parse-args.ts";
 
 export function format(info: ParserInfo<unknown>, name?: string): string {

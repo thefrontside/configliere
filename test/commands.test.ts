@@ -174,7 +174,9 @@ describe("commands", () => {
     });
 
     it("includes aliases in help info", () => {
-      let info = withAliases.inspect() as CommandsInfo<Command<unknown, string>>;
+      let info = withAliases.inspect() as CommandsInfo<
+        Command<unknown, string>
+      >;
       expect(info.commands["help"].aliases).toEqual(["--help", "-h"]);
     });
 
@@ -194,11 +196,14 @@ describe("commands", () => {
 
     it("includes each command's config", () => {
       let info = cli_.inspect() as CommandsInfo<Command<unknown, string>>;
-      let runAttrs = (info.commands["run"].config as ObjectInfo<{ host: string; port: number }>).attrs;
+      let runAttrs = (info.commands["run"].config as ObjectInfo<
+        { host: string; port: number }
+      >).attrs;
       expect(Object.keys(runAttrs)).toContain("host");
       expect(Object.keys(runAttrs)).toContain("port");
 
-      let buildAttrs = (info.commands["build"].config as ObjectInfo<{ outDir: string }>).attrs;
+      let buildAttrs =
+        (info.commands["build"].config as ObjectInfo<{ outDir: string }>).attrs;
       expect(Object.keys(buildAttrs)).toContain("outDir");
     });
 

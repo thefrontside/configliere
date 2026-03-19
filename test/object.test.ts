@@ -42,7 +42,9 @@ describe("object", () => {
 
       expect(path).toEqual(["port"]);
       assert(fieldError instanceof ValidationError);
-      let appConfig = fieldError.sources.find((s) => s.sourceName === "app-config.yaml");
+      let appConfig = fieldError.sources.find((s) =>
+        s.sourceName === "app-config.yaml"
+      );
       expect(appConfig).toBeDefined();
     });
 

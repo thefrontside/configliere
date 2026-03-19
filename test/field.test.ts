@@ -70,24 +70,27 @@ describe("field", () => {
     });
 
     it("uses a falsy default of false", () => {
-      let result = parseSync(field(type("boolean"), field.default(false)), {});
+      let f = field(type("boolean"), field.default(false));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(false);
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect({}).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of 0", () => {
-      let result = parseSync(field(type("number"), field.default(0)), {});
+      let f = field(type("number"), field.default(0));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(0);
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect({}).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of empty string", () => {
-      let result = parseSync(field(type("string"), field.default("")), {});
+      let f = field(type("string"), field.default(""));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual("");
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect({}).source.sourceType).toEqual("default");
     });
   });
 

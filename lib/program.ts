@@ -1,4 +1,4 @@
-import type { Input, ParseResult, Parser, ParserInfo } from "./types.ts";
+import type { Input, Parser, ParseResult, ParserInfo } from "./types.ts";
 import { object } from "./object.ts";
 import { lazy } from "./lazy.ts";
 import { format } from "./help.ts";

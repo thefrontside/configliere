@@ -60,10 +60,19 @@ export function object<T extends object>(
 
       let remainder: Input = { ...input, args };
       let result = errors.length > 0
-        ? { ok: false as const, error: new ObjectValidationError(errors), remainder }
+        ? {
+          ok: false as const,
+          error: new ObjectValidationError(errors),
+          remainder,
+        }
         : { ok: true as const, value: value as T, remainder };
 
-      let help = { progname: [] as string[], args: [], opts: [], commands: [] } as ObjectInfo<T>["help"];
+      let help = {
+        progname: [] as string[],
+        args: [],
+        opts: [],
+        commands: [],
+      } as ObjectInfo<T>["help"];
       for (let child of Object.values(attrs) as ParserInfo<unknown>[]) {
         help.args.push(...child.help.args);
         help.opts.push(...child.help.opts);
@@ -96,7 +105,9 @@ function scopeInput<V>(
   if (args.length > 0) {
     let matched = new Set<keyof V>();
     let prev: string[] | undefined;
-    while (args.length > 0 && (prev === undefined || args.length < prev.length)) {
+    while (
+      args.length > 0 && (prev === undefined || args.length < prev.length)
+    ) {
       prev = args;
       for (let [key, parser] of parsers) {
         let f = asField(parser);

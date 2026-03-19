@@ -28,7 +28,11 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
             return {
               ...phase2,
               help: {
-                progname: parser.progname.length ? parser.progname : info.help.progname.length ? info.help.progname : phase2.help.progname,
+                progname: parser.progname.length
+                  ? parser.progname
+                  : info.help.progname.length
+                  ? info.help.progname
+                  : phase2.help.progname,
                 args: [...info.help.args, ...phase2.help.args],
                 opts: [...info.help.opts, ...phase2.help.opts],
                 commands: [...info.help.commands, ...phase2.help.commands],

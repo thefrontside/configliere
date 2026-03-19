@@ -33,11 +33,12 @@ export function field<T>(
       let sources: Source<T>[] = [];
 
       // none is always a source (lowest priority)
+      let none = validate(schema, undefined);
       sources.push({
         sourceName: "none",
         sourceType: "none",
-        value: undefined as T,
-        issues: validate(schema, undefined).issues,
+        value: (none.issues ? undefined : none.value) as T,
+        issues: none.issues,
       });
 
       // default comes after none but before actual input sources
@@ -78,11 +79,15 @@ export function field<T>(
       }
 
       // pick the best valid source (last one wins), fall back to last source
-      let winner = sources.findLast((s) => !s.issues)
-        ?? sources[sources.length - 1];
+      let winner = sources.findLast((s) => !s.issues) ??
+        sources[sources.length - 1];
 
       let result = winner.issues
-        ? { ok: false as const, error: new ValidationError(sources), remainder: input }
+        ? {
+          ok: false as const,
+          error: new ValidationError(sources),
+          remainder: input,
+        }
         : { ok: true as const, value: winner.value as T, remainder: input };
 
       let info: FieldInfo<T> = {

@@ -64,7 +64,8 @@ export interface FieldInfo<T> extends ParserInfo<T> {
   sources: Source<unknown>[];
 }
 
-export interface CommandInfo<T extends Command<unknown, string>> extends ParserInfo<T> {
+export interface CommandInfo<T extends Command<unknown, string>>
+  extends ParserInfo<T> {
   type: "command";
   name: T["name"];
   description?: string;
@@ -76,7 +77,7 @@ export interface CommandInfo<T extends Command<unknown, string>> extends ParserI
 export interface ObjectInfo<T extends object> extends ParserInfo<T> {
   type: "object";
   attrs: {
-    [K in keyof T]: ParserInfo<T[K]>
+    [K in keyof T]: ParserInfo<T[K]>;
   };
 }
 
@@ -85,7 +86,8 @@ export interface ConstantInfo<T> extends ParserInfo<T> {
   value: T;
 }
 
-export interface CommandsInfo<T extends Command<unknown, string>> extends ParserInfo<T> {
+export interface CommandsInfo<T extends Command<unknown, string>>
+  extends ParserInfo<T> {
   type: "commands";
   commands: { [C in T as C["name"]]: CommandInfo<C> };
 }
