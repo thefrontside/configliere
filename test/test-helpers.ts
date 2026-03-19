@@ -11,7 +11,7 @@ export function parseOk<V>(
 }
 
 export function parseNotOk(
-  parser: Parser,
+  parser: Parser<unknown>,
   input: Input,
 ): Error {
   let result = parseSync(parser, input);

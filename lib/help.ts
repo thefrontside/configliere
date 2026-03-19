@@ -1,13 +1,15 @@
 import type {
+  Command,
   CommandInfo,
+  CommandsInfo,
   FieldInfo,
-  HelpInfo,
   ObjectInfo,
   ParserInfo,
 } from "./types.ts";
+import type { ProgramInfo } from "./program.ts";
 import { optionKey } from "./parse-args.ts";
 
-export function format(info: ParserInfo, progname: string): string {
+export function format(info: ParserInfo<unknown>, progname: string): string {
   let { args, opts, commands } = classify(info);
   let sections: string[] = [];
 
@@ -63,29 +65,22 @@ export function format(info: ParserInfo, progname: string): string {
   return sections.join("\n\n");
 }
 
-export function merge(...infos: ParserInfo[]): ParserInfo {
-  let attrs: Record<string, ParserInfo> = {};
-  let i = 0;
-  for (let info of infos) {
-    if (info.type === "object") {
-      Object.assign(attrs, (info as ObjectInfo).attrs);
-    } else {
-      attrs[`_${i++}`] = info;
-    }
-  }
-  return { type: "object", attrs } as ObjectInfo;
-}
-
 // --- internal ---
 
-function classify(info: ParserInfo): HelpInfo {
-  let args: FieldInfo[] = [];
-  let opts: FieldInfo[] = [];
-  let commands: CommandInfo[] = [];
+interface Classified {
+  args: FieldInfo<unknown>[];
+  opts: FieldInfo<unknown>[];
+  commands: CommandInfo<Command<unknown, string>>[];
+}
+
+function classify(info: ParserInfo<unknown>): Classified {
+  let args: FieldInfo<unknown>[] = [];
+  let opts: FieldInfo<unknown>[] = [];
+  let commands: CommandInfo<Command<unknown, string>>[] = [];
 
   switch (info.type) {
     case "field": {
-      let field = info as FieldInfo;
+      let field = info as FieldInfo<unknown>;
       if (field.argument) {
         args.push(field);
       } else {
@@ -94,11 +89,11 @@ function classify(info: ParserInfo): HelpInfo {
       break;
     }
     case "command": {
-      commands.push(info as CommandInfo);
+      commands.push(info as CommandInfo<Command<unknown, string>>);
       break;
     }
     case "object": {
-      for (let child of Object.values((info as ObjectInfo).attrs)) {
+      for (let child of Object.values((info as ObjectInfo<object>).attrs)) {
         let classified = classify(child);
         args.push(...classified.args);
         opts.push(...classified.opts);
@@ -106,19 +101,26 @@ function classify(info: ParserInfo): HelpInfo {
       }
       break;
     }
-    case "help": {
-      let help = info as HelpInfo;
-      args.push(...help.args);
-      opts.push(...help.opts);
-      commands.push(...help.commands);
+    case "commands": {
+      let cmds = info as CommandsInfo<Command<unknown, string>>;
+      commands.push(...Object.values(cmds.commands));
+      break;
+    }
+    case "program": {
+      let prog = info as ProgramInfo<unknown>;
+      let c1 = classify(prog.preamble);
+      let c2 = classify(prog.main);
+      args.push(...c1.args, ...c2.args);
+      opts.push(...c1.opts, ...c2.opts);
+      commands.push(...c1.commands, ...c2.commands);
       break;
     }
   }
 
-  return { type: "help", args, opts, commands };
+  return { args, opts, commands };
 }
 
-function printArg(info: FieldInfo): string {
+function printArg(info: FieldInfo<unknown>): string {
   let key = info.path.join(".");
   if (info.array) {
     return `<${key}>...`;
@@ -126,7 +128,7 @@ function printArg(info: FieldInfo): string {
   return info.required ? `<${key}>` : `[${key}]`;
 }
 
-function formatSource(info: FieldInfo): string {
+function formatSource(info: FieldInfo<unknown>): string {
   if (info.source.issues) return "";
   let { sourceType, sourceName, value } = info.source;
   switch (sourceType) {

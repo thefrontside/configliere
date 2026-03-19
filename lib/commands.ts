@@ -1,24 +1,39 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { CommandInfo, HelpInfo, Input, Parser, ParserInfo } from "./types.ts";
+import type {
+  Command,
+  CommandInfo,
+  CommandsInfo,
+  Input,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
 import { constant } from "./constant.ts";
 import { toSnake } from "ts-case-convert";
 import { cli, field } from "./field.ts";
 import { object } from "./object.ts";
 import { format } from "./help.ts";
 
+export type CommandEntry = Partial<Parser<unknown>>;
+
+export type CommandParsers<T extends Command<unknown, string>> = {
+  [C in T as C["name"]]: Partial<Parser<C["config"]>>;
+};
+
 export interface Help {
-  command: string;
+  info: ParserInfo<Command<unknown, string>>;
   text: string;
 }
 
-export type CommandEntry = Partial<Parser>;
-
+// help uses `this` intentionally — when spread into a CommandParser,
+// `this.commands` gives access to the sibling commands map
 export const help: Parser<Help> = {
     path: [] as string[],
     description: "show help for a command",
     parse(input: Input) {
-      let cmds: Record<string, CommandParser<unknown, string>> =
-        (this as unknown as CommandParser<unknown, string>).commands ?? {};
+      return this.inspect(input).result;
+    },
+    inspect(input: Input = {}): ParserInfo<Help> {
+      let cmds = (this as unknown as CommandParser<Command<unknown, string>>).commands ?? {};
       let names = Object.keys(cmds);
 
       let schema: StandardSchemaV1<string> = {
@@ -47,118 +62,115 @@ export const help: Parser<Help> = {
         },
       });
 
-      let result = inner.parse(input);
-      if (!result.ok) return result;
+      let parsed = inner.parse(input);
 
-      let cmd = cmds[result.value.command];
-      let text = cmd.help(input);
+      if (!parsed.ok) {
+        return {
+          type: "help",
+          parser: this as unknown as Parser<Help>,
+          result: { ok: false, error: parsed.error, remainder: parsed.remainder },
+        };
+      }
 
-      return {
-        ok: true as const,
-        value: { command: result.value.command, text },
-        remainder: result.remainder,
-      };
-    },
-    inspect(input: Input = {}): ParserInfo {
-      let cmds: Record<string, CommandParser<unknown, string>> =
-        (this as unknown as CommandParser<unknown, string>).commands ?? {};
-      let cmdInfos: CommandInfo[] = Object.entries(cmds)
-        .filter(([name]) => name !== "help")
-        .map(([name, cmd]) => ({
-          type: "command" as const,
-          name,
-          description: cmd.parser.description,
-          aliases: cmd.parser.aliases,
-          config: cmd.parser.inspect(scope(name, input)),
-        }));
+      let cmd = cmds[parsed.value.command];
+      let info = cmd.inspect(parsed.remainder);
+      let text = cmd.help(parsed.remainder);
+
       return {
         type: "help",
-        args: [{
-          type: "field" as const,
-          path: ["command"],
-          required: true,
-          argument: true,
-          array: false,
-          aliases: [],
-          description: "command to show help for",
-          boolean: false,
-          source: { value: undefined, sourceName: "none", sourceType: "none" },
-          sources: [],
-        }],
-        opts: [],
-        commands: cmdInfos,
-      } as HelpInfo;
+        parser: this as unknown as Parser<Help>,
+        result: {
+          ok: true,
+          value: { info, text },
+          remainder: parsed.remainder,
+        },
+      };
     },
     help(input: Input = {}): string {
       return format(this.inspect(input), "help");
     },
   };
 
-export interface Command<T, Name extends string> {
-  name: Name;
-  config: T;
+export interface CommandParser<C extends Command<unknown, string>>
+  extends Parser<C, CommandInfo<C>> {
+  commands: Record<string, CommandParser<Command<unknown, string>>>;
 }
 
-export interface CommandParser<T, Name extends string>
-  extends Parser<Command<T, Name>> {
-  name: Name;
-  commands: Record<string, CommandParser<unknown, string>>;
-  parser: Parser<T>;
-}
-
-export interface CommandsParser<V = unknown>
-  extends Parser<V> {
-  commands: Record<string, CommandParser<unknown, string>>;
+export interface CommandsParser<T extends Command<unknown, string>>
+  extends Parser<T, CommandsInfo<T>> {
+  commands: Record<string, CommandParser<Command<unknown, string>>>;
   default?: string;
 }
 
-export function commands<T extends Record<string, CommandEntry>>(
-  map: T,
+
+export function commands<T extends Command<unknown, string>>(
+  map: CommandParsers<T>,
   opts?: { default?: string },
-): CommandsParser<CommandValue<T>> {
-  let cmds: Record<string, CommandParser<unknown, string>> = {};
-  for (let [name, entry] of Object.entries(map) as [string, CommandEntry][]) {
-    let parser = typeof entry.parse === "function"
-      ? entry as Parser
-      : { ...constant(true), ...entry };
-    cmds[name] = command(name, parser, cmds);
+): CommandsParser<T> {
+  let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
+  for (
+    let [name, entry] of Object.entries(map) as [string, CommandEntry][]
+  ) {
+    let p = typeof entry.parse === "function"
+      ? entry as Parser<unknown>
+      : Object.assign(constant(true), entry);
+    cmds[name] = command(name, p, cmds) as CommandParser<Command<unknown, string>>;
   }
 
-  type V = CommandValue<T>;
-
-  return {
+  let parser = {
     commands: cmds,
     default: opts?.default,
     path: [],
     parse(input: Input) {
+      return parser.inspect(input).result;
+    },
+    inspect(input: Input = {}): CommandsInfo<T> {
       let args = input.args ?? [];
-
-      let [matched, remainder] = match(args, cmds, opts);
-
-      if (!matched) {
-        return {
-          ok: false as const,
-          error: new NoCommandMatchError(Object.keys(cmds)),
-          remainder: input,
+      let matched = match(args, cmds, opts);
+      let infos: Record<string, CommandInfo<Command<unknown, string>>> = {};
+      for (let [name, cmd] of Object.entries(cmds)) {
+        let info = cmd.inspect(scope(name, input));
+        infos[name] = {
+          type: "command",
+          parser: cmd,
+          result: info.result,
+          name,
+          description: info.description,
+          aliases: info.aliases,
+          config: info.config,
+          commands: {},
         };
       }
 
-      return matched.parse(scope(matched.name, { ...input, args: remainder }));
-    },
-    inspect(input: Input = {}): ParserInfo {
-      let cmdInfos: CommandInfo[] = Object.entries(cmds).map(([name, cmd]) => ({
-        type: "command" as const,
-        name,
-        description: cmd.parser.description,
-        aliases: cmd.parser.aliases,
-        config: cmd.parser.inspect(scope(name, input)),
-      }));
-      return { type: "help", args: [], opts: [], commands: cmdInfos } as HelpInfo;
+      if (!matched) {
+        return {
+          type: "commands",
+          parser,
+          result: {
+            ok: false,
+            error: new NoCommandMatchError(Object.keys(cmds)),
+            remainder: input,
+          },
+          commands: infos,
+        } as unknown as CommandsInfo<T>;
+      }
+
+      let [name, cmd, remainder] = matched;
+      let inner = cmd.inspect(scope(name, { ...input, args: remainder }));
+
+      return {
+        type: "commands",
+        parser,
+        result: inner.result,
+        commands: infos,
+      } as unknown as CommandsInfo<T>;
     },
     help(input: Input = {}): string {
-      return format(this.inspect(input), this.path.join("."));
+      return format(parser.inspect(input), parser.path.join("."));
     },
-  } as CommandsParser<V>;
+  } as CommandsParser<T>;
+
+  return parser;
 }
 
 export class NoCommandMatchError extends Error {
@@ -172,49 +184,60 @@ export class NoCommandMatchError extends Error {
 
 function match(
   args: string[],
-  cmds: Record<string, CommandParser<unknown, string>>,
+  cmds: Record<string, CommandParser<Command<unknown, string>>>,
   opts?: { default?: string },
-): [CommandParser<unknown, string> | undefined, string[]] {
+): [string, CommandParser<Command<unknown, string>>, string[]] | undefined {
   if (args.length > 0) {
-    if (args[0] in cmds) return [cmds[args[0]], args.slice(1)];
-    for (let [, cmd] of Object.entries(cmds)) {
-      if (cmd.parser.aliases?.includes(args[0])) return [cmd, args.slice(1)];
+    if (args[0] in cmds) return [args[0], cmds[args[0]], args.slice(1)];
+    for (let [name, cmd] of Object.entries(cmds)) {
+      if (cmd.aliases?.includes(args[0])) return [name, cmd, args.slice(1)];
     }
   }
-  if (opts?.default && cmds[opts.default]) return [cmds[opts.default], args];
-  return [undefined, args];
+  if (opts?.default && cmds[opts.default]) {
+    return [opts.default, cmds[opts.default], args];
+  }
+  return undefined;
 }
 
 function command<T, const Name extends string>(
   name: Name,
-  parser: Parser<T>,
-  cmds: Record<string, CommandParser<unknown, string>>,
-): CommandParser<T, Name> {
-  return {
-    name,
-    parser,
+  inner: Parser<T>,
+  cmds: Record<string, CommandParser<Command<unknown, string>>>,
+): CommandParser<Command<T, Name>> {
+  let parser: CommandParser<Command<T, Name>> = {
     commands: cmds,
-    path: [name, ...parser.path],
+    path: [name, ...inner.path],
+    description: inner.description,
+    aliases: inner.aliases,
     parse(input: Input) {
-      let result = parser.parse.call(this, input);
-
-      if (result.ok) {
-        return {
-          ok: true as const,
-          value: { name, config: result.value } as Command<T, Name>,
-          remainder: { ...input, args: result.remainder.args },
-        };
-      }
-
-      return result;
+      return parser.inspect(input).result;
     },
-    inspect(input: Input = {}): ParserInfo {
-      return parser.inspect(input);
+    inspect(input: Input = {}): CommandInfo<Command<T, Name>> {
+      let config = inner.inspect.call(parser, input);
+      let result = config.result.ok
+        ? {
+          ok: true as const,
+          value: { name, config: config.result.value } as Command<T, Name>,
+          remainder: { ...input, args: config.result.remainder.args },
+        }
+        : config.result;
+
+      return {
+        type: "command",
+        parser,
+        result,
+        name,
+        description: inner.description,
+        aliases: inner.aliases,
+        config,
+        commands: {},
+      };
     },
     help(input: Input = {}): string {
-      return format(this.inspect(input), name);
+      return format(inner.inspect.call(parser, input), name);
     },
   };
+  return parser;
 }
 
 function scope(name: string, input: Input): Input {
@@ -238,11 +261,3 @@ function scope(name: string, input: Input): Input {
   });
   return { ...input, values, envs };
 }
-
-type CommandValue<T extends Record<string, CommandEntry>> =
-  & {
-    [K in keyof T & string]: T[K] extends
-      Parser<infer V> ? { name: K; config: V }
-      : { name: K; config: true };
-  }
-  & {} extends infer U ? U[keyof U & keyof T & string] : never;

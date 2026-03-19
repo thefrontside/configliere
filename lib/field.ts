@@ -17,8 +17,7 @@ export function field<T>(
     array: false,
   } as Mods);
 
-  let field: Field<T> = {
-    type: "field",
+  let f: Field<T> = {
     path: [],
     required: !!validate(schema, undefined).issues,
     schema,
@@ -26,27 +25,10 @@ export function field<T>(
     array: mods.array,
     default: mods.default,
     boolean: isBoolean(schema),
-    source: { sourceName: "none", sourceType: "none", value: undefined },
-    sources: [],
     parse(input) {
-      let info = this.inspect(input);
-      let { source } = info;
-
-      if (source.issues) {
-        return {
-          ok: false as const,
-          error: new ValidationError(info.sources),
-          remainder: input,
-        };
-      } else {
-        return {
-          ok: true as const,
-          value: source.value as T,
-          remainder: input,
-        };
-      }
+      return this.inspect(input).result;
     },
-    inspect(input: Input = {}): FieldInfo {
+    inspect(input: Input = {}): FieldInfo<T> {
       let sources: Source<T>[] = [];
 
       // none is always a source (lowest priority)
@@ -84,7 +66,7 @@ export function field<T>(
       for (let env of input.envs ?? []) {
         let strval = env.value[key];
         if (strval === undefined) continue;
-        let value = parseEnvValue(field, strval);
+        let value = parseEnvValue(this, strval);
         let result = validate(schema, value);
         sources.push({
           sourceName: env.name,
@@ -98,8 +80,14 @@ export function field<T>(
       let winner = sources.findLast((s) => !s.issues)
         ?? sources[sources.length - 1];
 
+      let result = winner.issues
+        ? { ok: false as const, error: new ValidationError(sources), remainder: input }
+        : { ok: true as const, value: winner.value as T, remainder: input };
+
       return {
         type: "field",
+        parser: this,
+        result,
         path: this.path,
         required: this.required,
         argument: this.argument,
@@ -116,7 +104,7 @@ export function field<T>(
       return format(this.inspect(input), this.path.join("."));
     },
   };
-  return field;
+  return f;
 }
 
 // --- internal ---

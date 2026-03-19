@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 export type ParseResult<T> = Done<T> | Fail;
 
-export interface Done<T = unknown> {
+export interface Done<T> {
   ok: true;
   value: T;
   remainder: Input;
@@ -14,12 +14,12 @@ export interface Fail {
   remainder: Input;
 }
 
-export interface Parser<T = unknown> {
+export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
   path: string[];
   description?: string;
   aliases?: string[];
-  parse(input: Input): Done<T> | Fail;
-  inspect(input?: Input): ParserInfo;
+  parse(input: Input): ParseResult<T>;
+  inspect(input?: Input): Info;
   help(input?: Input): string;
 }
 
@@ -35,11 +35,13 @@ export interface Input {
   args?: string[];
 }
 
-export interface ParserInfo {
+export interface ParserInfo<T> {
   type: string;
+  parser: Parser<T>;
+  result: ParseResult<T>;
 }
 
-export interface FieldInfo extends ParserInfo {
+export interface FieldInfo<T> extends ParserInfo<T> {
   type: "field";
   path: string[];
   required: boolean;
@@ -53,34 +55,44 @@ export interface FieldInfo extends ParserInfo {
   sources: Source<unknown>[];
 }
 
-export interface CommandInfo extends ParserInfo {
+export interface CommandInfo<T extends Command<unknown, string>> extends ParserInfo<T> {
   type: "command";
-  name: string;
+  name: T["name"];
   description?: string;
   aliases?: string[];
-  config: ParserInfo;
+  config: ParserInfo<unknown>;
+  commands: Record<string, CommandInfo<Command<unknown, string>>>;
 }
 
-export interface ObjectInfo extends ParserInfo {
+export interface ObjectInfo<T extends object> extends ParserInfo<T> {
   type: "object";
-  attrs: Record<string, ParserInfo>;
+  attrs: {
+    [K in keyof T]: ParserInfo<T[K]>
+  };
 }
 
-export interface ConstantInfo<T = unknown> extends ParserInfo {
+export interface ConstantInfo<T> extends ParserInfo<T> {
   type: "constant";
   value: T;
 }
 
-export interface HelpInfo extends ParserInfo {
-  type: "help";
-  args: FieldInfo[];
-  opts: FieldInfo[];
-  commands: CommandInfo[];
+export interface CommandsInfo<T extends Command<unknown, string>> extends ParserInfo<T> {
+  type: "commands";
+  commands: { [C in T as C["name"]]: CommandInfo<C> };
 }
 
-export interface Field<T> extends Parser<T>, FieldInfo {
+export interface Command<T, Name extends string> {
+  name: Name;
+  config: T;
+}
+
+export interface Field<T> extends Parser<T, FieldInfo<T>> {
   schema: StandardSchemaV1<T>;
-  inspect(input?: Input): FieldInfo;
+  required: boolean;
+  argument: boolean;
+  array: boolean;
+  boolean: boolean;
+  default?: unknown;
 }
 
 export type Source<T> = {
@@ -89,4 +101,3 @@ export type Source<T> = {
   sourceType: string;
   sourceName: string;
 };
-

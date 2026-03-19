@@ -87,7 +87,7 @@ assert(phase1.ok);
 console.log("phase 1:", (phase1.value as Record<string, unknown>).config);
 
 // simulate loading config, resume into phase 2
-let resume = (phase1.value as Record<string, unknown>).resume as (deps: { serve?: { host?: string } }) => Parser;
+let resume = (phase1.value as Record<string, unknown>).resume as (deps: { serve?: { host?: string } }) => Parser<unknown>;
 let parser2 = resume({ serve: { host: "0.0.0.0" } });
 let phase2 = parser2.parse({
   values: [{ name: "app.json", value: { serve: { host: "0.0.0.0" } } }],

@@ -1,4 +1,4 @@
-import type { Input, Parser, ParserInfo } from "./types.ts";
+import type { Input, ParseResult, Parser, ParserInfo } from "./types.ts";
 import { object } from "./object.ts";
 import { lazy } from "./lazy.ts";
 import { format } from "./help.ts";
@@ -10,11 +10,12 @@ export interface Program<T> {
   parser: Parser<T>;
 }
 
-export interface ProgramInfo extends ParserInfo {
+export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
   type: "program";
   name: string;
   version?: string;
-  info: ParserInfo;
+  preamble: ParserInfo<unknown>;
+  main: ParserInfo<T>;
 }
 
 export function program<T>(
@@ -23,7 +24,7 @@ export function program<T>(
     version?: string;
     config: Parser<T>;
   },
-): Parser<Program<T>> {
+): Parser<Program<T>, ProgramInfo<T>> {
   let { name, version, config } = opts;
 
   let inner = step({
@@ -46,13 +47,21 @@ export function program<T>(
     to: () => config,
   });
 
-  return {
+  let parser = {
     ...inner,
-    inspect(input: Input = {}): ProgramInfo {
-      return { type: "program", name, version, info: inner.inspect(input) };
+    parse(input: Input) {
+      return parser.inspect(input).result;
+    },
+    inspect(input: Input = {}): ProgramInfo<T> {
+      let preamble = inner.inspect(input);
+      let remainder = preamble.result.ok ? preamble.result.remainder : input;
+      let main = config.inspect(remainder);
+      return { type: "program", parser, result: preamble.result as ParseResult<Program<T>>, name, version, preamble, main };
     },
     help(input: Input = {}): string {
-      return format(inner.inspect(input), name);
+      return format(parser.inspect(input), name);
     },
-  } as Parser<Program<T>>;
+  } as Parser<Program<T>, ProgramInfo<T>>;
+
+  return parser;
 }

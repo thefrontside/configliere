@@ -1,20 +1,22 @@
 import type { ConstantInfo, Parser } from "./types.ts";
 
-export function constant<const T>(value: T): Parser<T> {
-  return {
+export function constant<const T>(value: T): Parser<T, ConstantInfo<T>> {
+  let parser: Parser<T, ConstantInfo<T>> = {
     path: [],
     parse(input) {
-      return {
-        ok: true as const,
-        value,
-        remainder: input,
-      };
+      return parser.inspect(input).result;
     },
-    inspect(): ConstantInfo<T> {
-      return { type: "constant", value };
+    inspect(input = {}): ConstantInfo<T> {
+      return {
+        type: "constant",
+        parser,
+        value,
+        result: { ok: true, value, remainder: input },
+      };
     },
     help() {
       return "";
     },
   };
+  return parser;
 }

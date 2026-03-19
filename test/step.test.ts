@@ -28,7 +28,7 @@ describe("step", () => {
     expect(result.value.config).toEqual("myapp.json");
     expect(typeof result.value.resume).toEqual("function");
 
-    let resume = result.value.resume as unknown as (deps: { port: number }) => Parser;
+    let resume = result.value.resume as unknown as (deps: { port: number }) => Parser<unknown>;
     let result2 = resume({ port: 8080 }).parse({
       values: [{ name: "config", value: { port: 9090 } }],
     });
@@ -58,7 +58,7 @@ describe("step", () => {
     expect(result.value.config).toEqual("myapp.json");
 
     // remainder (--port 8080) should be baked into the resume parser
-    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let resume = result.value.resume as unknown as (deps: void) => Parser<unknown>;
     let result2 = resume(undefined).parse({});
     assert(result2.ok);
     expect(result2.value).toEqual({ port: 8080 });
@@ -86,7 +86,7 @@ describe("step", () => {
     assert(result.ok);
 
     // remainder has --port 8080, enrichment adds host via values
-    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let resume = result.value.resume as unknown as (deps: void) => Parser<unknown>;
     let result2 = resume(undefined).parse({
       values: [{ name: "config", value: { host: "localhost" } }],
     });
@@ -137,12 +137,12 @@ describe("step", () => {
     assert(result1.ok);
     expect(result1.value.config).toEqual("app.json");
 
-    let resume1 = result1.value.resume as unknown as (deps: string[]) => Parser;
+    let resume1 = result1.value.resume as unknown as (deps: string[]) => Parser<unknown>;
     let result2 = resume1(["plugin-a"]).parse({});
     assert(result2.ok);
     expect((result2.value as Record<string, unknown>).host).toEqual("localhost");
 
-    let resume2 = (result2.value as Record<string, unknown>).resume as (deps: { debug: boolean }) => Parser;
+    let resume2 = (result2.value as Record<string, unknown>).resume as (deps: { debug: boolean }) => Parser<unknown>;
     let result3 = resume2({ debug: true }).parse({});
     assert(result3.ok);
     expect(result3.value).toEqual({ port: 3000 });
@@ -169,7 +169,7 @@ describe("step", () => {
     let result = parser.parse({ args: ["app.json", "serve", "--port", "9090"] });
     assert(result.ok);
 
-    let resume = result.value.resume as unknown as (deps: void) => Parser;
+    let resume = result.value.resume as unknown as (deps: void) => Parser<unknown>;
     let result2 = resume(undefined).parse({});
     assert(result2.ok);
     expect(result2.value).toEqual({ name: "serve", config: { port: 9090 } });
@@ -191,8 +191,8 @@ describe("step", () => {
         }),
     });
 
-    let info = parser.inspect() as ObjectInfo;
-    let config = info.attrs["config"] as FieldInfo;
+    let info = parser.inspect() as unknown as ObjectInfo<{ config: string }>;
+    let config = info.attrs.config as FieldInfo<unknown>;
     expect(config).toBeDefined();
     expect(config.description).toEqual("config file path");
   });

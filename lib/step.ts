@@ -1,5 +1,5 @@
 import type { Input, Parser, ParserInfo } from "./types.ts";
-import { format, merge } from "./help.ts";
+import { format } from "./help.ts";
 
 export function step<T, To extends (...args: never[]) => Parser<unknown>>(
   opts: {
@@ -7,41 +7,41 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
     to: To;
   },
 ): Parser<T> {
-  return {
+  let parser: Parser<T> = {
     path: [],
     parse(input: Input) {
-      let ref: Input = {};
+      return parser.inspect(input).result;
+    },
+    inspect(input: Input = {}): ParserInfo<T> {
+      let remainder = input;
       let next = ((...deps: unknown[]) => {
-        let parser = opts.to(...deps as never[]);
+        let p = opts.to(...deps as never[]);
         return {
-          ...parser,
+          ...p,
           parse(enrichment: Input) {
-            return parser.parse(concat(ref, enrichment));
+            return p.parse(concat(remainder, enrichment));
           },
           inspect(enrichment: Input = {}) {
-            return parser.inspect(concat(ref, enrichment));
+            return p.inspect(concat(remainder, enrichment));
           },
           help(enrichment: Input = {}) {
-            return parser.help(concat(ref, enrichment));
+            return p.help(concat(remainder, enrichment));
           },
         };
       }) as unknown as To;
 
-      let result = opts.from(next).parse(input);
-      if (result.ok) {
-        ref = result.remainder;
+      let outer = opts.from(next);
+      let info = outer.inspect(input);
+      if (info.result.ok) {
+        remainder = info.result.remainder;
       }
-      return result;
-    },
-    inspect(input: Input = {}): ParserInfo {
-      let inner = opts.from(opts.to);
-      let to = opts.to(undefined as never);
-      return merge(inner.inspect(input), to.inspect(input));
+      return { ...info, parser } as ParserInfo<T>;
     },
     help(input: Input = {}): string {
-      return format(this.inspect(input), this.path.join("."));
+      return format(parser.inspect(input), parser.path.join("."));
     },
   };
+  return parser;
 }
 
 // --- internal ---
