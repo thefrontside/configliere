@@ -37,6 +37,7 @@ export function object<T extends object>(
     return [key, parser] as [keyof T, Parser<unknown>];
   });
   let parser: Parser<T, ObjectInfo<T>> = {
+    progname: [],
     path: [],
     parse(input) {
       return parser.inspect(input).result;

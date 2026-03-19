@@ -6,8 +6,8 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
     from: (next: To) => Parser<T>;
     to: To;
   },
-): Parser<T> & { progname: string[] } {
-  let parser: Parser<T> & { progname: string[] } = {
+): Parser<T> {
+  let parser: Parser<T> = {
     progname: [],
     path: [],
     parse(input: Input) {
@@ -17,9 +17,7 @@ export function step<T, To extends (...args: never[]) => Parser<unknown>>(
       let remainder = input;
       let next = ((...deps: unknown[]) => {
         let p = opts.to(...deps as never[]);
-        if ("progname" in p) {
-          (p as { progname: string[] }).progname = parser.progname;
-        }
+        p.progname = parser.progname;
         let wrapped = {
           ...p,
           parse(enrichment: Input) {

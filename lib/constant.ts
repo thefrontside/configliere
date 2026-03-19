@@ -2,6 +2,7 @@ import type { ConstantInfo, Parser } from "./types.ts";
 
 export function constant<const T>(value: T): Parser<T, ConstantInfo<T>> {
   let parser: Parser<T, ConstantInfo<T>> = {
+    progname: [],
     path: [],
     parse(input) {
       return parser.inspect(input).result;

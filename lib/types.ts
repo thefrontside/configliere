@@ -15,6 +15,7 @@ export interface Fail {
 }
 
 export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
+  progname: string[];
   path: string[];
   description?: string;
   aliases?: string[];

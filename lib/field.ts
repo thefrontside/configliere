@@ -18,6 +18,7 @@ export function field<T>(
   } as Mods);
 
   let f: Field<T> = {
+    progname: [],
     path: [],
     required: !!validate(schema, undefined).issues,
     schema,

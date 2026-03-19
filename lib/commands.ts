@@ -28,6 +28,7 @@ export interface Help {
 // help uses `this` intentionally — when spread into a CommandParser,
 // `this.commands` gives access to the sibling commands map
 export const help: Parser<Help> = {
+    progname: [],
     path: [] as string[],
     description: "show help for a command",
     parse(input: Input) {
@@ -102,7 +103,6 @@ export interface CommandParser<C extends Command<unknown, string>>
 
 export interface CommandsParser<T extends Command<unknown, string>>
   extends Parser<T, CommandsInfo<T>> {
-  progname: string[];
   commands: Record<string, CommandParser<Command<unknown, string>>>;
   default?: string;
 }
@@ -216,6 +216,7 @@ function command<T, const Name extends string>(
   parent: CommandsParser<Command<unknown, string>>,
 ): CommandParser<Command<T, Name>> {
   let parser: CommandParser<Command<T, Name>> = {
+    progname: [...parent.progname, name],
     commands: parent.commands,
     path: [name, ...inner.path],
     description: inner.description,

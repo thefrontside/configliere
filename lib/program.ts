@@ -27,9 +27,7 @@ export function program<T>(
 ): Parser<Program<T>, ProgramInfo<T>> {
   let { name, version, config } = opts;
 
-  if ("progname" in config) {
-    (config as { progname: string[] }).progname = [name];
-  }
+  config.progname = [name];
 
   let named: Parser<T> = {
     ...config,
@@ -64,6 +62,8 @@ export function program<T>(
       }),
     to: () => named,
   });
+
+  inner.progname = [name];
 
   let parser = {
     ...inner,
