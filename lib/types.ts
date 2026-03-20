@@ -14,13 +14,20 @@ export interface Fail {
   remainder: Input;
 }
 
-export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
+export interface ParseContext {
   progname: string[];
   path: string[];
+  commands: Record<string, Parser<Command<unknown, string>>>;
+  args: string[];
+  values: { name: string; value: unknown }[];
+  envs: { name: string; value: Record<string, string> }[];
+}
+
+export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
   description?: string;
   aliases?: string[];
-  parse(input: Input): ParseResult<T>;
-  inspect(input?: Input): Info;
+  parse(input?: Input): ParseResult<T>;
+  inspect(ctx: ParseContext): Info;
   help(input?: Input): string;
 }
 
@@ -47,6 +54,7 @@ export interface ParserInfo<T> {
   type: string;
   parser: Parser<T>;
   result: ParseResult<T>;
+  remainder: Input;
   help: HelpInfo;
 }
 

@@ -3,25 +3,20 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands, help } from "../lib/commands.ts";
-import { step } from "../lib/step.ts";
-import { constant } from "../lib/constant.ts";
+import { inject } from "../lib/inject.ts";
 import { program } from "../lib/program.ts";
 import type { Parser } from "../lib/types.ts";
 
 let app = program({
   name: "myctl",
   version: "2.0.0",
-  config: step({
-    from: (resume) =>
-      object({
-        config: {
-          description: "config file",
-          aliases: ["-c"],
-          ...field(type("string")),
-        },
-        resume: constant(resume),
-      }),
-    to: (_config: { serve?: { host?: string } }) =>
+  config: object({
+    config: {
+      description: "config file",
+      aliases: ["-c"],
+      ...field(type("string")),
+    },
+    next: inject((_config: { serve?: { host?: string } }) =>
       commands({
         help,
         init: {
@@ -62,7 +57,8 @@ let app = program({
             },
           }),
         },
-      }),
+      })
+    ),
   }),
 });
 
@@ -82,12 +78,13 @@ console.log("\n=== -c app.json serve -p 8080 ===\n");
 let r = app.parse({ args: ["-c", "app.json", "serve", "-p", "8080"] });
 assert(r.ok);
 
-let phase1 = r.value.main.parse({});
+let main = r.value.main();
+let phase1 = main.parse();
 assert(phase1.ok);
-console.log("phase 1:", (phase1.value as Record<string, unknown>).config);
+console.log("phase 1 config:", phase1.value.config);
 
 // simulate loading config, resume into phase 2
-let resume = (phase1.value as Record<string, unknown>).resume as (
+let resume = phase1.value.next as unknown as (
   deps: { serve?: { host?: string } },
 ) => Parser<unknown>;
 let parser2 = resume({ serve: { host: "0.0.0.0" } });
@@ -99,8 +96,3 @@ console.log("phase 2:", phase2.value);
 
 console.log("\n=== help() ===\n");
 console.log(app.help());
-
-console.log("\n=== phase 2 help() with config source ===\n");
-console.log(parser2.help({
-  values: [{ name: "app.json", value: { serve: { host: "0.0.0.0" } } }],
-}));

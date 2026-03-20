@@ -1,10 +1,11 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { validate, ValidationError } from "./validate.ts";
-import type { Field, FieldInfo, Input, Source } from "./types.ts";
+import type { Field, FieldInfo, ParseContext, Source } from "./types.ts";
 import { toSnake } from "ts-case-convert";
 import { isBoolean } from "./parse-args.ts";
 import { format } from "./help.ts";
+import { createContext } from "./context.ts";
 
 export function field<T>(
   schema: StandardSchemaV1<T>,
@@ -18,8 +19,6 @@ export function field<T>(
   } as Mods);
 
   let f: Field<T> = {
-    progname: [],
-    path: [],
     required: !!validate(schema, undefined).issues,
     schema,
     argument: mods.argument,
@@ -27,9 +26,9 @@ export function field<T>(
     default: mods.default,
     boolean: isBoolean(schema),
     parse(input) {
-      return this.inspect(input).result;
+      return f.inspect(createContext(input)).result;
     },
-    inspect(input: Input = {}): FieldInfo<T> {
+    inspect(ctx: ParseContext): FieldInfo<T> {
       let sources: Source<T>[] = [];
 
       // none is always a source (lowest priority)
@@ -42,18 +41,18 @@ export function field<T>(
       });
 
       // default comes after none but before actual input sources
-      if (this.default !== undefined) {
-        let { issues } = validate(schema, this.default);
+      if (f.default !== undefined) {
+        let { issues } = validate(schema, f.default);
         sources.push({
           sourceName: "default",
           sourceType: "default",
-          value: this.default as T,
+          value: f.default as T,
           issues,
         });
       }
 
       // collect value sources
-      for (let value of input.values ?? []) {
+      for (let value of ctx.values) {
         let result = validate(schema, value.value);
         sources.push({
           sourceName: value.name,
@@ -64,11 +63,11 @@ export function field<T>(
       }
 
       // collect env sources
-      let key = this.path.map((el) => toSnake(el).toUpperCase()).join("_");
-      for (let env of input.envs ?? []) {
+      let key = ctx.path.map((el) => toSnake(el).toUpperCase()).join("_");
+      for (let env of ctx.envs) {
         let strval = env.value[key];
         if (strval === undefined) continue;
-        let value = parseEnvValue(this, strval);
+        let value = parseEnvValue(f, strval);
         let result = validate(schema, value);
         sources.push({
           sourceName: env.name,
@@ -82,39 +81,48 @@ export function field<T>(
       let winner = sources.findLast((s) => !s.issues) ??
         sources[sources.length - 1];
 
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
+
       let result = winner.issues
         ? {
           ok: false as const,
           error: new ValidationError(sources),
-          remainder: input,
+          remainder,
         }
-        : { ok: true as const, value: winner.value as T, remainder: input };
+        : { ok: true as const, value: winner.value as T, remainder };
+
+      // read description/aliases from the actual object (may be a spread copy)
+      let desc = (this as unknown as Partial<Field<T>>)?.description ??
+        f.description;
+      let ali = (this as unknown as Partial<Field<T>>)?.aliases ?? f.aliases;
 
       let info: FieldInfo<T> = {
         type: "field",
-        parser: this,
+        parser: f,
         result,
-        path: this.path,
-        required: this.required,
-        argument: this.argument,
-        array: this.array,
-        aliases: this.aliases,
-        description: this.description,
-        default: this.default,
-        boolean: this.boolean,
+        remainder,
+        path: ctx.path,
+        required: f.required,
+        argument: f.argument,
+        array: f.array,
+        aliases: ali,
+        description: desc,
+        default: f.default,
+        boolean: f.boolean,
         source: winner,
         sources,
         help: { progname: [], args: [], opts: [], commands: [] },
       };
-      if (this.argument) {
+      if (f.argument) {
         info.help.args.push(info);
       } else {
         info.help.opts.push(info);
       }
       return info;
     },
-    help(input: Input = {}) {
-      return format(this.inspect(input), this.path.join("."));
+    help(input) {
+      let info = f.inspect(createContext(input));
+      return format(info, info.path.join("."));
     },
   };
   return f;

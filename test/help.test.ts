@@ -5,10 +5,11 @@ import { cli, field } from "../lib/field.ts";
 import { type Attrs, object } from "../lib/object.ts";
 import type { Input } from "../lib/types.ts";
 import { format } from "../lib/help.ts";
+import { createContext } from "../lib/context.ts";
 
 function exam<T extends object>(attrs: Attrs<T>, input?: Input): string {
   let parser = object(attrs);
-  return format(parser.inspect(input), "configtest");
+  return format(parser.inspect(createContext(input)), "configtest");
 }
 
 describe("help text", () => {

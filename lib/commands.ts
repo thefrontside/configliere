@@ -5,6 +5,7 @@ import type {
   CommandsInfo,
   HelpInfo,
   Input,
+  ParseContext,
   Parser,
   ParserInfo,
 } from "./types.ts";
@@ -13,6 +14,7 @@ import { toSnake } from "ts-case-convert";
 import { cli, field } from "./field.ts";
 import { object } from "./object.ts";
 import { format } from "./help.ts";
+import { createContext } from "./context.ts";
 
 export type CommandEntry = Partial<Parser<unknown>>;
 
@@ -25,19 +27,13 @@ export interface Help {
   text: string;
 }
 
-// help uses `this` intentionally — when spread into a CommandParser,
-// `this.commands` gives access to the sibling commands map
 export const help: Parser<Help> = {
-  progname: [],
-  path: [] as string[],
   description: "show help for a command",
   parse(input: Input) {
-    return this.inspect(input).result;
+    return help.inspect(createContext(input)).result;
   },
-  inspect(input: Input = {}): ParserInfo<Help> {
-    let cmds =
-      (this as unknown as CommandParser<Command<unknown, string>>).commands ??
-        {};
+  inspect(ctx: ParseContext): ParserInfo<Help> {
+    let cmds = ctx.commands ?? {};
     let names = Object.keys(cmds);
 
     let schema: StandardSchemaV1<string> = {
@@ -66,46 +62,51 @@ export const help: Parser<Help> = {
       },
     });
 
-    let parsed = inner.parse(input);
-    let self = inner.inspect(input).help;
+    let parsed = inner.parse({ args: ctx.args });
+    let self = inner.inspect(ctx).help;
 
     if (!parsed.ok) {
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       return {
         type: "help",
-        parser: this as unknown as Parser<Help>,
-        result: { ok: false, error: parsed.error, remainder: parsed.remainder },
+        parser: help,
+        result: { ok: false, error: parsed.error, remainder },
+        remainder,
         help: self,
       };
     }
 
     let cmd = cmds[parsed.value.command];
-    let info = cmd.inspect(parsed.remainder);
+    let info = cmd.inspect({
+      ...ctx,
+      args: parsed.remainder.args ?? [],
+    });
     let text = format(info);
 
+    let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
     return {
       type: "help",
-      parser: this as unknown as Parser<Help>,
+      parser: help,
       result: {
         ok: true,
         value: { info, text },
-        remainder: parsed.remainder,
+        remainder,
       },
+      remainder,
       help: self,
     };
   },
   help(input: Input = {}): string {
-    return format(this.inspect(input));
+    return format(help.inspect(createContext(input)));
   },
 };
 
 export interface CommandParser<C extends Command<unknown, string>>
   extends Parser<C, CommandInfo<C>> {
-  commands: Record<string, CommandParser<Command<unknown, string>>>;
 }
 
 export interface CommandsParser<T extends Command<unknown, string>>
   extends Parser<T, CommandsInfo<T>> {
-  commands: Record<string, CommandParser<Command<unknown, string>>>;
   default?: string;
 }
 
@@ -116,24 +117,22 @@ export function commands<T extends Command<unknown, string>>(
   let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
 
   let parser = {
-    progname: [] as string[],
-    commands: cmds,
     default: opts?.default,
-    path: [],
     parse(input: Input) {
-      return parser.inspect(input).result;
+      return parser.inspect(createContext(input)).result;
     },
-    inspect(input: Input = {}): CommandsInfo<T> {
-      let args = input.args ?? [];
+    inspect(ctx: ParseContext): CommandsInfo<T> {
+      let withCmds = { ...ctx, commands: cmds };
+      let args = ctx.args;
       let matched = match(args, cmds, opts);
       let infos: Record<string, CommandInfo<Command<unknown, string>>> = {};
       for (let [name, cmd] of Object.entries(cmds)) {
-        let info = cmd.inspect(scope(name, input));
+        let info = cmd.inspect(scope(name, withCmds));
         infos[name] = info;
       }
 
       let help = {
-        progname: parser.progname,
+        progname: ctx.progname,
         args: [] as HelpInfo["args"],
         opts: [] as HelpInfo["opts"],
         commands: Object.values(infos).map((info) => ({
@@ -143,6 +142,8 @@ export function commands<T extends Command<unknown, string>>(
         })) as HelpInfo["commands"],
       };
 
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
+
       if (!matched) {
         return {
           type: "commands",
@@ -150,26 +151,28 @@ export function commands<T extends Command<unknown, string>>(
           result: {
             ok: false,
             error: new NoCommandMatchError(Object.keys(cmds)),
-            remainder: input,
+            remainder,
           },
+          remainder,
           commands: infos,
           help,
         } as unknown as CommandsInfo<T>;
       }
 
-      let [name, cmd, remainder] = matched;
-      let inner = cmd.inspect(scope(name, { ...input, args: remainder }));
+      let [name, cmd, rest] = matched;
+      let inner = cmd.inspect(scope(name, { ...withCmds, args: rest }));
 
       return {
         type: "commands",
         parser,
         result: inner.result,
+        remainder,
         commands: infos,
         help,
       } as unknown as CommandsInfo<T>;
     },
     help(input: Input = {}): string {
-      return format(parser.inspect(input));
+      return format(parser.inspect(createContext(input)));
     },
   } as CommandsParser<T>;
 
@@ -179,7 +182,7 @@ export function commands<T extends Command<unknown, string>>(
     let p = typeof entry.parse === "function"
       ? entry as Parser<unknown>
       : Object.assign(constant(true), entry);
-    cmds[name] = command(name, p, parser) as CommandParser<
+    cmds[name] = command(name, p) as CommandParser<
       Command<unknown, string>
     >;
   }
@@ -216,24 +219,26 @@ function match(
 function command<T, const Name extends string>(
   name: Name,
   inner: Parser<T>,
-  parent: CommandsParser<Command<unknown, string>>,
 ): CommandParser<Command<T, Name>> {
   let parser: CommandParser<Command<T, Name>> = {
-    progname: [...parent.progname, name],
-    commands: parent.commands,
-    path: [name, ...inner.path],
     description: inner.description,
     aliases: inner.aliases,
     parse(input: Input) {
-      return parser.inspect(input).result;
+      return parser.inspect(createContext(input)).result;
     },
-    inspect(input: Input = {}): CommandInfo<Command<T, Name>> {
-      let config = inner.inspect.call(parser, input);
+    inspect(ctx: ParseContext): CommandInfo<Command<T, Name>> {
+      let cmdCtx = {
+        ...ctx,
+        progname: [...ctx.progname, name],
+        commands: ctx.commands,
+      };
+      let config = inner.inspect(cmdCtx);
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       let result = config.result.ok
         ? {
           ok: true as const,
           value: { name, config: config.result.value } as Command<T, Name>,
-          remainder: { ...input, args: config.result.remainder.args },
+          remainder: { ...remainder, args: config.result.remainder.args },
         }
         : config.result;
 
@@ -247,29 +252,30 @@ function command<T, const Name extends string>(
         config,
         commands: {},
         help: {
-          progname: [...parent.progname, name],
+          progname: [...ctx.progname, name],
           args: config.help.args,
           opts: config.help.opts,
           commands: config.help.commands,
         },
+        remainder,
       };
     },
     help(input: Input = {}): string {
-      return format(parser.inspect(input));
+      return format(parser.inspect(createContext(input)));
     },
   };
   return parser;
 }
 
-function scope(name: string, input: Input): Input {
+function scope(name: string, ctx: ParseContext): ParseContext {
   let prefix = toSnake(name).toUpperCase() + "_";
-  let values = (input.values ?? []).flatMap((v) => {
+  let values = ctx.values.flatMap((v) => {
     if (v.value == null) return [];
     let obj = v.value as Record<string, unknown>;
     if (!(name in obj)) return [];
     return [{ name: v.name, value: obj[name] }];
   });
-  let envs = (input.envs ?? []).map((env) => {
+  let envs = ctx.envs.map((env) => {
     let scoped: Record<string, string> = {};
     for (let [key, val] of Object.entries(env.value)) {
       if (key.startsWith(prefix)) {
@@ -280,5 +286,5 @@ function scope(name: string, input: Input): Input {
     }
     return { name: env.name, value: scoped };
   });
-  return { ...input, values, envs };
+  return { ...ctx, values, envs };
 }

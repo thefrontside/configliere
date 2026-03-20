@@ -69,23 +69,26 @@ console.log("3.2.0");
 console.log("\n=== help dev ===\n");
 let r3 = app.parse({ args: ["help", "dev"] });
 assert(r3.ok);
-let hr = r3.value.main.parse({});
+let main3 = r3.value.main();
+let hr = main3.parse();
 assert(hr.ok);
 assert(hr.value.name === "help");
-console.log(hr.value.config.text);
+console.log((hr.value.config as { text: string }).text);
 
 console.log("\n=== help help ===\n");
 let r3b = app.parse({ args: ["help", "help"] });
 assert(r3b.ok);
-let hr2 = r3b.value.main.parse({});
+let main3b = r3b.value.main();
+let hr2 = main3b.parse();
 assert(hr2.ok);
 assert(hr2.value.name === "help");
-console.log(hr2.value.config.text);
+console.log((hr2.value.config as { text: string }).text);
 
 console.log("\n=== dev --open -p 4000 ===\n");
 let r4 = app.parse({ args: ["dev", "--open", "-p", "4000"] });
 assert(r4.ok);
-let result = r4.value.main.parse({});
+let main4 = r4.value.main();
+let result = main4.parse();
 assert(result.ok);
 console.log(result.value);
 

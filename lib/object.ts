@@ -1,4 +1,10 @@
-import type { Field, Input, ObjectInfo, Parser, ParserInfo } from "./types.ts";
+import type {
+  Field,
+  ObjectInfo,
+  ParseContext,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
 import {
   matchAll,
   parseArgument,
@@ -11,6 +17,7 @@ import {
 import { field } from "./field.ts";
 import { format } from "./help.ts";
 import { optionalBoolean } from "./schema.ts";
+import { createContext } from "./context.ts";
 
 export type Attrs<T extends object> = {
   [K in keyof T]: Partial<Parser<T[K]>>;
@@ -19,46 +26,37 @@ export type Attrs<T extends object> = {
 export function object<T extends object>(
   attrs: Attrs<T>,
 ): Parser<T, ObjectInfo<T>> {
-  let resolved = Object.fromEntries(
-    Object.entries(attrs).map(([key, value]) => {
-      let entry = value as Partial<Parser<unknown>>;
-      let parser = typeof entry.parse === "function"
-        ? entry as Parser<unknown>
-        : Object.assign(field(optionalBoolean), entry);
-      return [key, parser];
-    }),
-  ) as Record<string, Parser<unknown>>;
-  let entries = Object.entries(resolved) as [
-    keyof T,
-    Parser<unknown>,
-  ][];
-  let parsers = entries.map(([key, parser]) => {
-    parser.path = [String(key), ...parser.path];
-    return [key, parser] as [keyof T, Parser<unknown>];
+  let entries = Object.entries(attrs).map(([key, value]) => {
+    let entry = value as Partial<Parser<unknown>>;
+    let parser = typeof entry.parse === "function"
+      ? entry as Parser<unknown>
+      : Object.assign(field(optionalBoolean), entry);
+    return [key as keyof T, parser] as [keyof T, Parser<unknown>];
   });
+
   let parser: Parser<T, ObjectInfo<T>> = {
-    progname: [],
-    path: [],
     parse(input) {
-      return parser.inspect(input).result;
+      return parser.inspect(createContext(input)).result;
     },
-    inspect(input: Input = {}): ObjectInfo<T> {
-      let { scoped, args } = scopeInput(parsers, input);
+    inspect(ctx: ParseContext): ObjectInfo<T> {
+      let { scoped, args } = scopeInput(entries, ctx);
       let attrs: Record<string, ParserInfo<unknown>> = {};
       let value = {} as Record<keyof T, unknown>;
       let errors: { path: string[]; error: Error }[] = [];
 
-      for (let [key, parser] of parsers) {
-        let info = parser.inspect(scoped.get(key) ?? {});
+      for (let [key, child] of entries) {
+        let path = [...ctx.path, String(key)];
+        let childCtx = { ...ctx, args, ...(scoped.get(key) ?? {}), path };
+        let info = child.inspect(childCtx);
         attrs[String(key)] = info;
         if (info.result.ok) {
           value[key] = info.result.value;
         } else {
-          errors.push({ path: parser.path, error: info.result.error });
+          errors.push({ path, error: info.result.error });
         }
       }
 
-      let remainder: Input = { ...input, args };
+      let remainder = { args, values: ctx.values, envs: ctx.envs };
       let result = errors.length > 0
         ? {
           ok: false as const,
@@ -79,10 +77,17 @@ export function object<T extends object>(
         help.commands.push(...child.help.commands);
       }
 
-      return { type: "object", parser, result, attrs, help } as ObjectInfo<T>;
+      return {
+        type: "object",
+        parser,
+        result,
+        remainder,
+        attrs,
+        help,
+      } as ObjectInfo<T>;
     },
-    help(input: Input = {}): string {
-      return format(parser.inspect(input), parser.path.join("."));
+    help(input) {
+      return format(parser.inspect(createContext(input)));
     },
   };
 
@@ -96,11 +101,20 @@ function asField(parser: Parser<unknown>): Field<unknown> | undefined {
 }
 
 function scopeInput<V>(
-  parsers: [keyof V, Parser<unknown>][],
-  input: Input,
-): { scoped: Map<keyof V, Input>; args: string[] } {
+  entries: [keyof V, Parser<unknown>][],
+  ctx: ParseContext,
+): {
+  scoped: Map<
+    keyof V,
+    {
+      values: { name: string; value: unknown }[];
+      envs: { name: string; value: Record<string, string> }[];
+    }
+  >;
+  args: string[];
+} {
   let cliValues = new Map<keyof V, { name: string; value: unknown }[]>();
-  let args = input.args ?? [];
+  let args = ctx.args;
 
   if (args.length > 0) {
     let matched = new Set<keyof V>();
@@ -109,10 +123,11 @@ function scopeInput<V>(
       args.length > 0 && (prev === undefined || args.length < prev.length)
     ) {
       prev = args;
-      for (let [key, parser] of parsers) {
+      for (let [key, parser] of entries) {
         let f = asField(parser);
         if (!f) continue;
         if (matched.has(key) && !f.array) continue;
+        let path = [...ctx.path, String(key)];
         let matcher = matchAll(
           parseSwitch(f.schema, f.aliases ?? []),
           parseNegativeSwitch(f.schema),
@@ -120,7 +135,7 @@ function scopeInput<V>(
           parseLongOptionEql(),
           parseArgument(f.argument),
         );
-        let match = matcher(args, parser.path);
+        let match = matcher(args, path);
         if (match.matched) {
           let val = primitive(match.value);
           if (f.array) {
@@ -144,11 +159,17 @@ function scopeInput<V>(
     }
   }
 
-  let scoped = new Map<keyof V, Input>();
-  for (let [key] of parsers) {
+  let scoped = new Map<
+    keyof V,
+    {
+      values: { name: string; value: unknown }[];
+      envs: { name: string; value: Record<string, string> }[];
+    }
+  >();
+  for (let [key] of entries) {
     scoped.set(key, {
       values: [
-        ...(input.values ?? []).flatMap((v) => {
+        ...ctx.values.flatMap((v) => {
           if (v.value == null) return [];
           let obj = v.value as Record<string, unknown>;
           if (!(String(key) in obj)) return [];
@@ -156,7 +177,7 @@ function scopeInput<V>(
         }),
         ...(cliValues.get(key) ?? []),
       ],
-      envs: input.envs,
+      envs: ctx.envs,
     });
   }
 

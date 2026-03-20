@@ -3,6 +3,7 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { program } from "../lib/program.ts";
+import { createContext } from "../lib/context.ts";
 
 let serve = program({
   name: "serve",
@@ -45,17 +46,17 @@ console.log("1.0.0");
 console.log("\n=== app.ts -p 8080 --debug ===\n");
 let r3 = serve.parse({ args: ["app.ts", "-p", "8080", "--debug"] });
 assert(r3.ok);
-let result = r3.value.main.parse({});
+let result = r3.value.main().parse();
 assert(result.ok);
 console.log(result.value);
 
 console.log("\n=== inspect() ===\n");
-console.log(serve.inspect());
+console.log(serve.inspect(createContext()));
 
 console.log("\n=== help() ===\n");
 console.log(serve.help());
 
 console.log("\n=== inspect() with env source ===\n");
-console.log(serve.inspect({
+console.log(serve.inspect(createContext({
   envs: [{ name: "env", value: { PORT: "9090" } }],
-}));
+})));

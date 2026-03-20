@@ -6,18 +6,20 @@ import { field } from "../lib/field.ts";
 import assert from "node:assert";
 import { ValidationError } from "../lib/validate.ts";
 import { parseSync } from "./test-helpers.ts";
+import { createContext } from "../lib/context.ts";
 
 describe("field", () => {
   describe("from js", () => {
     it("can be set from a valid value", () => {
       let f = field(type("number"));
-      f = { ...f, path: ["port"] };
       let result = parseSync(f, {
         values: [{ name: "test", value: 5 }],
       });
       assert(result.ok);
       expect(result.value).toEqual(5);
-      let info = f.inspect({ values: [{ name: "test", value: 5 }] });
+      let info = f.inspect(
+        createContext({ values: [{ name: "test", value: 5 }] }),
+      );
       expect(info.source.issues).toBeUndefined();
     });
 
@@ -44,7 +46,7 @@ describe("field", () => {
       assert(result.ok);
       expect(result.value).toEqual(1);
 
-      let info = f.inspect(input);
+      let info = f.inspect(createContext(input));
       let [none, ausente, invalido, two, one] = info.sources;
       expect(none.issues).toBeDefined();
       expect(ausente.issues).toBeDefined();
@@ -58,7 +60,8 @@ describe("field", () => {
       let result = parseSync(f, { values: [] });
       assert(result.ok);
       expect(result.value).toBeUndefined();
-      expect(f.inspect({ values: [] }).source.sourceType).toEqual("none");
+      expect(f.inspect(createContext({ values: [] })).source.sourceType)
+        .toEqual("none");
     });
 
     it("uses a default value if no source is found", () => {
@@ -66,7 +69,8 @@ describe("field", () => {
       let result = parseSync(f, { values: [] });
       assert(result.ok);
       expect(result.value).toEqual(3000);
-      expect(f.inspect({ values: [] }).source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({ values: [] })).source.sourceType)
+        .toEqual("default");
     });
 
     it("uses a falsy default of false", () => {
@@ -74,7 +78,7 @@ describe("field", () => {
       let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(false);
-      expect(f.inspect({}).source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of 0", () => {
@@ -82,7 +86,7 @@ describe("field", () => {
       let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(0);
-      expect(f.inspect({}).source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of empty string", () => {
@@ -90,7 +94,7 @@ describe("field", () => {
       let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual("");
-      expect(f.inspect({}).source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
   });
 
@@ -101,7 +105,7 @@ describe("field", () => {
       let result = parseSync(f, input);
       assert(result.ok);
       expect(result.value).toEqual(5);
-      expect(f.inspect(input).source.sourceType).toEqual("env");
+      expect(f.inspect(createContext(input)).source.sourceType).toEqual("env");
     });
 
     it("can parse a boolean", () => {

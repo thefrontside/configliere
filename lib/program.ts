@@ -1,13 +1,13 @@
-import type { Input, Parser, ParseResult, ParserInfo } from "./types.ts";
+import type { Input, ParseContext, Parser, ParserInfo } from "./types.ts";
 import { object } from "./object.ts";
-import { lazy } from "./lazy.ts";
+import { constant } from "./constant.ts";
 import { format } from "./help.ts";
-import { step } from "./step.ts";
+import { createContext } from "./context.ts";
 
 export interface Program<T> {
   help?: boolean;
   version?: boolean;
-  main: Parser<T>;
+  main: () => Parser<T>;
 }
 
 export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
@@ -27,71 +27,94 @@ export function program<T>(
 ): Parser<Program<T>, ProgramInfo<T>> {
   let { name, version, config } = opts;
 
-  config.progname = [name];
-
-  let named: Parser<T> = {
-    ...config,
-    inspect(input: Input = {}) {
-      let info = config.inspect(input);
-      return {
-        ...info,
-        help: {
-          ...info.help,
-          progname: [name, ...info.help.progname],
-        },
-      };
+  let preamble = object({
+    help: {
+      description: "show help",
+      aliases: ["-h"],
     },
-  };
-
-  let inner = step({
-    from: (next) =>
-      object({
-        help: {
-          description: "show help",
-          aliases: ["-h"],
+    ...(version
+      ? {
+        version: {
+          description: "show version",
+          aliases: ["-v"],
         },
-        ...(version
-          ? {
-            version: {
-              description: "show version",
-              aliases: ["-v"],
-            },
-          }
-          : {}),
-        main: lazy(next),
-      }),
-    to: () => named,
+      }
+      : {}),
+    main: constant(null),
   });
 
-  inner.progname = [name];
-
   let parser = {
-    ...inner,
     parse(input: Input) {
-      return parser.inspect(input).result;
+      return parser.inspect(createContext(input)).result;
     },
-    inspect(input: Input = {}): ProgramInfo<T> {
-      let preamble = inner.inspect(input);
-      let remainder = preamble.result.ok ? preamble.result.remainder : input;
-      let main = named.inspect(remainder);
+    inspect(ctx: ParseContext): ProgramInfo<T> {
+      let rootCtx = { ...ctx, progname: [name] };
+      let info = preamble.inspect(rootCtx);
+      let remainder = info.result.ok
+        ? info.result.remainder
+        : { args: ctx.args, values: ctx.values, envs: ctx.envs };
+      let mainCtx = {
+        ...rootCtx,
+        args: remainder.args ?? [],
+        values: remainder.values ?? [],
+        envs: remainder.envs ?? [],
+      };
+      let main = config.inspect(mainCtx);
+
+      // build a resolve function that bakes mainCtx into config
+      let resolve = (): Parser<T> => ({
+        ...config,
+        parse(input) {
+          return config.inspect({
+            ...mainCtx,
+            args: input?.args ?? mainCtx.args,
+            values: input?.values ?? mainCtx.values,
+            envs: input?.envs ?? mainCtx.envs,
+          }).result;
+        },
+        help(input) {
+          return format(config.inspect({
+            ...mainCtx,
+            args: input?.args ?? mainCtx.args,
+            values: input?.values ?? mainCtx.values,
+            envs: input?.envs ?? mainCtx.envs,
+          }));
+        },
+      });
+
+      let result = info.result.ok
+        ? {
+          ok: true as const,
+          value: { ...info.result.value, main: resolve } as unknown as Program<
+            T
+          >,
+          remainder: info.result.remainder,
+        }
+        : {
+          ok: false as const,
+          error: info.result.error,
+          remainder: info.result.remainder,
+        };
+
       return {
         type: "program",
         parser,
-        result: preamble.result as ParseResult<Program<T>>,
+        result,
+        remainder: { args: ctx.args, values: ctx.values, envs: ctx.envs },
         name,
         version,
-        preamble,
+        preamble: info,
         main,
         help: {
           progname: [name],
-          args: [...preamble.help.args, ...main.help.args],
-          opts: [...preamble.help.opts, ...main.help.opts],
-          commands: [...preamble.help.commands, ...main.help.commands],
+          args: [...info.help.args, ...main.help.args],
+          opts: [...info.help.opts, ...main.help.opts],
+          commands: [...info.help.commands, ...main.help.commands],
         },
       };
     },
     help(input: Input = {}): string {
-      return format(parser.inspect(input));
+      return format(parser.inspect(createContext(input)));
     },
   } as Parser<Program<T>, ProgramInfo<T>>;
 
