@@ -1,4 +1,10 @@
-import type { Input, ParseContext, Parser, ParserInfo } from "./types.ts";
+import type {
+  Config,
+  Input,
+  ParseContext,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
 import { object } from "./object.ts";
 import { constant } from "./constant.ts";
 import { format } from "./help.ts";
@@ -9,6 +15,10 @@ export interface Program<T> {
   version?: boolean;
   main: () => Parser<T>;
 }
+
+export type ProgramConfig<P extends Parser<Program<unknown>>> = Config<
+  ReturnType<Config<P>["main"]>
+>;
 
 export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
   type: "program";
