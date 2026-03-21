@@ -18,9 +18,13 @@ import { createContext } from "./context.ts";
 
 export type CommandEntry = Partial<Parser<unknown>>;
 
-export type CommandParsers<T extends Command<unknown, string>> = {
-  [C in T as C["name"]]: Partial<Parser<C["config"]>>;
+export type CommandEntries<T extends Record<string, unknown>> = {
+  [K in keyof T & string]: Partial<Parser<T[K]>>;
 };
+
+export type CommandsOf<T extends Record<string, unknown>> = {
+  [K in keyof T & string]: Command<T[K], K>;
+}[keyof T & string];
 
 export interface Help {
   info: ParserInfo<Command<unknown, string>>;
@@ -110,10 +114,10 @@ export interface CommandsParser<T extends Command<unknown, string>>
   default?: string;
 }
 
-export function commands<T extends Command<unknown, string>>(
-  map: CommandParsers<T>,
+export function commands<T extends Record<string, unknown>>(
+  map: CommandEntries<T>,
   opts?: { default?: string },
-): CommandsParser<T> {
+): CommandsParser<CommandsOf<T>> {
   let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
 
   let parser = {
@@ -121,7 +125,7 @@ export function commands<T extends Command<unknown, string>>(
     parse(input: Input) {
       return parser.inspect(createContext(input)).result;
     },
-    inspect(ctx: ParseContext): CommandsInfo<T> {
+    inspect(ctx: ParseContext): CommandsInfo<CommandsOf<T>> {
       let withCmds = { ...ctx, commands: cmds };
       let args = ctx.args;
       let matched = match(args, cmds, opts);
@@ -156,7 +160,7 @@ export function commands<T extends Command<unknown, string>>(
           remainder,
           commands: infos,
           help,
-        } as unknown as CommandsInfo<T>;
+        } as unknown as CommandsInfo<CommandsOf<T>>;
       }
 
       let [name, cmd, rest] = matched;
@@ -169,12 +173,12 @@ export function commands<T extends Command<unknown, string>>(
         remainder,
         commands: infos,
         help,
-      } as unknown as CommandsInfo<T>;
+      } as unknown as CommandsInfo<CommandsOf<T>>;
     },
     help(input: Input = {}): string {
       return format(parser.inspect(createContext(input)));
     },
-  } as CommandsParser<T>;
+  } as CommandsParser<CommandsOf<T>>;
 
   for (
     let [name, entry] of Object.entries(map) as [string, CommandEntry][]
