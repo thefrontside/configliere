@@ -22,10 +22,6 @@ export type CommandEntries<T extends Record<string, unknown>> = {
   [K in keyof T & string]: Partial<Parser<T[K]>>;
 };
 
-export type CommandsOf<T extends Record<string, unknown>> = {
-  [K in keyof T & string]: Command<T[K], K>;
-}[keyof T & string];
-
 export interface Help {
   info: ParserInfo<Command<unknown, string>>;
   text: string;
@@ -117,7 +113,7 @@ export interface CommandsParser<T extends Command<unknown, string>>
 export function commands<T extends Record<string, unknown>>(
   map: CommandEntries<T>,
   opts?: { default?: string },
-): CommandsParser<CommandsOf<T>> {
+): CommandsParser<{ [K in keyof T & string]: Command<T[K], K> }[keyof T & string]> {
   let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
 
   let parser = {
@@ -125,7 +121,7 @@ export function commands<T extends Record<string, unknown>>(
     parse(input: Input) {
       return parser.inspect(createContext(input)).result;
     },
-    inspect(ctx: ParseContext): CommandsInfo<CommandsOf<T>> {
+    inspect(ctx: ParseContext): CommandsInfo<Command<unknown, string>> {
       let withCmds = { ...ctx, commands: cmds };
       let args = ctx.args;
       let matched = match(args, cmds, opts);
@@ -160,7 +156,7 @@ export function commands<T extends Record<string, unknown>>(
           remainder,
           commands: infos,
           help,
-        } as unknown as CommandsInfo<CommandsOf<T>>;
+        } as unknown as CommandsInfo<Command<unknown, string>>;
       }
 
       let [name, cmd, rest] = matched;
@@ -173,12 +169,12 @@ export function commands<T extends Record<string, unknown>>(
         remainder,
         commands: infos,
         help,
-      } as unknown as CommandsInfo<CommandsOf<T>>;
+      } as unknown as CommandsInfo<Command<unknown, string>>;
     },
     help(input: Input = {}): string {
       return format(parser.inspect(createContext(input)));
     },
-  } as CommandsParser<CommandsOf<T>>;
+  } as CommandsParser<Command<unknown, string>>;
 
   for (
     let [name, entry] of Object.entries(map) as [string, CommandEntry][]
@@ -191,7 +187,7 @@ export function commands<T extends Record<string, unknown>>(
     >;
   }
 
-  return parser;
+  return parser as unknown as CommandsParser<{ [K in keyof T & string]: Command<T[K], K> }[keyof T & string]>;
 }
 
 export class NoCommandMatchError extends Error {
