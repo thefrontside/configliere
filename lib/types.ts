@@ -31,7 +31,8 @@ export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
   help(input?: Input): string;
 }
 
-export type Config<P extends Parser<unknown>> = P extends Parser<infer T> ? T
+export type Config<P extends Parser<unknown>> = P extends Parser<infer T>
+  ? T extends object ? { [K in keyof T]: T[K] } : T
   : never;
 
 export interface Input {
