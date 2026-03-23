@@ -5,4 +5,5 @@ export * from "./object.ts";
 export * from "./commands.ts";
 export * from "./help.ts";
 export * from "./program.ts";
-export * from "./sequence.ts";
+export * from "./inject.ts";
+export * from "./context.ts";

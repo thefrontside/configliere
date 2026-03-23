@@ -4,8 +4,10 @@ import { type } from "arktype";
 import { cli, field } from "../lib/field.ts";
 import { object } from "../lib/object.ts";
 import { commands, NoCommandMatchError } from "../lib/commands.ts";
-import { format, inspect } from "../lib/help.ts";
+import type { Command, CommandsInfo, ObjectInfo } from "../lib/types.ts";
+import { format } from "../lib/help.ts";
 import { parseNotOk, parseOk } from "./test-helpers.ts";
+import { createContext } from "../lib/context.ts";
 
 describe("commands", () => {
   let cli_ = commands({
@@ -150,15 +152,15 @@ describe("commands", () => {
     });
 
     it("includes descriptions in help info", () => {
-      let info = inspect(withDescs);
-      let run = info.commands.find((c) => c.name === "run")!;
-      expect(run.description).toBe("Start the dev server");
-      let build = info.commands.find((c) => c.name === "build")!;
-      expect(build.description).toBe("Build for production");
+      let info = withDescs.inspect(createContext()) as CommandsInfo<
+        Command<unknown, string>
+      >;
+      expect(info.commands["run"].description).toBe("Start the dev server");
+      expect(info.commands["build"].description).toBe("Build for production");
     });
 
     it("renders descriptions in formatted help", () => {
-      let text = format(inspect(withDescs), "myapp");
+      let text = format(withDescs.inspect(createContext()), "myapp");
       expect(text).toMatch(/run\s+Start the dev server/);
       expect(text).toMatch(/build\s+Build for production/);
     });
@@ -175,37 +177,45 @@ describe("commands", () => {
     });
 
     it("includes aliases in help info", () => {
-      let info = inspect(withAliases);
-      let h = info.commands.find((c) => c.name === "help")!;
-      expect(h.aliases).toEqual(["--help", "-h"]);
+      let info = withAliases.inspect(createContext()) as CommandsInfo<
+        Command<unknown, string>
+      >;
+      expect(info.commands["help"].aliases).toEqual(["--help", "-h"]);
     });
 
     it("renders aliases in formatted help", () => {
-      let text = format(inspect(withAliases), "myapp");
+      let text = format(withAliases.inspect(createContext()), "myapp");
       expect(text).toMatch(/help \(--help, -h\)\s+Show help information/);
     });
   });
 
   describe("help", () => {
     it("lists all commands in help output", () => {
-      let info = inspect(cli_);
-      expect(info.commands).toHaveLength(2);
-      expect(info.commands[0].name).toBe("run");
-      expect(info.commands[1].name).toBe("build");
+      let info = cli_.inspect(createContext()) as CommandsInfo<
+        Command<unknown, string>
+      >;
+      expect(Object.keys(info.commands)).toHaveLength(2);
+      expect(info.commands["run"].name).toBe("run");
+      expect(info.commands["build"].name).toBe("build");
     });
 
-    it("includes each command's fields", () => {
-      let info = inspect(cli_);
-      let run = info.commands.find((c) => c.name === "run")!;
-      expect(run.args.map((a) => a.path[0])).toContain("host");
-      expect(run.opts.map((o) => o.path[0])).toContain("port");
+    it("includes each command's config", () => {
+      let info = cli_.inspect(createContext()) as CommandsInfo<
+        Command<unknown, string>
+      >;
+      let runAttrs = (info.commands["run"].config as ObjectInfo<
+        { host: string; port: number }
+      >).attrs;
+      expect(Object.keys(runAttrs)).toContain("host");
+      expect(Object.keys(runAttrs)).toContain("port");
 
-      let build = info.commands.find((c) => c.name === "build")!;
-      expect(build.opts.map((o) => o.path[0])).toContain("outDir");
+      let buildAttrs =
+        (info.commands["build"].config as ObjectInfo<{ outDir: string }>).attrs;
+      expect(Object.keys(buildAttrs)).toContain("outDir");
     });
 
     it("shows commands in formatted help", () => {
-      let text = format(inspect(cli_), "myapp");
+      let text = format(cli_.inspect(createContext()), "myapp");
       expect(text).toMatch(/Usage: myapp <COMMAND>/);
       expect(text).toMatch(/Commands:/);
       expect(text).toMatch(/run/);

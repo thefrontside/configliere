@@ -1,16 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-export interface Step<T, TData> {
-  value: T;
-  data: TData;
-}
+export type ParseResult<T> = Done<T> | Fail;
 
-export type AnyStep = Step<unknown, unknown>;
-
-export interface Done<V = unknown, D = unknown> {
+export interface Done<T> {
   ok: true;
-  value: V;
-  data: D;
+  value: T;
   remainder: Input;
 }
 
@@ -20,37 +14,26 @@ export interface Fail {
   remainder: Input;
 }
 
-export interface Next<V, Rest extends [unknown, ...unknown[]]>
-  extends Parser<ToSteps<Rest>> {
-  ok: true;
-  value: V;
-  data: unknown;
-  remainder: Input;
+export interface ParseContext {
+  progname: string[];
+  path: string[];
+  commands: Record<string, Parser<Command<unknown, string>>>;
+  args: string[];
+  values: { name: string; value: unknown }[];
+  envs: { name: string; value: Record<string, string> }[];
 }
 
-export type ToSteps<Values extends [unknown, ...unknown[]]> = {
-  [K in keyof Values]: Step<Values[K], unknown>;
-} extends infer U extends [AnyStep, ...AnyStep[]] ? U : never;
-
-export type Increment<Steps extends AnyStep[] = AnyStep[]> = Steps extends
-  [infer S extends AnyStep] ? Done<S["value"], S["data"]> | Fail
-  : Steps extends
-    [infer S extends AnyStep, ...infer Rest extends [AnyStep, ...AnyStep[]]] ?
-      | Next<
-        S["value"],
-        {
-          [K in keyof Rest]: Rest[K] extends AnyStep ? Rest[K]["value"] : never;
-        } extends infer U extends [unknown, ...unknown[]] ? U : never
-      >
-      | Fail
-  : Done | Fail;
-
-export interface Parser<Steps extends [AnyStep, ...AnyStep[]] = [AnyStep]> {
-  path: string[];
+export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
   description?: string;
   aliases?: string[];
-  parse(input: Input): Increment<Steps>;
+  parse(input?: Input): ParseResult<T>;
+  inspect(ctx: ParseContext): Info;
+  help(input?: Input): string;
 }
+
+export type Config<P extends Parser<unknown>> = P extends Parser<infer T>
+  ? T extends object ? { [K in keyof T]: T[K] } : T
+  : never;
 
 export interface Input {
   values?: {
@@ -64,15 +47,75 @@ export interface Input {
   args?: string[];
 }
 
-export interface FieldData<T> {
-  source: Source<T>;
-  sources: Source<T>[];
+export interface HelpInfo {
+  progname: string[];
+  args: FieldInfo<unknown>[];
+  opts: FieldInfo<unknown>[];
+  commands: CommandInfo<Command<unknown, string>>[];
 }
 
-export interface Field<T> extends Parser<[Step<T, FieldData<T>>]> {
-  mods: Mods;
+export interface ParserInfo<T> {
+  type: string;
+  parser: Parser<T>;
+  result: ParseResult<T>;
+  remainder: Input;
+  help: HelpInfo;
+}
+
+export interface FieldInfo<T> extends ParserInfo<T> {
+  type: "field";
+  path: string[];
+  required: boolean;
+  argument: boolean;
+  array: boolean;
+  aliases?: string[];
+  description?: string;
+  default?: unknown;
+  boolean: boolean;
+  source: Source<unknown>;
+  sources: Source<unknown>[];
+}
+
+export interface CommandInfo<T extends Command<unknown, string>>
+  extends ParserInfo<T> {
+  type: "command";
+  name: T["name"];
+  description?: string;
+  aliases?: string[];
+  config: ParserInfo<unknown>;
+  commands: Record<string, CommandInfo<Command<unknown, string>>>;
+}
+
+export interface ObjectInfo<T extends object> extends ParserInfo<T> {
+  type: "object";
+  attrs: {
+    [K in keyof T]: ParserInfo<T[K]>;
+  };
+}
+
+export interface ConstantInfo<T> extends ParserInfo<T> {
+  type: "constant";
+  value: T;
+}
+
+export interface CommandsInfo<T extends Command<unknown, string>>
+  extends ParserInfo<T> {
+  type: "commands";
+  commands: { [C in T as C["name"]]: CommandInfo<C> };
+}
+
+export interface Command<T, Name extends string> {
+  name: Name;
+  config: T;
+}
+
+export interface Field<T> extends Parser<T, FieldInfo<T>> {
   schema: StandardSchemaV1<T>;
   required: boolean;
+  argument: boolean;
+  array: boolean;
+  boolean: boolean;
+  default?: unknown;
 }
 
 export type Source<T> = {
@@ -81,9 +124,3 @@ export type Source<T> = {
   sourceType: string;
   sourceName: string;
 };
-
-export interface Mods {
-  default?: unknown;
-  argument: boolean;
-  array: boolean;
-}

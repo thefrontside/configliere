@@ -1,4 +1,10 @@
-import type { AnyStep, Field, Input, Parser, Step } from "./types.ts";
+import type {
+  Field,
+  ObjectInfo,
+  ParseContext,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
 import {
   matchAll,
   parseArgument,
@@ -9,158 +15,173 @@ import {
   primitive,
 } from "./parse-args.ts";
 import { field } from "./field.ts";
+import { format } from "./help.ts";
 import { optionalBoolean } from "./schema.ts";
+import { createContext } from "./context.ts";
 
-export type Attrs<T extends object> =
-  & {
-    [K in keyof T]: Parser<[Step<T[K], AnyStep["data"]>]>;
-  }
-  & {};
+export type Attrs<T extends object> = {
+  [K in keyof T]: Partial<Parser<T[K]>>;
+};
 
-export type ObjectValue<T extends Record<string, Partial<Parser<[AnyStep]>>>> =
-  & {
-    [K in keyof T]: T[K] extends Parser<[Step<infer V, AnyStep["data"]>]> ? V
-      : boolean | undefined;
-  }
-  & {};
-
-export type ObjectData<A extends Attrs<object>> =
-  & {
-    [K in keyof A]: A[K] extends Parser<[Step<unknown, infer TData>]> ? TData
-      : never;
-  }
-  & {};
-
-export interface ObjectParser<T extends object>
-  extends Parser<[Step<T, ObjectData<Attrs<T>>>]> {
-  attrs: Attrs<T>;
-}
-
-export function object<T extends Record<string, Partial<Parser<[AnyStep]>>>>(
-  attrs: T,
-): ObjectParser<ObjectValue<T>> {
-  type V = ObjectValue<T>;
-  let resolved = Object.fromEntries(
-    Object.entries(attrs).map(([key, entry]) => {
-      let parser = typeof entry.parse === "function"
-        ? entry as Parser<[AnyStep]>
-        : { ...field(optionalBoolean), ...entry };
-      return [key, parser];
-    }),
-  ) as Attrs<V>;
-  let entries = Object.entries(resolved) as [
-    keyof V,
-    Parser<[Step<V[keyof V], AnyStep["data"]>]>,
-  ][];
-  let parsers = entries.map(([key, parser]) => {
-    return [key, {
-      ...parser,
-      path: [String(key), ...parser.path],
-    }] as [keyof V, Parser<[Step<V[keyof V], AnyStep["data"]>]>];
+export function object<T extends object>(
+  attrs: Attrs<T>,
+): Parser<T, ObjectInfo<T>> {
+  let entries = Object.entries(attrs).map(([key, value]) => {
+    let entry = value as Partial<Parser<unknown>>;
+    let parser = typeof entry.parse === "function"
+      ? entry as Parser<unknown>
+      : Object.assign(field(optionalBoolean), entry);
+    return [key as keyof T, parser] as [keyof T, Parser<unknown>];
   });
-  return {
-    attrs: resolved,
-    path: [],
+
+  let parser: Parser<T, ObjectInfo<T>> = {
     parse(input) {
-      let value = {} as Record<keyof V, unknown>;
-      let data = {} as ObjectData<Attrs<V>>;
+      return parser.inspect(createContext(input)).result;
+    },
+    inspect(ctx: ParseContext): ObjectInfo<T> {
+      let { scoped, args } = scopeInput(entries, ctx);
+      let attrs: Record<string, ParserInfo<unknown>> = {};
+      let value = {} as Record<keyof T, unknown>;
       let errors: { path: string[]; error: Error }[] = [];
 
-      // extract CLI args into per-key values
-      let cliValues = new Map<keyof V, { name: string; value: unknown }[]>();
-      let args = input.args ?? [];
-
-      if (args.length > 0) {
-        let matched = new Set<keyof V>();
-        let prev: string[] | undefined;
-        while (
-          args.length > 0 && (prev === undefined || args.length < prev.length)
-        ) {
-          prev = args;
-          for (let [key, parser] of parsers) {
-            let f = asField(parser);
-            if (!f) continue;
-            if (matched.has(key) && !f.mods.array) continue;
-
-            let matcher = matchAll(
-              parseSwitch(f.schema, f.aliases ?? []),
-              parseNegativeSwitch(f.schema),
-              parseLongOption(f.aliases ?? []),
-              parseLongOptionEql(),
-              parseArgument(f.mods.argument),
-            );
-
-            let match = matcher(args, parser.path);
-            if (match.matched) {
-              let val = primitive(match.value);
-              if (f.mods.array) {
-                let existing = cliValues.get(key);
-                if (existing && existing.length > 0) {
-                  let last = existing[existing.length - 1];
-                  (last.value as unknown[]).push(val);
-                } else {
-                  cliValues.set(key, [{ name: "cli", value: [val] }]);
-                }
-              } else {
-                let existing = cliValues.get(key) ?? [];
-                existing.push({ name: "cli", value: val });
-                cliValues.set(key, existing);
-              }
-              matched.add(key);
-              args = match.remainder;
-              break;
-            }
-          }
-        }
-      }
-
-      for (let [key, parser] of parsers) {
-        // scope values to this key
-        let scoped: Input = {
-          values: [
-            ...(input.values ?? []).flatMap((v) => {
-              if (v.value == null) return [];
-              let obj = v.value as Record<string, unknown>;
-              if (!(String(key) in obj)) return [];
-              return [{ name: v.name, value: obj[String(key)] }];
-            }),
-            ...(cliValues.get(key) ?? []),
-          ],
-          envs: input.envs,
-        };
-
-        let parsed = parser.parse(scoped);
-
-        if (parsed.ok) {
-          value[key] = parsed.value;
-          data[key] = parsed.data as ObjectData<Attrs<V>>[keyof V];
+      for (let [key, child] of entries) {
+        let path = [...ctx.path, String(key)];
+        let childCtx = { ...ctx, args, ...(scoped.get(key) ?? {}), path };
+        let info = child.inspect(childCtx);
+        attrs[String(key)] = info;
+        if (info.result.ok) {
+          value[key] = info.result.value;
         } else {
-          errors.push({ path: parser.path, error: parsed.error });
+          errors.push({ path, error: info.result.error });
         }
       }
 
-      let remainder: Input = { ...input, args };
-
-      if (errors.length > 0) {
-        return {
+      let remainder = { args, values: ctx.values, envs: ctx.envs };
+      let result = errors.length > 0
+        ? {
           ok: false as const,
           error: new ObjectValidationError(errors),
           remainder,
-        };
+        }
+        : { ok: true as const, value: value as T, remainder };
+
+      let help = {
+        progname: [] as string[],
+        args: [],
+        opts: [],
+        commands: [],
+      } as ObjectInfo<T>["help"];
+      for (let child of Object.values(attrs) as ParserInfo<unknown>[]) {
+        help.args.push(...child.help.args);
+        help.opts.push(...child.help.opts);
+        help.commands.push(...child.help.commands);
       }
 
       return {
-        ok: true as const,
-        value: value as V,
-        data,
+        type: "object",
+        parser,
+        result,
         remainder,
-      };
+        attrs,
+        help,
+      } as ObjectInfo<T>;
+    },
+    help(input) {
+      return format(parser.inspect(createContext(input)));
     },
   };
+
+  return parser;
 }
 
-function asField(parser: Parser): Field<unknown> | undefined {
-  return "mods" in parser ? parser as Field<unknown> : undefined;
+// --- internal ---
+
+function asField(parser: Parser<unknown>): Field<unknown> | undefined {
+  return "schema" in parser ? parser as Field<unknown> : undefined;
+}
+
+function scopeInput<V>(
+  entries: [keyof V, Parser<unknown>][],
+  ctx: ParseContext,
+): {
+  scoped: Map<
+    keyof V,
+    {
+      values: { name: string; value: unknown }[];
+      envs: { name: string; value: Record<string, string> }[];
+    }
+  >;
+  args: string[];
+} {
+  let cliValues = new Map<keyof V, { name: string; value: unknown }[]>();
+  let args = ctx.args;
+
+  if (args.length > 0) {
+    let matched = new Set<keyof V>();
+    let prev: string[] | undefined;
+    while (
+      args.length > 0 && (prev === undefined || args.length < prev.length)
+    ) {
+      prev = args;
+      for (let [key, parser] of entries) {
+        let f = asField(parser);
+        if (!f) continue;
+        if (matched.has(key) && !f.array) continue;
+        let path = [...ctx.path, String(key)];
+        let matcher = matchAll(
+          parseSwitch(f.schema, f.aliases ?? []),
+          parseNegativeSwitch(f.schema),
+          parseLongOption(f.aliases ?? []),
+          parseLongOptionEql(),
+          parseArgument(f.argument),
+        );
+        let match = matcher(args, path);
+        if (match.matched) {
+          let val = primitive(match.value);
+          if (f.array) {
+            let existing = cliValues.get(key);
+            if (existing && existing.length > 0) {
+              let last = existing[existing.length - 1];
+              (last.value as unknown[]).push(val);
+            } else {
+              cliValues.set(key, [{ name: "cli", value: [val] }]);
+            }
+          } else {
+            let existing = cliValues.get(key) ?? [];
+            existing.push({ name: "cli", value: val });
+            cliValues.set(key, existing);
+          }
+          matched.add(key);
+          args = match.remainder;
+          break;
+        }
+      }
+    }
+  }
+
+  let scoped = new Map<
+    keyof V,
+    {
+      values: { name: string; value: unknown }[];
+      envs: { name: string; value: Record<string, string> }[];
+    }
+  >();
+  for (let [key] of entries) {
+    scoped.set(key, {
+      values: [
+        ...ctx.values.flatMap((v) => {
+          if (v.value == null) return [];
+          let obj = v.value as Record<string, unknown>;
+          if (!(String(key) in obj)) return [];
+          return [{ name: v.name, value: obj[String(key)] }];
+        }),
+        ...(cliValues.get(key) ?? []),
+      ],
+      envs: ctx.envs,
+    });
+  }
+
+  return { scoped, args };
 }
 
 export class ObjectValidationError extends Error {

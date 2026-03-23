@@ -42,7 +42,10 @@ describe("object", () => {
 
       expect(path).toEqual(["port"]);
       assert(fieldError instanceof ValidationError);
-      expect(fieldError.sources[0].sourceName).toEqual("app-config.yaml");
+      let appConfig = fieldError.sources.find((s) =>
+        s.sourceName === "app-config.yaml"
+      );
+      expect(appConfig).toBeDefined();
     });
 
     it("accepts multiple object configs, with the last one overriding", () => {
@@ -91,7 +94,8 @@ describe("object", () => {
 
       expect(path).toEqual(["port"]);
       assert(fieldError instanceof ValidationError);
-      expect(fieldError.sources[0].sourceType).toEqual("env");
+      let envSource = fieldError.sources.find((s) => s.sourceType === "env");
+      expect(envSource).toBeDefined();
       expect(fieldError.sources[0].issues).toBeDefined();
     });
 

@@ -1,88 +1,132 @@
-import type { AnyStep, Input, Parser } from "./types.ts";
+import type {
+  Config,
+  Input,
+  ParseContext,
+  Parser,
+  ParserInfo,
+} from "./types.ts";
 import { object } from "./object.ts";
-import { format, inspect } from "./help.ts";
-import assert from "node:assert";
+import { constant } from "./constant.ts";
+import { format } from "./help.ts";
+import { createContext } from "./context.ts";
 
-export interface Program<P extends Parser<[AnyStep, ...AnyStep[]]>> {
-  name: string;
-  version?: string;
-  config: P;
-  createParser(input: Input): {
-    type: "help";
-    print(): string;
-  } | {
-    type: "version";
-    print(): string;
-  } | {
-    type: "main";
-    parse(): ReturnType<P["parse"]>;
-  };
+export interface Program<T> {
+  help?: boolean;
+  version?: boolean;
+  main: () => Parser<T>;
 }
 
-export function program<P extends Parser<[AnyStep, ...AnyStep[]]>>(
+export type ProgramConfig<P extends Parser<Program<unknown>>> = Config<
+  ReturnType<Config<P>["main"]>
+>;
+
+export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
+  type: "program";
+  name: string;
+  version?: string;
+  preamble: ParserInfo<unknown>;
+  main: ParserInfo<T>;
+}
+
+export function program<T>(
   opts: {
     name: string;
     version?: string;
-    config: P;
+    config: Parser<T>;
   },
-): Program<P> {
+): Parser<Program<T>, ProgramInfo<T>> {
   let { name, version, config } = opts;
 
-  return {
-    name,
-    version,
-    config,
-    createParser(input: Input): ReturnType<Program<P>["createParser"]> {
-      const preamble = object({
-        help: {
-          description: "show help",
-          aliases: ["-h"],
+  let preamble = object({
+    help: {
+      description: "show help",
+      aliases: ["-h"],
+    },
+    ...(version
+      ? {
+        version: {
+          description: "show version",
+          aliases: ["-v"],
         },
-        ...(version
-          ? {
-            version: {
-              description: "show version",
-              aliases: ["-v"],
-            },
-          }
-          : {}),
+      }
+      : {}),
+    main: constant(null),
+  });
+
+  let parser = {
+    parse(input: Input) {
+      return parser.inspect(createContext(input)).result;
+    },
+    inspect(ctx: ParseContext): ProgramInfo<T> {
+      let rootCtx = { ...ctx, progname: [name] };
+      let info = preamble.inspect(rootCtx);
+      let remainder = info.result.ok
+        ? info.result.remainder
+        : { args: ctx.args, values: ctx.values, envs: ctx.envs };
+      let mainCtx = {
+        ...rootCtx,
+        args: remainder.args ?? [],
+        values: remainder.values ?? [],
+        envs: remainder.envs ?? [],
+      };
+      let main = config.inspect(mainCtx);
+
+      // build a resolve function that bakes mainCtx into config
+      let resolve = (): Parser<T> => ({
+        ...config,
+        parse(input) {
+          return config.inspect({
+            ...mainCtx,
+            args: input?.args ?? mainCtx.args,
+            values: input?.values ?? mainCtx.values,
+            envs: input?.envs ?? mainCtx.envs,
+          }).result;
+        },
+        help(input) {
+          return format(config.inspect({
+            ...mainCtx,
+            args: input?.args ?? mainCtx.args,
+            values: input?.values ?? mainCtx.values,
+            envs: input?.envs ?? mainCtx.envs,
+          }));
+        },
       });
 
-      let probe = preamble.parse(input);
-      assert(probe.ok);
-
-      if (probe.value.help) {
-        return { type: "help", print: () => printHelp(name, config, preamble) };
-      }
-      if ((probe.value as { version?: boolean }).version) {
-        return {
-          type: "version",
-          print: () => version!,
+      let result = info.result.ok
+        ? {
+          ok: true as const,
+          value: { ...info.result.value, main: resolve } as unknown as Program<
+            T
+          >,
+          remainder: info.result.remainder,
+        }
+        : {
+          ok: false as const,
+          error: info.result.error,
+          remainder: info.result.remainder,
         };
-      }
 
       return {
-        type: "main",
-        parse: () => config.parse(probe.remainder),
-        // deno-lint-ignore no-explicit-any
-      } as any;
+        type: "program",
+        parser,
+        result,
+        remainder: { args: ctx.args, values: ctx.values, envs: ctx.envs },
+        name,
+        version,
+        preamble: info,
+        main,
+        help: {
+          progname: [name],
+          args: [...info.help.args, ...main.help.args],
+          opts: [...info.help.opts, ...main.help.opts],
+          commands: [...info.help.commands, ...main.help.commands],
+        },
+      };
     },
-  };
-}
+    help(input: Input = {}): string {
+      return format(parser.inspect(createContext(input)));
+    },
+  } as Parser<Program<T>, ProgramInfo<T>>;
 
-// --- internal ---
-
-function printHelp(
-  name: string,
-  config: Parser,
-  preamble: Parser,
-): string {
-  let info = inspect(config);
-  let extra = inspect(preamble);
-
-  for (let opt of extra.opts) {
-    info.opts.push(opt);
-  }
-
-  return format(info, name);
+  return parser;
 }

@@ -1,9 +1,11 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { validate, ValidationError } from "./validate.ts";
-import type { Field, Mods, Source } from "./types.ts";
+import type { Field, FieldInfo, ParseContext, Source } from "./types.ts";
 import { toSnake } from "ts-case-convert";
 import { isBoolean } from "./parse-args.ts";
+import { format } from "./help.ts";
+import { createContext } from "./context.ts";
 
 export function field<T>(
   schema: StandardSchemaV1<T>,
@@ -16,31 +18,56 @@ export function field<T>(
     array: false,
   } as Mods);
 
-  let field: Field<T> = {
-    path: [],
+  let f: Field<T> = {
     required: !!validate(schema, undefined).issues,
     schema,
-    mods,
+    argument: mods.argument,
+    array: mods.array,
+    default: mods.default,
+    boolean: isBoolean(schema),
     parse(input) {
+      return f.inspect(createContext(input)).result;
+    },
+    inspect(ctx: ParseContext): FieldInfo<T> {
       let sources: Source<T>[] = [];
 
-      // collect object sources
-      for (let value of input.values ?? []) {
+      // none is always a source (lowest priority)
+      let none = validate(schema, undefined);
+      sources.push({
+        sourceName: "none",
+        sourceType: "none",
+        value: (none.issues ? undefined : none.value) as T,
+        issues: none.issues,
+      });
+
+      // default comes after none but before actual input sources
+      if (f.default !== undefined) {
+        let { issues } = validate(schema, f.default);
+        sources.push({
+          sourceName: "default",
+          sourceType: "default",
+          value: f.default as T,
+          issues,
+        });
+      }
+
+      // collect value sources
+      for (let value of ctx.values) {
         let result = validate(schema, value.value);
         sources.push({
           sourceName: value.name,
-          sourceType: "object",
+          sourceType: "value",
           value: (result.issues ? value.value : result.value) as T,
           issues: result.issues,
         });
       }
 
       // collect env sources
-      let key = this.path.map((el) => toSnake(el).toUpperCase()).join("_");
-      for (let env of input.envs ?? []) {
+      let key = ctx.path.map((el) => toSnake(el).toUpperCase()).join("_");
+      for (let env of ctx.envs) {
         let strval = env.value[key];
         if (strval === undefined) continue;
-        let value = parseEnvValue(field, strval);
+        let value = parseEnvValue(f, strval);
         let result = validate(schema, value);
         sources.push({
           sourceName: env.name,
@@ -50,70 +77,63 @@ export function field<T>(
         });
       }
 
-      // pick the best valid source from inputs (last one wins)
-      let winner = sources.findLast((s) => !s.issues);
-      if (winner) {
-        return {
-          ok: true as const,
-          value: winner.value,
-          data: { source: winner, sources },
-          remainder: input,
-        };
-      }
+      // pick the best valid source (last one wins), fall back to last source
+      let winner = sources.findLast((s) => !s.issues) ??
+        sources[sources.length - 1];
 
-      // try default
-      if (mods.default !== undefined) {
-        let result = validate(schema, mods.default);
-        let source: Source<T> = {
-          sourceName: "default",
-          sourceType: "default",
-          value: (result.issues ? mods.default : result.value) as T,
-          issues: result.issues,
-        };
-        sources.push(source);
-        if (!result.issues) {
-          return {
-            ok: true as const,
-            value: source.value,
-            data: { source, sources },
-            remainder: input,
-          };
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
+
+      let result = winner.issues
+        ? {
+          ok: false as const,
+          error: new ValidationError(sources),
+          remainder,
         }
-      }
+        : { ok: true as const, value: winner.value as T, remainder };
 
-      // try undefined (optional fields or schema-level defaults)
-      let result = validate(schema, undefined);
-      let source: Source<T> = {
-        sourceName: "none",
-        sourceType: "none",
-        value: (result.issues ? undefined : result.value) as T,
-        issues: result.issues,
+      // read description/aliases from the actual object (may be a spread copy)
+      let desc = (this as unknown as Partial<Field<T>>)?.description ??
+        f.description;
+      let ali = (this as unknown as Partial<Field<T>>)?.aliases ?? f.aliases;
+
+      let info: FieldInfo<T> = {
+        type: "field",
+        parser: f,
+        result,
+        remainder,
+        path: ctx.path,
+        required: f.required,
+        argument: f.argument,
+        array: f.array,
+        aliases: ali,
+        description: desc,
+        default: f.default,
+        boolean: f.boolean,
+        source: winner,
+        sources,
+        help: { progname: [], args: [], opts: [], commands: [] },
       };
-      sources.push(source);
-
-      if (!result.issues) {
-        return {
-          ok: true as const,
-          value: source.value,
-          data: { source, sources },
-          remainder: input,
-        };
+      if (f.argument) {
+        info.help.args.push(info);
+      } else {
+        info.help.opts.push(info);
       }
-
-      return {
-        ok: false as const,
-        error: new ValidationError(sources),
-        remainder: input,
-      };
+      return info;
+    },
+    help(input) {
+      let info = f.inspect(createContext(input));
+      return format(info, info.path.join("."));
     },
   };
-  return field;
+  return f;
 }
+
+// --- internal ---
 
 function parseEnvValue<T>(field: Field<T>, value: string): unknown {
   if (isBoolean(field.schema)) {
     return parseEnvBoolean(value);
-  } else if (field.mods.array) {
+  } else if (field.array) {
     return parseEnvArray(field, value);
   } else if (!isNaN(Number(value))) {
     return Number(value);
@@ -172,4 +192,10 @@ export interface CLIMods {
 
 export interface Mod {
   (mods: Mods): Mods;
+}
+
+interface Mods {
+  default?: unknown;
+  argument: boolean;
+  array: boolean;
 }
