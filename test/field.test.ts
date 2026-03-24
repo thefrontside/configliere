@@ -6,16 +6,21 @@ import { field } from "../lib/field.ts";
 import assert from "node:assert";
 import { ValidationError } from "../lib/validate.ts";
 import { parseSync } from "./test-helpers.ts";
+import { createContext } from "../lib/context.ts";
 
 describe("field", () => {
   describe("from js", () => {
     it("can be set from a valid value", () => {
-      let result = parseSync(field(type("number")), {
+      let f = field(type("number"));
+      let result = parseSync(f, {
         values: [{ name: "test", value: 5 }],
       });
       assert(result.ok);
       expect(result.value).toEqual(5);
-      expect(result.data.source.issues).toBeUndefined();
+      let info = f.inspect(
+        createContext({ values: [{ name: "test", value: 5 }] }),
+      );
+      expect(info.source.issues).toBeUndefined();
     });
 
     it("recognizes invalid values", () => {
@@ -28,18 +33,22 @@ describe("field", () => {
     });
 
     it("includes a source for every passed value", () => {
-      let result = parseSync(field(type("number")), {
+      let f = field(type("number"));
+      let input = {
         values: [
           { name: "ausente", value: undefined },
           { name: "invalido", value: "not a number" },
           { name: "valido.2", value: 2 },
           { name: "valido.1", value: 1 },
         ],
-      });
+      };
+      let result = parseSync(f, input);
       assert(result.ok);
       expect(result.value).toEqual(1);
 
-      let [ausente, invalido, two, one] = result.data.sources;
+      let info = f.inspect(createContext(input));
+      let [none, ausente, invalido, two, one] = info.sources;
+      expect(none.issues).toBeDefined();
       expect(ausente.issues).toBeDefined();
       expect(invalido.issues).toBeDefined();
       expect(one.issues).not.toBeDefined();
@@ -47,51 +56,56 @@ describe("field", () => {
     });
 
     it("can be valid even with no input", () => {
-      let result = parseSync(field(type("number|undefined")), { values: [] });
+      let f = field(type("number|undefined"));
+      let result = parseSync(f, { values: [] });
       assert(result.ok);
       expect(result.value).toBeUndefined();
-      expect(result.data.source.sourceType).toEqual("none");
+      expect(f.inspect(createContext({ values: [] })).source.sourceType)
+        .toEqual("none");
     });
 
     it("uses a default value if no source is found", () => {
-      let result = parseSync(field(type("number"), field.default(3000)), {
-        values: [],
-      });
+      let f = field(type("number"), field.default(3000));
+      let result = parseSync(f, { values: [] });
       assert(result.ok);
       expect(result.value).toEqual(3000);
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({ values: [] })).source.sourceType)
+        .toEqual("default");
     });
 
     it("uses a falsy default of false", () => {
-      let result = parseSync(field(type("boolean"), field.default(false)), {});
+      let f = field(type("boolean"), field.default(false));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(false);
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of 0", () => {
-      let result = parseSync(field(type("number"), field.default(0)), {});
+      let f = field(type("number"), field.default(0));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual(0);
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
 
     it("uses a falsy default of empty string", () => {
-      let result = parseSync(field(type("string"), field.default("")), {});
+      let f = field(type("string"), field.default(""));
+      let result = parseSync(f, {});
       assert(result.ok);
       expect(result.value).toEqual("");
-      expect(result.data.source.sourceType).toEqual("default");
+      expect(f.inspect(createContext({})).source.sourceType).toEqual("default");
     });
   });
 
   describe("from env", () => {
     it("parses a number", () => {
-      let result = parseSync(field(type("number")), {
-        envs: [{ name: "ENV", value: { "": "5" } }],
-      });
+      let f = field(type("number"));
+      let input = { envs: [{ name: "ENV", value: { "": "5" } }] };
+      let result = parseSync(f, input);
       assert(result.ok);
       expect(result.value).toEqual(5);
-      expect(result.data.source.sourceType).toEqual("env");
+      expect(f.inspect(createContext(input)).source.sourceType).toEqual("env");
     });
 
     it("can parse a boolean", () => {

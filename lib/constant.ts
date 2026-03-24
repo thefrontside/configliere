@@ -1,15 +1,25 @@
-import type { Parser, Step } from "./types.ts";
+import type { ConstantInfo, ParseContext, Parser } from "./types.ts";
+import { createContext } from "./context.ts";
 
-export function constant<const T>(value: T): Parser<[Step<T, void>]> {
-  return {
-    path: [],
-    parse(input) {
+export function constant<const T>(value: T): Parser<T, ConstantInfo<T>> {
+  let parser: Parser<T, ConstantInfo<T>> = {
+    parse(input, ctx) {
+      return parser.inspect(ctx ?? createContext(input)).result;
+    },
+    inspect(ctx: ParseContext): ConstantInfo<T> {
+      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       return {
-        ok: true as const,
+        type: "constant",
+        parser,
         value,
-        data: void (0),
-        remainder: input,
+        result: { ok: true, value, remainder },
+        remainder,
+        help: { progname: [], args: [], opts: [], commands: [] },
       };
     },
+    help() {
+      return "";
+    },
   };
+  return parser;
 }
