@@ -55,6 +55,54 @@ export function program<T>(
       let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       let main = config.inspect(rootCtx);
 
+      // Post-parse: if help/version was not detected at args[0],
+      // check if it survived into the config parser's remainder.
+      // When a sub-parser (command) handles --help, it removes the token
+      // from its result remainder, so it won't appear here.
+      let resultRemainder = main.result.remainder;
+      if (!help && !ver) {
+        let remainderArgs = resultRemainder?.args ?? [];
+        let dashDashIndex = remainderArgs.indexOf("--");
+        let searchEnd = dashDashIndex === -1
+          ? remainderArgs.length
+          : dashDashIndex;
+
+        for (let i = 0; i < searchEnd; i++) {
+          if (remainderArgs[i] === "--help" || remainderArgs[i] === "-h") {
+            help = true;
+            resultRemainder = {
+              ...resultRemainder,
+              args: [
+                ...remainderArgs.slice(0, i),
+                ...remainderArgs.slice(i + 1),
+              ],
+            };
+            break;
+          }
+        }
+
+        if (!help && version) {
+          let versionArgs = resultRemainder?.args ?? [];
+          let versionDashDash = versionArgs.indexOf("--");
+          let versionSearchEnd = versionDashDash === -1
+            ? versionArgs.length
+            : versionDashDash;
+          for (let i = 0; i < versionSearchEnd; i++) {
+            if (versionArgs[i] === "--version" || versionArgs[i] === "-v") {
+              ver = version;
+              resultRemainder = {
+                ...resultRemainder,
+                args: [
+                  ...versionArgs.slice(0, i),
+                  ...versionArgs.slice(i + 1),
+                ],
+              };
+              break;
+            }
+          }
+        }
+      }
+
       let value: Program<T> = {
         ...(help ? { help: true } : {}),
         ...(ver ? { version: ver } : {}),
@@ -65,7 +113,7 @@ export function program<T>(
         ? {
           ok: true as const,
           value,
-          remainder: main.result.ok ? main.result.remainder : remainder,
+          remainder: resultRemainder,
         }
         : main.result;
 

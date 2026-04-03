@@ -165,21 +165,47 @@ function command<T, const Name extends string>(
       };
       let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
 
-      if (ctx.args[0] === "--help" || ctx.args[0] === "-h") {
-        let config = inner.inspect({ ...cmdCtx, args: [] });
+      // Run inner parser first with all args. If --help/-h survives
+      // in the inner parser's remainder (no descendant consumed it),
+      // produce help for this command. This preserves nested command
+      // routing: a descendant commands() parser dispatches first and
+      // its command() handles --help at the correct level.
+      let config = inner.inspect(cmdCtx);
+
+      let innerRemainder = config.result.remainder?.args ?? [];
+      let dashDashIndex = innerRemainder.indexOf("--");
+      let searchEnd = dashDashIndex === -1
+        ? innerRemainder.length
+        : dashDashIndex;
+      let helpPosition = -1;
+      for (let i = 0; i < searchEnd; i++) {
+        if (
+          innerRemainder[i] === "--help" || innerRemainder[i] === "-h"
+        ) {
+          helpPosition = i;
+          break;
+        }
+      }
+
+      if (helpPosition !== -1) {
         let help = {
           ...config.help,
           progname: [...ctx.progname, name],
           opts: [...config.help.opts, helpOpt],
         };
         let text = format({ ...config, help });
+        let helpArgs = [
+          ...innerRemainder.slice(0, helpPosition),
+          ...innerRemainder.slice(helpPosition + 1),
+        ];
+        let helpRemainder = { ...remainder, args: helpArgs };
         return {
           type: "command",
           parser,
           result: {
             ok: true as const,
             value: { name, help: true as const, text } as Command<T, Name>,
-            remainder,
+            remainder: helpRemainder,
           },
           name,
           description: inner.description,
@@ -187,11 +213,10 @@ function command<T, const Name extends string>(
           config,
           commands: {},
           help,
-          remainder,
+          remainder: helpRemainder,
         };
       }
 
-      let config = inner.inspect(cmdCtx);
       let result = config.result.ok
         ? {
           ok: true as const,
