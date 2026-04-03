@@ -55,6 +55,44 @@ export function program<T>(
       let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       let main = config.inspect(rootCtx);
 
+      // Post-parse: if help/version was not detected at args[0],
+      // check if it survived into the config parser's remainder.
+      // When a sub-parser (command) handles --help, it removes the token
+      // from its result remainder, so it won't appear here.
+      let resultRemainder = main.result.remainder;
+      if (!help && !ver) {
+        let remArgs = resultRemainder?.args ?? [];
+        let ddIdx = remArgs.indexOf("--");
+        let searchEnd = ddIdx === -1 ? remArgs.length : ddIdx;
+
+        for (let i = 0; i < searchEnd; i++) {
+          if (remArgs[i] === "--help" || remArgs[i] === "-h") {
+            help = true;
+            resultRemainder = {
+              ...resultRemainder,
+              args: [...remArgs.slice(0, i), ...remArgs.slice(i + 1)],
+            };
+            break;
+          }
+        }
+
+        if (!help && version) {
+          let vRemArgs = resultRemainder?.args ?? [];
+          let vDdIdx = vRemArgs.indexOf("--");
+          let vSearchEnd = vDdIdx === -1 ? vRemArgs.length : vDdIdx;
+          for (let i = 0; i < vSearchEnd; i++) {
+            if (vRemArgs[i] === "--version" || vRemArgs[i] === "-v") {
+              ver = version;
+              resultRemainder = {
+                ...resultRemainder,
+                args: [...vRemArgs.slice(0, i), ...vRemArgs.slice(i + 1)],
+              };
+              break;
+            }
+          }
+        }
+      }
+
       let value: Program<T> = {
         ...(help ? { help: true } : {}),
         ...(ver ? { version: ver } : {}),
@@ -65,7 +103,7 @@ export function program<T>(
         ? {
           ok: true as const,
           value,
-          remainder: main.result.ok ? main.result.remainder : remainder,
+          remainder: resultRemainder,
         }
         : main.result;
 

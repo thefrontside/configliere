@@ -165,21 +165,40 @@ function command<T, const Name extends string>(
       };
       let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
 
-      if (ctx.args[0] === "--help" || ctx.args[0] === "-h") {
-        let config = inner.inspect({ ...cmdCtx, args: [] });
+      // Scan all args before -- for help flag
+      let ddIdx = ctx.args.indexOf("--");
+      let searchEnd = ddIdx === -1 ? ctx.args.length : ddIdx;
+      let helpIdx = -1;
+      for (let i = 0; i < searchEnd; i++) {
+        if (ctx.args[i] === "--help" || ctx.args[i] === "-h") {
+          helpIdx = i;
+          break;
+        }
+      }
+
+      if (helpIdx !== -1) {
+        let argsWithoutHelp = [
+          ...ctx.args.slice(0, helpIdx),
+          ...ctx.args.slice(helpIdx + 1),
+        ];
+        let config = inner.inspect({ ...cmdCtx, args: argsWithoutHelp });
         let help = {
           ...config.help,
           progname: [...ctx.progname, name],
           opts: [...config.help.opts, helpOpt],
         };
         let text = format({ ...config, help });
+        let helpRemainder = {
+          ...remainder,
+          args: config.result.remainder?.args ?? [],
+        };
         return {
           type: "command",
           parser,
           result: {
             ok: true as const,
             value: { name, help: true as const, text } as Command<T, Name>,
-            remainder,
+            remainder: helpRemainder,
           },
           name,
           description: inner.description,
@@ -187,7 +206,7 @@ function command<T, const Name extends string>(
           config,
           commands: {},
           help,
-          remainder,
+          remainder: helpRemainder,
         };
       }
 

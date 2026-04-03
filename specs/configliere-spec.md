@@ -154,8 +154,9 @@ provide CLI entry-point behavior.
 **Parse result.** The outcome of parsing: `Done<T>` (success with typed value)
 or `Fail` (failure with error). Both carry a `remainder` of unconsumed input.
 
-**Remainder.** The unconsumed portion of input after a parser has consumed what
-it recognizes. Remainder flows upward from child to parent.
+**Remainder.** The unconsumed portion of input after a parser has attempted to
+match what it recognizes. "Did not consume" means "did not match," not "did not
+reach due to early termination." Remainder flows upward from child to parent.
 
 **Source.** A record of where a field's value came from:
 `{ sourceName, sourceType, value, issues }`. Source types include `"none"`,
@@ -420,6 +421,11 @@ scoping itself does not change precedence — it changes which values are visibl
 - MUST scope CLI args by matching against child field paths (via `scopeInput`).
 - MUST scope config-file values by extracting each child's key from value
   objects.
+- MUST parse known options interspersed with unrecognized tokens. When no field
+  matcher claims a token, skip it, preserve it in remainder, and continue
+  matching. `--` terminates option processing; `--` and all subsequent tokens go
+  to remainder as-is. Unrecognized tokens appear in remainder in original
+  relative order.
 
 **Type expectation:**
 `object({ port: field(type("number")), host: field(type("string")) })` MUST
@@ -454,10 +460,33 @@ progname, and delegation to a config parser.
 
 - MUST screen for `--help`/`-h` and `--version`/`-v` before delegating to the
   config parser.
+- MUST also detect `--help`/`-h` and `--version`/`-v` in the config parser's
+  remainder after delegation, for tokens that no sub-parser handled. When a
+  sub-parser (e.g., `command()`) handles `--help`, it removes the token from its
+  result remainder, so it will not be detected again at the program level.
+- `--help`/`-h` and `--version`/`-v` MUST be detected regardless of position in
+  argv (before `--`). Detection includes consumption: the handled token MUST NOT
+  appear in `result.remainder.args`.
 - MUST set `progname: [name]` in the root context.
 - MUST produce `Parser<Program<T>>` where `T` is the config parser's value type.
 - MUST merge preamble options (help, version) into the help output alongside the
   config parser's help.
+
+> **Subcommand help routing.** When `program()` wraps `commands()`,
+> subcommand-targeted help (e.g., `myapp dev --help`) is handled by
+> `command()`, not by `program()`. `command()` runs the inner parser first with
+> all args; if `--help` survives in the inner parser's remainder (no descendant
+> consumed it), `command()` produces help for that command. `program()` only
+> catches help/version tokens that survive into the config parser's remainder —
+> i.e., tokens that no sub-parser handled.
+
+> **Provisional: Help-validation interaction (Decision B).** When `--help` is
+> detected alongside missing required fields, `command()` runs the inner parser
+> with all args; whether the inner parse succeeds or fails, the command still
+> returns `ok: true` with `help: true` if `--help` is found in remainder. At the
+> program level, the `(main.result.ok || help || ver)` guard ensures `ok: true`
+> when help is detected. Whether finer-grained help-mode validation suppression
+> is needed is deferred.
 
 ### 8.5 `inject(fn)`
 
@@ -764,6 +793,10 @@ key. Fields use path for CLI option key derivation and env-var key mapping.
 
 When both parsers are known at construction time, all help is available before
 any phase executes. This is the simplest case and MUST be fully supported.
+
+### 12.1.1 Interspersed extraction guarantee
+
+A phase-1 parser MUST extract all known flags regardless of their position relative to tokens that belong to later phases. Because `object()` uses interspersed parsing (§8.2), a bootstrap parser defining `--config` but not a positional `<suite>` will successfully extract `--config` from `run ./suite --config app.json`, passing `run` and `./suite` through as remainder for phase-2.
 
 ### 12.2 Dependency-generated phases
 
@@ -1210,6 +1243,18 @@ Tests MUST verify that provided extraction helpers (currently `ConfigType`,
 `CommandType`, `CommandsType`, `ProgramType`) extract correct types from parser
 instances. [Lock down contract — for whatever helpers exist at the time.] If the
 helper set evolves, tests MUST cover whatever helpers are provided.
+
+### 18.11 Interspersed parsing and help detection
+
+- `object()` interspersed parsing: flags before, after, and interleaved with unknown positionals; all-consume and no-consume cases [Verify current]
+- `--` terminates option processing [Lock down contract]
+- Remainder preserves original token order for unrecognized tokens [Lock down contract]
+- `--help`/`-h` position-insensitive at both program and command level [Lock down contract]
+- Subcommand help shape preserved: `config.help === true`, `config.text` present [Lock down contract]
+- Handled help/version tokens do not appear in `result.remainder.args` [Lock down contract]
+- Contextual args consumed during help are not in result remainder [Lock down contract]
+- Phased parsing: phase-1 extracts known flags regardless of position [Verify current]
+- Help-validation interaction: `--help` with missing required fields (observation, provisional) [Verify current]
 
 ---
 

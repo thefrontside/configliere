@@ -118,11 +118,16 @@ function scopeInput<V>(
 
   if (args.length > 0) {
     let matched = new Set<keyof V>();
-    let prev: string[] | undefined;
-    while (
-      args.length > 0 && (prev === undefined || args.length < prev.length)
-    ) {
-      prev = args;
+    let skipped: string[] = [];
+
+    while (args.length > 0) {
+      if (args[0] === "--") {
+        skipped.push(...args);
+        args = [];
+        break;
+      }
+
+      let consumed = false;
       for (let [key, parser] of entries) {
         let f = asField(parser);
         if (!f) continue;
@@ -153,10 +158,18 @@ function scopeInput<V>(
           }
           matched.add(key);
           args = match.remainder;
+          consumed = true;
           break;
         }
       }
+
+      if (!consumed) {
+        skipped.push(args[0]);
+        args = args.slice(1);
+      }
     }
+
+    args = skipped;
   }
 
   let scoped = new Map<
