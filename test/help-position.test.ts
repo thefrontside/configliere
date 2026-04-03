@@ -113,7 +113,11 @@ describe("help position-insensitivity", () => {
     it("cmd --help (first after command name)", () => {
       let result = parseSync(app, { args: ["run", "--help"] });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       expect(typeof cmd.text).toBe("string");
@@ -125,7 +129,11 @@ describe("help position-insensitivity", () => {
         args: ["run", "--port", "4000", "--help"],
       });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       expect(cmd.text).toMatch(/port/);
@@ -137,7 +145,11 @@ describe("help position-insensitivity", () => {
         args: ["run", "./suite", "--help"],
       });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       expect(result.remainder.args).toEqual([]);
@@ -207,7 +219,11 @@ describe("help position-insensitivity", () => {
     it("--help at args[0] after command (scan at index 0)", () => {
       let result = parseSync(app, { args: ["run", "--help"] });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       expect(result.remainder.args).toEqual([]);
@@ -218,7 +234,11 @@ describe("help position-insensitivity", () => {
         args: ["run", "--port", "4000", "--help"],
       });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       // Contextual values available in help text
@@ -243,7 +263,11 @@ describe("help position-insensitivity", () => {
         args: ["run", "./suite", "--help"],
       });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       expect(result.remainder.args).toEqual([]);
@@ -257,7 +281,11 @@ describe("help position-insensitivity", () => {
         args: ["run", "--help"],
       });
       assert(result.ok);
-      let cmd = result.value.config as { name: string; help: boolean; text: string };
+      let cmd = result.value.config as {
+        name: string;
+        help: boolean;
+        text: string;
+      };
       expect(cmd.name).toBe("run");
       expect(cmd.help).toBe(true);
       // help: true is reachable even when required fields are missing,

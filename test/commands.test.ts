@@ -266,7 +266,9 @@ describe("commands", () => {
         args: ["outer", "inner", "--help"],
       });
       expect(result.name).toBe("outer");
-      let inner = (result as unknown as { config: { name: string; help: boolean; text: string } }).config;
+      let inner = (result as unknown as {
+        config: { name: string; help: boolean; text: string };
+      }).config;
       expect(inner.name).toBe("inner");
       expect(inner.help).toBe(true);
       expect(inner.text).toMatch(/flag/);
@@ -284,7 +286,9 @@ describe("commands", () => {
         args: ["outer", "inner", "--port", "4000", "--help"],
       });
       expect(result.name).toBe("outer");
-      let inner = (result as unknown as { config: { name: string; help: boolean; text: string } }).config;
+      let inner = (result as unknown as {
+        config: { name: string; help: boolean; text: string };
+      }).config;
       expect(inner.name).toBe("inner");
       expect(inner.help).toBe(true);
       expect(inner.text).toMatch(/port/);

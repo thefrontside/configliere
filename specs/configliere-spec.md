@@ -473,12 +473,12 @@ progname, and delegation to a config parser.
   config parser's help.
 
 > **Subcommand help routing.** When `program()` wraps `commands()`,
-> subcommand-targeted help (e.g., `myapp dev --help`) is handled by
-> `command()`, not by `program()`. `command()` runs the inner parser first with
-> all args; if `--help` survives in the inner parser's remainder (no descendant
-> consumed it), `command()` produces help for that command. `program()` only
-> catches help/version tokens that survive into the config parser's remainder —
-> i.e., tokens that no sub-parser handled.
+> subcommand-targeted help (e.g., `myapp dev --help`) is handled by `command()`,
+> not by `program()`. `command()` runs the inner parser first with all args; if
+> `--help` survives in the inner parser's remainder (no descendant consumed it),
+> `command()` produces help for that command. `program()` only catches
+> help/version tokens that survive into the config parser's remainder — i.e.,
+> tokens that no sub-parser handled.
 
 > **Provisional: Help-validation interaction (Decision B).** When `--help` is
 > detected alongside missing required fields, `command()` runs the inner parser
@@ -796,7 +796,12 @@ any phase executes. This is the simplest case and MUST be fully supported.
 
 ### 12.1.1 Interspersed extraction guarantee
 
-A phase-1 parser MUST extract all known flags regardless of their position relative to tokens that belong to later phases. Because `object()` uses interspersed parsing (§8.2), a bootstrap parser defining `--config` but not a positional `<suite>` will successfully extract `--config` from `run ./suite --config app.json`, passing `run` and `./suite` through as remainder for phase-2.
+A phase-1 parser MUST extract all known flags regardless of their position
+relative to tokens that belong to later phases. Because `object()` uses
+interspersed parsing (§8.2), a bootstrap parser defining `--config` but not a
+positional `<suite>` will successfully extract `--config` from
+`run ./suite --config app.json`, passing `run` and `./suite` through as
+remainder for phase-2.
 
 ### 12.2 Dependency-generated phases
 
@@ -1246,15 +1251,23 @@ helper set evolves, tests MUST cover whatever helpers are provided.
 
 ### 18.11 Interspersed parsing and help detection
 
-- `object()` interspersed parsing: flags before, after, and interleaved with unknown positionals; all-consume and no-consume cases [Verify current]
+- `object()` interspersed parsing: flags before, after, and interleaved with
+  unknown positionals; all-consume and no-consume cases [Verify current]
 - `--` terminates option processing [Lock down contract]
-- Remainder preserves original token order for unrecognized tokens [Lock down contract]
-- `--help`/`-h` position-insensitive at both program and command level [Lock down contract]
-- Subcommand help shape preserved: `config.help === true`, `config.text` present [Lock down contract]
-- Handled help/version tokens do not appear in `result.remainder.args` [Lock down contract]
-- Contextual args consumed during help are not in result remainder [Lock down contract]
-- Phased parsing: phase-1 extracts known flags regardless of position [Verify current]
-- Help-validation interaction: `--help` with missing required fields (observation, provisional) [Verify current]
+- Remainder preserves original token order for unrecognized tokens [Lock down
+  contract]
+- `--help`/`-h` position-insensitive at both program and command level [Lock
+  down contract]
+- Subcommand help shape preserved: `config.help === true`, `config.text` present
+  [Lock down contract]
+- Handled help/version tokens do not appear in `result.remainder.args` [Lock
+  down contract]
+- Contextual args consumed during help are not in result remainder [Lock down
+  contract]
+- Phased parsing: phase-1 extracts known flags regardless of position [Verify
+  current]
+- Help-validation interaction: `--help` with missing required fields
+  (observation, provisional) [Verify current]
 
 ---
 
