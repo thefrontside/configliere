@@ -253,5 +253,41 @@ describe("commands", () => {
         expect(value.text).toMatch(/inner/);
       }
     });
+
+    it("routes --help to nested inner command", () => {
+      let nested = commands({
+        outer: commands({
+          inner: object({
+            flag: field(type("boolean"), field.default(false)),
+          }),
+        }),
+      });
+      let result = parseOk(nested, {
+        args: ["outer", "inner", "--help"],
+      });
+      expect(result.name).toBe("outer");
+      let inner = (result as unknown as { config: { name: string; help: boolean; text: string } }).config;
+      expect(inner.name).toBe("inner");
+      expect(inner.help).toBe(true);
+      expect(inner.text).toMatch(/flag/);
+    });
+
+    it("routes non-first --help to nested inner command", () => {
+      let nested = commands({
+        outer: commands({
+          inner: object({
+            port: field(type("number"), field.default(3000)),
+          }),
+        }),
+      });
+      let result = parseOk(nested, {
+        args: ["outer", "inner", "--port", "4000", "--help"],
+      });
+      expect(result.name).toBe("outer");
+      let inner = (result as unknown as { config: { name: string; help: boolean; text: string } }).config;
+      expect(inner.name).toBe("inner");
+      expect(inner.help).toBe(true);
+      expect(inner.text).toMatch(/port/);
+    });
   });
 });

@@ -61,31 +61,41 @@ export function program<T>(
       // from its result remainder, so it won't appear here.
       let resultRemainder = main.result.remainder;
       if (!help && !ver) {
-        let remArgs = resultRemainder?.args ?? [];
-        let ddIdx = remArgs.indexOf("--");
-        let searchEnd = ddIdx === -1 ? remArgs.length : ddIdx;
+        let remainderArgs = resultRemainder?.args ?? [];
+        let dashDashIndex = remainderArgs.indexOf("--");
+        let searchEnd = dashDashIndex === -1
+          ? remainderArgs.length
+          : dashDashIndex;
 
         for (let i = 0; i < searchEnd; i++) {
-          if (remArgs[i] === "--help" || remArgs[i] === "-h") {
+          if (remainderArgs[i] === "--help" || remainderArgs[i] === "-h") {
             help = true;
             resultRemainder = {
               ...resultRemainder,
-              args: [...remArgs.slice(0, i), ...remArgs.slice(i + 1)],
+              args: [
+                ...remainderArgs.slice(0, i),
+                ...remainderArgs.slice(i + 1),
+              ],
             };
             break;
           }
         }
 
         if (!help && version) {
-          let vRemArgs = resultRemainder?.args ?? [];
-          let vDdIdx = vRemArgs.indexOf("--");
-          let vSearchEnd = vDdIdx === -1 ? vRemArgs.length : vDdIdx;
-          for (let i = 0; i < vSearchEnd; i++) {
-            if (vRemArgs[i] === "--version" || vRemArgs[i] === "-v") {
+          let versionArgs = resultRemainder?.args ?? [];
+          let versionDashDash = versionArgs.indexOf("--");
+          let versionSearchEnd = versionDashDash === -1
+            ? versionArgs.length
+            : versionDashDash;
+          for (let i = 0; i < versionSearchEnd; i++) {
+            if (versionArgs[i] === "--version" || versionArgs[i] === "-v") {
               ver = version;
               resultRemainder = {
                 ...resultRemainder,
-                args: [...vRemArgs.slice(0, i), ...vRemArgs.slice(i + 1)],
+                args: [
+                  ...versionArgs.slice(0, i),
+                  ...versionArgs.slice(i + 1),
+                ],
               };
               break;
             }

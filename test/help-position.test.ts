@@ -142,6 +142,56 @@ describe("help position-insensitivity", () => {
       expect(cmd.help).toBe(true);
       expect(result.remainder.args).toEqual([]);
     });
+
+    it("routes --help to nested inner command through program()", () => {
+      let nested = program({
+        name: "myapp",
+        config: commands({
+          outer: commands({
+            inner: object({
+              flag: field(type("boolean"), field.default(false)),
+            }),
+          }),
+        }),
+      });
+      let result = parseSync(nested, { args: ["outer", "inner", "--help"] });
+      assert(result.ok);
+      let outer = result.value.config as {
+        name: string;
+        config: { name: string; help: boolean; text: string };
+      };
+      expect(outer.name).toBe("outer");
+      expect(outer.config.name).toBe("inner");
+      expect(outer.config.help).toBe(true);
+      expect(outer.config.text).toMatch(/flag/);
+      expect(result.remainder.args).toEqual([]);
+    });
+
+    it("routes non-first --help to nested inner command through program()", () => {
+      let nested = program({
+        name: "myapp",
+        config: commands({
+          outer: commands({
+            inner: object({
+              port: field(type("number"), field.default(3000)),
+            }),
+          }),
+        }),
+      });
+      let result = parseSync(nested, {
+        args: ["outer", "inner", "--port", "4000", "--help"],
+      });
+      assert(result.ok);
+      let outer = result.value.config as {
+        name: string;
+        config: { name: string; help: boolean; text: string };
+      };
+      expect(outer.name).toBe("outer");
+      expect(outer.config.name).toBe("inner");
+      expect(outer.config.help).toBe(true);
+      expect(outer.config.text).toMatch(/port/);
+      expect(result.remainder.args).toEqual([]);
+    });
   });
 
   describe("path comparison", () => {

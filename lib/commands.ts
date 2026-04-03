@@ -165,33 +165,40 @@ function command<T, const Name extends string>(
       };
       let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
 
-      // Scan all args before -- for help flag
-      let ddIdx = ctx.args.indexOf("--");
-      let searchEnd = ddIdx === -1 ? ctx.args.length : ddIdx;
-      let helpIdx = -1;
+      // Run inner parser first with all args. If --help/-h survives
+      // in the inner parser's remainder (no descendant consumed it),
+      // produce help for this command. This preserves nested command
+      // routing: a descendant commands() parser dispatches first and
+      // its command() handles --help at the correct level.
+      let config = inner.inspect(cmdCtx);
+
+      let innerRemainder = config.result.remainder?.args ?? [];
+      let dashDashIndex = innerRemainder.indexOf("--");
+      let searchEnd = dashDashIndex === -1
+        ? innerRemainder.length
+        : dashDashIndex;
+      let helpPosition = -1;
       for (let i = 0; i < searchEnd; i++) {
-        if (ctx.args[i] === "--help" || ctx.args[i] === "-h") {
-          helpIdx = i;
+        if (
+          innerRemainder[i] === "--help" || innerRemainder[i] === "-h"
+        ) {
+          helpPosition = i;
           break;
         }
       }
 
-      if (helpIdx !== -1) {
-        let argsWithoutHelp = [
-          ...ctx.args.slice(0, helpIdx),
-          ...ctx.args.slice(helpIdx + 1),
-        ];
-        let config = inner.inspect({ ...cmdCtx, args: argsWithoutHelp });
+      if (helpPosition !== -1) {
         let help = {
           ...config.help,
           progname: [...ctx.progname, name],
           opts: [...config.help.opts, helpOpt],
         };
         let text = format({ ...config, help });
-        let helpRemainder = {
-          ...remainder,
-          args: config.result.remainder?.args ?? [],
-        };
+        let helpArgs = [
+          ...innerRemainder.slice(0, helpPosition),
+          ...innerRemainder.slice(helpPosition + 1),
+        ];
+        let helpRemainder = { ...remainder, args: helpArgs };
         return {
           type: "command",
           parser,
@@ -210,7 +217,6 @@ function command<T, const Name extends string>(
         };
       }
 
-      let config = inner.inspect(cmdCtx);
       let result = config.result.ok
         ? {
           ok: true as const,
