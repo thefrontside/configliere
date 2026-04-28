@@ -254,6 +254,21 @@ describe("object", () => {
 
       expect(result.inspectWatchScopes).toEqual(true);
     });
+    it("treats acronym suffixes as a single word in derived names", () => {
+      let config = object({
+        clientID: field(type("string")),
+      });
+
+      let cli = parseOk(config, {
+        args: ["--client-id", "abc123"],
+      });
+      let env = parseOk(config, {
+        envs: [{ name: "env", value: { CLIENT_ID: "abc123" } }],
+      });
+
+      expect(cli.clientID).toEqual("abc123");
+      expect(env.clientID).toEqual("abc123");
+    });
     it("can collect arrays of argument values", () => {
       let result = parseOk(
         object({
