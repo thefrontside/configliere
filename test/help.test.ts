@@ -170,6 +170,17 @@ describe("help text", () => {
       });
       expect(text).toMatch(/--port <PORT>\s+ \[default: 3000\]/);
     });
+    it("renders derived acronym-safe option and env names", () => {
+      let text = exam(
+        {
+          clientID: field(type("string")),
+        },
+        { envs: [{ name: "env", value: { CLIENT_ID: "abc123" } }] },
+      );
+
+      expect(text).toMatch(/--client-id/);
+      expect(text).toMatch(/\[env: CLIENT_ID=abc123\]/);
+    });
     it("does not display the source of an option if it is invalid", () => {
       let text = exam(
         {

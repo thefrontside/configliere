@@ -8,7 +8,7 @@ import type {
   Parser,
 } from "./types.ts";
 import { constant } from "./constant.ts";
-import { toSnake } from "ts-case-convert";
+import { toEnvCase } from "./case.ts";
 import { format } from "./help.ts";
 import { helpOpt } from "./program.ts";
 import { createContext } from "./context.ts";
@@ -226,7 +226,7 @@ function command<T, const Name extends string>(
 }
 
 function scope(name: string, ctx: ParseContext): ParseContext {
-  let prefix = toSnake(name).toUpperCase() + "_";
+  let prefix = toEnvCase(name) + "_";
   let values = ctx.values.flatMap((v) => {
     if (v.value == null) return [];
     let obj = v.value as Record<string, unknown>;

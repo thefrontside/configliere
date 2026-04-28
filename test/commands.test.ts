@@ -87,6 +87,27 @@ describe("commands", () => {
         config: { host: "localhost", port: 4000 },
       });
     });
+
+    it("uses acronym-safe env scoping for command names", () => {
+      let withAcronym = commands({
+        syncJWT: object({
+          clientID: field(type("string")),
+        }),
+      });
+
+      let value = parseOk(withAcronym, {
+        args: ["syncJWT"],
+        envs: [{
+          name: "env",
+          value: { SYNC_JWT_CLIENT_ID: "abc123" },
+        }],
+      });
+
+      expect(value).toEqual({
+        name: "syncJWT",
+        config: { clientID: "abc123" },
+      });
+    });
   });
 
   describe("aliases", () => {

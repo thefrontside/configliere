@@ -16,8 +16,7 @@
     "jsr:@ts-morph/bootstrap@0.27": "0.27.0",
     "jsr:@ts-morph/common@0.27": "0.27.0",
     "npm:@standard-schema/spec@1": "1.1.0",
-    "npm:arktype@^2.1.20": "2.1.20",
-    "npm:ts-case-convert@^2.1.0": "2.1.0"
+    "npm:arktype@^2.1.20": "2.1.20"
   },
   "jsr": {
     "@david/code-block-writer@13.0.3": {
@@ -108,9 +107,6 @@
         "@ark/schema",
         "@ark/util"
       ]
-    },
-    "ts-case-convert@2.1.0": {
-      "integrity": "sha512-Ye79el/pHYXfoew6kqhMwCoxp4NWjKNcm2kBzpmEMIU9dd9aBmHNNFtZ+WTm0rz1ngyDmfqDXDlyUnBXayiD0w=="
     }
   },
   "workspace": {
@@ -119,8 +115,7 @@
       "jsr:@std/expect@^1.0.16",
       "jsr:@std/testing@^1.0.15",
       "npm:@standard-schema/spec@1",
-      "npm:arktype@^2.1.20",
-      "npm:ts-case-convert@^2.1.0"
+      "npm:arktype@^2.1.20"
     ]
   }
 }

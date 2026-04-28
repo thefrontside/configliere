@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { validate } from "./validate.ts";
-import { toKebabCase } from "./case.ts";
+import { toOptionPath } from "./case.ts";
 
 export type MatchResult = {
   matched: true;
@@ -89,11 +89,11 @@ export function parseArgument(isArgument: boolean): Matcher {
 }
 
 export function optionKey(path: string[]): string {
-  return `--${toKebabCase(path.join(".")).toLowerCase()}`;
+  return `--${toOptionPath(path)}`;
 }
 
 function negativeSwitchKey(path: string[]): string {
-  return `--no-${toKebabCase(path.join(".")).toLowerCase()}`;
+  return `--no-${toOptionPath(path)}`;
 }
 
 export function primitive(val: string | boolean): string | number | boolean {

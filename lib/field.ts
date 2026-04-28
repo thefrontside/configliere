@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { validate, ValidationError } from "./validate.ts";
 import type { Field, FieldInfo, ParseContext, Source } from "./types.ts";
-import { toSnake } from "ts-case-convert";
+import { toEnvKey } from "./case.ts";
 import { isBoolean } from "./parse-args.ts";
 import { format } from "./help.ts";
 import { createContext } from "./context.ts";
@@ -63,9 +63,9 @@ export function field<T>(
       }
 
       // collect env sources
-      let key = ctx.path.map((el) => toSnake(el).toUpperCase()).join("_");
+      let envKey = toEnvKey(ctx.path);
       for (let env of ctx.envs) {
-        let strval = env.value[key];
+        let strval = env.value[envKey];
         if (strval === undefined) continue;
         let value = parseEnvValue(f, strval);
         let result = validate(schema, value);

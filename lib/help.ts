@@ -1,5 +1,6 @@
 import type { FieldInfo, ParserInfo } from "./types.ts";
 import { optionKey } from "./parse-args.ts";
+import { toEnvKey } from "./case.ts";
 
 export function format(info: ParserInfo<unknown>, name?: string): string {
   let { progname, args, opts, commands } = info.help;
@@ -73,7 +74,7 @@ function formatSource(info: FieldInfo<unknown>): string {
   let { sourceType, sourceName, value } = info.source;
   switch (sourceType) {
     case "env": {
-      let key = info.path.join("_").toUpperCase();
+      let key = toEnvKey(info.path);
       return `[env: ${key}=${value}]`;
     }
     case "value":
