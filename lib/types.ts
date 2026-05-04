@@ -1,26 +1,53 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+export type Token =
+  | { type: "arg"; from: number; to: number }
+  | { type: "value"; source: string; path: string[] }
+  | { type: "env"; source: string; name: string };
+
+export interface Prefix {
+  values: string[];
+  envs: string;
+  args: string[];
+}
+
+export interface AvailableInput {
+  args: { index: number; value: string }[];
+  values: { source: string; value: unknown }[];
+  envs: { source: string; value: Record<string, string> }[];
+}
+
+export interface Input {
+  values?: {
+    name: string;
+    value: unknown;
+  }[];
+  envs?: {
+    name: string;
+    value: Record<string, string>;
+  }[];
+  args?: string[];
+}
+
 export type ParseResult<T> = Done<T> | Fail;
 
 export interface Done<T> {
   ok: true;
   value: T;
-  remainder: Input;
+  remainder: AvailableInput;
 }
 
 export interface Fail {
   ok: false;
   error: Error;
-  remainder: Input;
+  remainder: AvailableInput;
 }
 
 export interface ParseContext {
   progname: string[];
-  path: string[];
-  commands: Record<string, Parser<Command<unknown, string>>>;
-  args: string[];
-  values: { name: string; value: unknown }[];
-  envs: { name: string; value: Record<string, string> }[];
+  prefix: Prefix;
+  input: Input;
+  available: AvailableInput;
 }
 
 export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
@@ -45,18 +72,6 @@ export type CommandType<
   ? { [K in keyof C]: C[K] }
   : never;
 
-export interface Input {
-  values?: {
-    name: string;
-    value: unknown;
-  }[];
-  envs?: {
-    name: string;
-    value: Record<string, string>;
-  }[];
-  args?: string[];
-}
-
 export interface HelpInfo {
   progname: string[];
   args: FieldInfo<unknown>[];
@@ -67,8 +82,10 @@ export interface HelpInfo {
 export interface ParserInfo<T> {
   type: string;
   parser: Parser<T>;
+  prefix: Prefix;
+  claims: Token[];
+  remainder: AvailableInput;
   result: ParseResult<T>;
-  remainder: Input;
   help: HelpInfo;
 }
 
