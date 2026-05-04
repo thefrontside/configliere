@@ -1,11 +1,10 @@
-import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { constant } from "../lib/constant.ts";
-import { parseOk } from "./test-helpers.ts";
+import { createContext } from "../lib/context.ts";
 
-describe("constant", () => {
-  it("parses a constant", () => {
-    let value = parseOk(constant("hello world"));
-    expect(value).toBe("hello world");
-  });
+Deno.test("constant emits no claims and returns its value", () => {
+  let p = constant("hello");
+  let info = p.inspect(createContext({ args: ["x", "y"] }));
+  expect(info.claims.length).toBe(0);
+  if (info.result.ok) expect(info.result.value).toBe("hello");
 });

@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { validate } from "./validate.ts";
 
 export const optionalBoolean: StandardSchemaV1<boolean | undefined> = {
   "~standard": {
@@ -25,3 +26,9 @@ export const string: StandardSchemaV1<string> = {
     },
   },
 };
+
+export function isBoolean<S extends StandardSchemaV1<unknown>>(
+  schema: S,
+): boolean {
+  return !validate(schema, false).issues && !validate(schema, true).issues;
+}
