@@ -1,5 +1,5 @@
-import type { ParseContext, Parser, ParserInfo } from "./types.ts";
-import { createContext } from "./context.ts";
+import type { Input, ParseContext, Parser, ParserInfo } from "./types.ts";
+import { createContext, toAvailable } from "./context.ts";
 import { format } from "./help.ts";
 
 export function inject<T, D>(
@@ -10,38 +10,33 @@ export function inject<T, D>(
       return parser.inspect(ctx ?? createContext(input)).result;
     },
     inspect(ctx: ParseContext): ParserInfo<(dep: D) => Parser<T>> {
-      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
       let resolve = (dep: D): Parser<T> => {
         let inner = fn(dep);
         return {
           ...inner,
           parse(input, override) {
-            return inner.inspect(
-              override ?? {
-                ...ctx,
-                args: input?.args ?? ctx.args,
-                values: input?.values ?? ctx.values,
-                envs: input?.envs ?? ctx.envs,
-              },
-            ).result;
+            let nextCtx = override ?? {
+              ...ctx,
+              input: input ?? ctx.input,
+              available: toAvailable(input ?? ctx.input),
+            };
+            return inner.inspect(nextCtx).result;
           },
           inspect(override) {
             return inner.inspect(override);
           },
           help(input, override) {
-            return inner.help({
-              args: input?.args ?? ctx.args,
-              values: input?.values ?? ctx.values,
-              envs: input?.envs ?? ctx.envs,
-            }, override ?? ctx);
+            return inner.help(input ?? ctx.input, override ?? ctx);
           },
         };
       };
       return {
         type: "inject",
         parser,
-        result: { ok: true, value: resolve, remainder },
-        remainder,
+        prefix: ctx.prefix,
+        claims: [],
+        remainder: ctx.available,
+        result: { ok: true, value: resolve, remainder: ctx.available },
         help: { progname: ctx.progname, args: [], opts: [], commands: [] },
       };
     },
