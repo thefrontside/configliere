@@ -81,6 +81,20 @@ Deno.test("option does not match when no source", () => {
   expect(info.claims.length).toBe(0);
 });
 
+Deno.test("option coerces numeric string from --foo VAL", () => {
+  let p = option(type("number"));
+  let info = p.inspect(ctx(["--foo", "8080"]));
+  expect(info.result.ok).toBe(true);
+  if (info.result.ok) expect(info.result.value).toBe(8080);
+});
+
+Deno.test("option coerces numeric string from --foo=VAL", () => {
+  let p = option(type("number"));
+  let info = p.inspect(ctx(["--foo=8080"]));
+  expect(info.result.ok).toBe(true);
+  if (info.result.ok) expect(info.result.value).toBe(8080);
+});
+
 Deno.test("option uses prefix.envs to compute env name (nested case)", () => {
   let p = option(type("string"));
   let info = p.inspect({

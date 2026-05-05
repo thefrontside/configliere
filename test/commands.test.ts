@@ -3,6 +3,7 @@ import { type } from "arktype";
 import { commands } from "../lib/commands.ts";
 import { object } from "../lib/object.ts";
 import { option } from "../lib/option.ts";
+import { program } from "../lib/program.ts";
 import { createContext } from "../lib/context.ts";
 
 Deno.test("commands dispatches on first positional matching a name", () => {
@@ -114,4 +115,28 @@ Deno.test("commands uses default when no name matches", () => {
   );
   let info = p.inspect(createContext({ args: [] }));
   expect(info.result.ok).toBe(true);
+});
+
+Deno.test("commands populates help.commands with full registry", () => {
+  let p = commands([
+    ["serve", object({ port: option(type("string"), { default: "8000" }) })],
+    ["build", object({ out: option(type("string"), { default: "dist" }) })],
+  ]);
+  let info = p.inspect(createContext({ args: ["serve"] }));
+  expect(info.help.commands.length).toBe(2);
+  let names = info.help.commands.map((c) => c.name).sort();
+  expect(names).toEqual(["build", "serve"]);
+});
+
+Deno.test("program help shows all commands", () => {
+  let p = program({
+    name: "myapp",
+    config: commands([
+      ["serve", object({ port: option(type("string"), { default: "8000" }) })],
+      ["build", object({ out: option(type("string"), { default: "dist" }) })],
+    ]),
+  });
+  let helpText = p.help({ args: ["serve"] });
+  expect(helpText).toContain("serve");
+  expect(helpText).toContain("build");
 });

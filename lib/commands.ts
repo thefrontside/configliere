@@ -62,6 +62,43 @@ export function commands<
         chosenName = opts.default;
         innerAvailable = available;
       } else {
+        innerAvailable = available;
+      }
+
+      // gather metadata for ALL entries so help.commands is fully populated
+      let allCommandInfos: Record<string, CommandInfo<Command<unknown, string>>> = {};
+      for (let [name, cmd] of entries) {
+        let metaPrefix: Prefix = {
+          values: ctx.prefix.values.concat(name),
+          envs: ctx.prefix.envs + toEnvCase(name) + "_",
+          args: [],
+        };
+        let metaValues = scopeValues(available.values, name);
+        let metaEnvs = scopeEnvs(available.envs, metaPrefix.envs);
+        let metaInfo = cmd.inspect({
+          ...ctx,
+          prefix: metaPrefix,
+          available: { args: [], values: metaValues, envs: metaEnvs },
+        });
+        allCommandInfos[name] = {
+          type: "command",
+          parser: cmd as unknown as Parser<Command<unknown, string>>,
+          prefix: metaPrefix,
+          claims: [],
+          remainder: metaInfo.remainder,
+          result: metaInfo.result.ok
+            ? { ok: true, value: { name, config: metaInfo.result.value } as Command<unknown, string>, remainder: metaInfo.remainder }
+            : { ok: false, error: metaInfo.result.error, remainder: metaInfo.remainder },
+          name,
+          description: cmd.description,
+          aliases: cmd.aliases,
+          config: metaInfo,
+          commands: {},
+          help: metaInfo.help,
+        };
+      }
+
+      if (chosenName === undefined) {
         let remainder = available;
         return {
           type: "commands",
@@ -74,37 +111,26 @@ export function commands<
             error: new NoCommandMatchError([...nameSet]),
             remainder,
           },
-          commands: {},
-          help: { progname: ctx.progname, args: [], opts: [], commands: [] },
+          commands: allCommandInfos as CommandsInfo<ResultType>["commands"],
+          help: {
+            progname: ctx.progname,
+            args: [],
+            opts: [],
+            commands: Object.values(allCommandInfos),
+          },
         } as unknown as CommandsInfo<ResultType>;
       }
 
       let chosen = entries.find(([n]) => n === chosenName)!;
+
       let innerPrefix: Prefix = {
         values: ctx.prefix.values.concat(chosenName),
         envs: ctx.prefix.envs + toEnvCase(chosenName) + "_",
         args: [],
       };
 
-      let scopedValues = innerAvailable.values.flatMap((entry) => {
-        let v = entry.value;
-        if (v == null || typeof v !== "object") return [];
-        let inner = (v as Record<string, unknown>)[chosenName!];
-        if (inner === undefined) return [];
-        return [{ source: entry.source, value: inner }];
-      });
-      let scopedEnvs = innerAvailable.envs.map((entry) => {
-        let scoped: Record<string, string> = {};
-        let p = innerPrefix.envs;
-        for (let [k, val] of Object.entries(entry.value)) {
-          if (k.startsWith(p)) {
-            scoped[k.slice(p.length)] = val;
-          } else {
-            scoped[k] = val;
-          }
-        }
-        return { source: entry.source, value: scoped };
-      });
+      let scopedValues = scopeValues(innerAvailable.values, chosenName);
+      let scopedEnvs = scopeEnvs(innerAvailable.envs, innerPrefix.envs);
 
       let innerCtx: ParseContext = {
         ...ctx,
@@ -138,9 +164,8 @@ export function commands<
         help: innerInfo.help,
       };
 
-      let allCommandInfos: Record<string, CommandInfo<Command<unknown, string>>> = {
-        [chosenName]: commandInfo,
-      };
+      // replace the metadata-only entry for the matched command with the dispatched info
+      allCommandInfos[chosenName] = commandInfo;
 
       return {
         type: "commands",
@@ -150,7 +175,12 @@ export function commands<
         remainder: innerInfo.remainder,
         result,
         commands: allCommandInfos as CommandsInfo<ResultType>["commands"],
-        help: innerInfo.help,
+        help: {
+          progname: ctx.progname,
+          args: [],
+          opts: [],
+          commands: Object.values(allCommandInfos),
+        },
       } as unknown as CommandsInfo<ResultType>;
     },
     help(input, ctx) {
@@ -170,4 +200,36 @@ export class NoCommandMatchError extends Error {
     super(`No command matched. Available: ${available.join(", ")}`);
     this.name = "NoCommandMatchError";
   }
+}
+
+// --- internal ---
+
+function scopeValues(
+  values: AvailableInput["values"],
+  name: string,
+): AvailableInput["values"] {
+  return values.flatMap((entry) => {
+    let v = entry.value;
+    if (v == null || typeof v !== "object") return [];
+    let inner = (v as Record<string, unknown>)[name];
+    if (inner === undefined) return [];
+    return [{ source: entry.source, value: inner }];
+  });
+}
+
+function scopeEnvs(
+  envs: AvailableInput["envs"],
+  prefix: string,
+): AvailableInput["envs"] {
+  return envs.map((entry) => {
+    let scoped: Record<string, string> = {};
+    for (let [k, val] of Object.entries(entry.value)) {
+      if (k.startsWith(prefix)) {
+        scoped[k.slice(prefix.length)] = val;
+      } else {
+        scoped[k] = val;
+      }
+    }
+    return { source: entry.source, value: scoped };
+  });
 }

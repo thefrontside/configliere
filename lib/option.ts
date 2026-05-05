@@ -95,7 +95,7 @@ function inspectOption<T>(
     let raw = entry.value[envName];
     if (raw === undefined) continue;
     claims.push({ type: "env", source: entry.source, name: envName });
-    let coerced = coerceEnvValue(schema, raw);
+    let coerced = coerceValue(schema, raw);
     let res = validate(schema, coerced);
     sources.push({
       sourceType: "env",
@@ -157,7 +157,7 @@ function readPath(value: unknown, path: string[]): unknown {
   return current;
 }
 
-function coerceEnvValue<T>(schema: StandardSchemaV1<T>, raw: string): unknown {
+function coerceValue<T>(schema: StandardSchemaV1<T>, raw: string): unknown {
   if (isBoolean(schema)) {
     let lower = raw.toLowerCase().trim();
     if (lower === "true" || lower === "yes" || lower === "1") return true;
@@ -165,7 +165,7 @@ function coerceEnvValue<T>(schema: StandardSchemaV1<T>, raw: string): unknown {
     return raw;
   }
   let n = Number(raw);
-  if (!isNaN(n)) return n;
+  if (!isNaN(n) && !validate(schema, n).issues) return n;
   return raw;
 }
 
@@ -203,7 +203,7 @@ function matchArgs<T>(
       let raw = v.slice(nameEq.length);
       return {
         token: { type: "arg", from: entry.index, to: entry.index },
-        value: isBool ? coerceBool(raw) : raw,
+        value: isBool ? coerceBool(raw) : coerceValue(schema, raw),
       };
     }
     // alias short forms (top-level only)
@@ -216,7 +216,7 @@ function matchArgs<T>(
           if (next && !next.value.startsWith("-")) {
             return {
               token: { type: "arg", from: entry.index, to: next.index },
-              value: next.value,
+              value: coerceValue(schema, next.value),
             };
           }
         }
@@ -226,7 +226,7 @@ function matchArgs<T>(
     if (!isBool && v === name && next && !next.value.startsWith("-")) {
       return {
         token: { type: "arg", from: entry.index, to: next.index },
-        value: next.value,
+        value: coerceValue(schema, next.value),
       };
     }
   }
