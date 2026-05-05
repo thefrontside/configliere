@@ -1,17 +1,18 @@
 import type {
+  AvailableInput,
   ConfigType,
-  FieldInfo,
-  Input,
   ParseContext,
+  ParseResult,
   Parser,
   ParserInfo,
+  Token,
 } from "./types.ts";
 import { format } from "./help.ts";
 import { createContext } from "./context.ts";
 
 export interface Program<T> {
-  help?: boolean;
-  version?: string;
+  help: boolean;
+  version: boolean;
   config: T;
 }
 
@@ -21,7 +22,7 @@ export type ProgramType<P extends Parser<Program<unknown>>> =
 export interface ProgramInfo<T> extends ParserInfo<Program<T>> {
   type: "program";
   name: string;
-  version?: string;
+  versionString?: string;
   main: ParserInfo<T>;
 }
 
@@ -32,90 +33,80 @@ export function program<T>(
     config: Parser<T>;
   },
 ): Parser<Program<T>, ProgramInfo<T>> {
-  let { name, version, config } = opts;
+  let { name } = opts;
+  let versionString = opts.version;
+  let inner = opts.config;
 
-  let parser = {
-    parse(input: Input, ctx?: ParseContext) {
+  let parser: Parser<Program<T>, ProgramInfo<T>> = {
+    parse(input, ctx) {
       return parser.inspect(ctx ?? createContext(input)).result;
     },
     inspect(ctx: ParseContext): ProgramInfo<T> {
-      let args = ctx.args;
-      let help = false;
-      let ver: string | undefined;
+      let rootCtx: ParseContext = { ...ctx, progname: [name] };
+      let { available } = rootCtx;
 
-      if (args[0] === "--help" || args[0] === "-h") {
-        help = true;
-        args = args.slice(1);
-      } else if (version && (args[0] === "--version" || args[0] === "-v")) {
-        ver = version;
-        args = args.slice(1);
+      let helpClaim = findFirst(available, (v) => v === "--help" || v === "-h");
+      let versionClaim = versionString
+        ? findFirst(available, (v) => v === "--version" || v === "-v")
+        : undefined;
+
+      let claims: Token[] = [];
+      let postClaim = available;
+      if (helpClaim) {
+        claims.push({ type: "arg", from: helpClaim.index, to: helpClaim.index });
+        postClaim = stripIndex(postClaim, helpClaim.index);
+      }
+      if (versionClaim) {
+        claims.push({ type: "arg", from: versionClaim.index, to: versionClaim.index });
+        postClaim = stripIndex(postClaim, versionClaim.index);
       }
 
-      let rootCtx = { ...ctx, progname: [name], args };
-      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
-      let main = config.inspect(rootCtx);
+      let main = inner.inspect({ ...rootCtx, available: postClaim });
 
       let value: Program<T> = {
-        ...(help ? { help: true } : {}),
-        ...(ver ? { version: ver } : {}),
-        config: main.result.ok ? main.result.value : undefined as T,
+        help: !!helpClaim,
+        version: !!versionClaim,
+        config: main.result.ok ? main.result.value : (undefined as T),
       };
 
-      let result = (main.result.ok || help || ver)
-        ? {
-          ok: true as const,
-          value,
-          remainder: main.result.ok ? main.result.remainder : remainder,
-        }
-        : main.result;
+      let result: ParseResult<Program<T>> = (main.result.ok || helpClaim || versionClaim)
+        ? { ok: true, value, remainder: main.remainder }
+        : { ok: false, error: main.result.error, remainder: main.remainder };
 
       return {
         type: "program",
         parser,
+        prefix: rootCtx.prefix,
+        claims,
+        remainder: main.remainder,
         result,
-        remainder,
         name,
-        version,
+        versionString,
         main,
         help: {
           progname: [name],
           args: main.help.args,
-          opts: [
-            ...main.help.opts,
-            ...preamble(version),
-          ],
+          opts: [...main.help.opts],
           commands: main.help.commands,
         },
       };
     },
-    help(input: Input = {}, ctx?: ParseContext): string {
+    help(input, ctx) {
       return format(parser.inspect(ctx ?? createContext(input)));
     },
-  } as Parser<Program<T>, ProgramInfo<T>>;
-
+  };
   return parser;
 }
 
 // --- internal ---
 
-export const helpOpt = {
-  path: ["help"],
-  aliases: ["-h"],
-  boolean: true,
-  description: "show help",
-} as FieldInfo<unknown>;
+function findFirst(
+  av: AvailableInput,
+  pred: (v: string) => boolean,
+): { index: number; value: string } | undefined {
+  return av.args.find((a) => pred(a.value));
+}
 
-function preamble(version?: string): FieldInfo<unknown>[] {
-  if (version) {
-    return [
-      helpOpt,
-      {
-        path: ["version"],
-        aliases: ["-v"],
-        boolean: true,
-        description: "show version",
-      } as FieldInfo<unknown>,
-    ];
-  }
-  return [helpOpt];
+function stripIndex(av: AvailableInput, index: number): AvailableInput {
+  return { ...av, args: av.args.filter((a) => a.index !== index) };
 }
