@@ -6,6 +6,7 @@ import type {
 } from "./types.ts";
 import { createContext } from "./context.ts";
 import { format } from "./help.ts";
+import { subtract } from "./available.ts";
 
 export interface ManyInfo<T> extends ParserInfo<T[]> {
   type: "many";
@@ -32,11 +33,7 @@ export function many<T>(inner: Parser<T>): Parser<T[], ManyInfo<T>> {
         claims.push(...info.claims);
         iterations.push(info);
 
-        let argIdx = new Set<number>();
-        for (let c of argClaims) {
-          for (let i = c.from; i <= c.to; i++) argIdx.add(i);
-        }
-        available = { ...available, args: available.args.filter((a) => !argIdx.has(a.index)) };
+        available = subtract(available, info.claims);
       }
 
       return {

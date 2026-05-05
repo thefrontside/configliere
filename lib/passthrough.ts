@@ -6,6 +6,7 @@ import type {
 } from "./types.ts";
 import { createContext } from "./context.ts";
 import { format } from "./help.ts";
+import { subtract } from "./available.ts";
 
 export interface PassthroughInfo extends ParserInfo<string[] | undefined> {
   type: "passthrough";
@@ -29,14 +30,7 @@ export function passthrough(): Parser<string[] | undefined, PassthroughInfo> {
         value = available.args.slice(sentinelPos + 1).map((a) => a.value);
       }
 
-      let claimedSet = new Set<number>();
-      for (let t of claims) {
-        if (t.type === "arg") for (let i = t.from; i <= t.to; i++) claimedSet.add(i);
-      }
-      let remainder = {
-        ...available,
-        args: available.args.filter((a) => !claimedSet.has(a.index)),
-      };
+      let remainder = subtract(available, claims);
 
       return {
         type: "passthrough",

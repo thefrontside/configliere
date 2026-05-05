@@ -14,6 +14,7 @@ import { toKebabCase } from "./case.ts";
 import { createContext } from "./context.ts";
 import { defaultSource, noneSource, resolve, type Source } from "./source.ts";
 import { format } from "./help.ts";
+import { subtract } from "./available.ts";
 
 export interface OptionInfo<T> extends ParserInfo<T> {
   type: "option";
@@ -119,7 +120,7 @@ function inspectOption<T>(
   }
 
   let { winner } = resolve(sources);
-  let remainder = subtractClaims(available, claims);
+  let remainder = subtract(available, claims);
   let result: ParseResult<T> = winner.issues
     ? { ok: false, error: new ValidationError(sources), remainder }
     : { ok: true, value: winner.value, remainder };
@@ -239,16 +240,3 @@ function coerceBool(raw: string): boolean | string {
   return raw;
 }
 
-function subtractClaims(av: AvailableInput, claims: Token[]): AvailableInput {
-  let argIdx = new Set<number>();
-  for (let t of claims) {
-    if (t.type === "arg") {
-      for (let i = t.from; i <= t.to; i++) argIdx.add(i);
-    }
-  }
-  return {
-    args: av.args.filter((a) => !argIdx.has(a.index)),
-    values: av.values, // values entries remain accessible to siblings sharing the source
-    envs: av.envs, // env entries remain accessible to siblings sharing the source
-  };
-}

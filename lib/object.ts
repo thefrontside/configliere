@@ -1,5 +1,4 @@
 import type {
-  AvailableInput,
   ParseContext,
   ParseResult,
   Parser,
@@ -10,6 +9,7 @@ import type {
 import { createContext } from "./context.ts";
 import { format } from "./help.ts";
 import { toEnvCase } from "./case.ts";
+import { subtract } from "./available.ts";
 
 export type Attrs<T extends object> = {
   [K in keyof T]: Parser<T[K]>;
@@ -36,11 +36,10 @@ export function object<T extends object>(
           envs: ctx.prefix.envs + toEnvCase(key) + "_",
           args: ctx.prefix.args.concat(key),
         };
-        let childAvail = scopeForChild(available, key);
         let childInfo = child.inspect({
           ...ctx,
           prefix: childPrefix,
-          available: childAvail,
+          available,
         });
         attrInfos[key] = childInfo;
         aggClaims.push(...childInfo.claims);
@@ -52,17 +51,8 @@ export function object<T extends object>(
             error: childInfo.result.error,
           });
         }
-        // strip args claimed by child so next sibling sees remainder
-        let argIdx = new Set<number>();
-        for (let t of childInfo.claims) {
-          if (t.type === "arg") {
-            for (let i = t.from; i <= t.to; i++) argIdx.add(i);
-          }
-        }
-        available = {
-          ...available,
-          args: available.args.filter((a) => !argIdx.has(a.index)),
-        };
+        // strip all claims (args, values, envs) so next sibling cannot over-claim
+        available = subtract(available, childInfo.claims);
       }
 
       let remainder = available;
@@ -114,18 +104,3 @@ export class ObjectValidationError extends Error {
   }
 }
 
-// --- internal ---
-
-function scopeForChild(available: AvailableInput, key: string): AvailableInput {
-  return {
-    args: available.args,
-    values: available.values.flatMap((entry) => {
-      let v = entry.value;
-      if (v == null || typeof v !== "object") return [];
-      let inner = (v as Record<string, unknown>)[key];
-      if (inner === undefined) return [];
-      return [{ source: entry.source, value: inner }];
-    }),
-    envs: available.envs,
-  };
-}

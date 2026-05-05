@@ -1,6 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type {
-  AvailableInput,
   ParseContext,
   ParseResult,
   Parser,
@@ -11,6 +10,7 @@ import { validate, ValidationError } from "./validate.ts";
 import { createContext } from "./context.ts";
 import { defaultSource, noneSource, resolve, type Source } from "./source.ts";
 import { format } from "./help.ts";
+import { subtract } from "./available.ts";
 
 export interface ArgumentInfo<T> extends ParserInfo<T> {
   type: "argument";
@@ -63,14 +63,7 @@ export function argument<T>(
       }
 
       let { winner } = resolve(sources);
-      let argIdx = new Set<number>();
-      for (let c of claims) {
-        if (c.type === "arg") for (let i = c.from; i <= c.to; i++) argIdx.add(i);
-      }
-      let remainder: AvailableInput = {
-        ...available,
-        args: available.args.filter((a) => !argIdx.has(a.index)),
-      };
+      let remainder = subtract(available, claims);
       let result: ParseResult<T> = winner.issues
         ? { ok: false, error: new ValidationError(sources), remainder }
         : { ok: true, value: winner.value, remainder };

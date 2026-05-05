@@ -66,3 +66,17 @@ Deno.test("object with argument child claims first positional", () => {
   let info = p.inspect(createContext({ args: ["mycmd", "--flag"] }));
   if (info.result.ok) expect(info.result.value).toEqual({ cmd: "mycmd", flag: true });
 });
+
+Deno.test("siblings cannot doubly-claim the same value path", () => {
+  let p = object({
+    foo: option(type("string")),
+    bar: option(type("string")),
+  });
+  let info = p.inspect(createContext({
+    args: [],
+    values: [{ name: "config", value: { foo: "x", bar: "y" } }],
+  }));
+  if (info.result.ok) expect(info.result.value).toEqual({ foo: "x", bar: "y" });
+  // After both children claim, the source's tree is empty
+  expect(info.remainder.values).toEqual([{ source: "config", value: {} }]);
+});
