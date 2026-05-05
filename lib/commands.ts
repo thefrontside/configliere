@@ -1,124 +1,168 @@
 import type {
+  AvailableInput,
   Command,
   CommandInfo,
   CommandsInfo,
-  HelpInfo,
-  Input,
   ParseContext,
+  ParseResult,
   Parser,
+  Prefix,
+  Token,
 } from "./types.ts";
-import { constant } from "./constant.ts";
-import { toSnake } from "ts-case-convert";
-import { format } from "./help.ts";
-import { helpOpt } from "./program.ts";
 import { createContext } from "./context.ts";
+import { format } from "./help.ts";
+import { toEnvCase } from "./case.ts";
 
-export type CommandEntry = Partial<Parser<unknown>>;
-
-export type CommandEntries<T extends Record<string, unknown>> = {
-  [K in keyof T & string]: Partial<Parser<T[K]>>;
-};
-
-export interface CommandParser<C extends Command<unknown, string>>
-  extends Parser<C, CommandInfo<C>> {
-}
+export type CommandEntry<Name extends string, T> = readonly [Name, Parser<T>];
 
 export interface CommandsParser<T extends Command<unknown, string>>
   extends Parser<T, CommandsInfo<T>> {
   default?: string;
 }
 
-export function commands<T extends Record<string, unknown>>(
-  map: CommandEntries<T>,
-  opts?: { default?: string },
+export function commands<
+  const E extends readonly (readonly [string, Parser<unknown>])[],
+>(
+  entries: E,
+  opts: { default?: string } = {},
 ): CommandsParser<
-  { [K in keyof T & string]: Command<T[K], K> }[keyof T & string]
+  {
+    [I in keyof E]: E[I] extends readonly [infer N extends string, Parser<infer V>]
+      ? Command<V, N>
+      : never;
+  }[number]
 > {
-  let cmds: Record<string, CommandParser<Command<unknown, string>>> = {};
+  type ResultType = Command<unknown, string>;
 
-  let parser = {
-    default: opts?.default,
-    parse(input: Input, ctx?: ParseContext) {
+  let parser: CommandsParser<ResultType> = {
+    default: opts.default,
+    parse(input, ctx) {
       return parser.inspect(ctx ?? createContext(input)).result;
     },
-    inspect(ctx: ParseContext): CommandsInfo<Command<unknown, string>> {
-      let withCmds = { ...ctx, commands: cmds };
-      let args = ctx.args;
-      let matched = match(args, cmds, opts);
-      let infos: Record<string, CommandInfo<Command<unknown, string>>> = {};
-      for (let [name, cmd] of Object.entries(cmds)) {
-        let info = cmd.inspect(scope(name, withCmds));
-        infos[name] = info;
-      }
+    inspect(ctx: ParseContext): CommandsInfo<ResultType> {
+      let { available } = ctx;
 
-      let help = {
-        progname: ctx.progname,
-        args: [] as HelpInfo["args"],
-        opts: [] as HelpInfo["opts"],
-        commands: Object.values(infos).map((info) => ({
-          name: info.name,
-          description: info.description,
-          aliases: info.aliases,
-        })) as HelpInfo["commands"],
-      };
+      let nameSet = new Set(entries.map(([n]) => n));
+      let matchPos = available.args.findIndex((a) =>
+        !a.value.startsWith("-") && nameSet.has(a.value)
+      );
+      let chosenName: string | undefined;
+      let claims: Token[] = [];
+      let innerAvailable: AvailableInput;
 
-      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
-
-      if (!matched) {
+      if (matchPos !== -1) {
+        let matched = available.args[matchPos];
+        chosenName = matched.value;
+        claims.push({ type: "arg", from: matched.index, to: matched.index });
+        innerAvailable = {
+          ...available,
+          args: available.args.filter((_, i) => i !== matchPos),
+        };
+      } else if (opts.default && nameSet.has(opts.default)) {
+        chosenName = opts.default;
+        innerAvailable = available;
+      } else {
+        let remainder = available;
         return {
           type: "commands",
           parser,
+          prefix: ctx.prefix,
+          claims: [],
+          remainder,
           result: {
             ok: false,
-            error: new NoCommandMatchError(Object.keys(cmds)),
+            error: new NoCommandMatchError([...nameSet]),
             remainder,
           },
-          remainder,
-          commands: infos,
-          help,
-        } as unknown as CommandsInfo<Command<unknown, string>>;
+          commands: {},
+          help: { progname: ctx.progname, args: [], opts: [], commands: [] },
+        } as unknown as CommandsInfo<ResultType>;
       }
 
-      let [name, cmd, rest] = matched;
-      let inner = cmd.inspect(scope(name, { ...withCmds, args: rest }));
+      let chosen = entries.find(([n]) => n === chosenName)!;
+      let innerPrefix: Prefix = {
+        values: ctx.prefix.values.concat(chosenName),
+        envs: ctx.prefix.envs + toEnvCase(chosenName) + "_",
+        args: [],
+      };
+
+      let scopedValues = innerAvailable.values.flatMap((entry) => {
+        let v = entry.value;
+        if (v == null || typeof v !== "object") return [];
+        let inner = (v as Record<string, unknown>)[chosenName!];
+        if (inner === undefined) return [];
+        return [{ source: entry.source, value: inner }];
+      });
+      let scopedEnvs = innerAvailable.envs.map((entry) => {
+        let scoped: Record<string, string> = {};
+        let p = innerPrefix.envs;
+        for (let [k, val] of Object.entries(entry.value)) {
+          if (k.startsWith(p)) {
+            scoped[k.slice(p.length)] = val;
+          } else {
+            scoped[k] = val;
+          }
+        }
+        return { source: entry.source, value: scoped };
+      });
+
+      let innerCtx: ParseContext = {
+        ...ctx,
+        prefix: innerPrefix,
+        available: { args: innerAvailable.args, values: scopedValues, envs: scopedEnvs },
+      };
+      let innerInfo = chosen[1].inspect(innerCtx);
+
+      let resultValue: Command<unknown, string> = innerInfo.result.ok
+        ? { name: chosenName, config: innerInfo.result.value } as Command<unknown, string>
+        : { name: chosenName } as unknown as Command<unknown, string>;
+
+      let result: ParseResult<ResultType> = innerInfo.result.ok
+        ? { ok: true, value: resultValue as ResultType, remainder: innerInfo.remainder }
+        : { ok: false, error: innerInfo.result.error, remainder: innerInfo.remainder };
+
+      let commandInfo: CommandInfo<Command<unknown, string>> = {
+        type: "command",
+        parser: chosen[1] as unknown as Parser<Command<unknown, string>>,
+        prefix: innerPrefix,
+        claims: [],
+        remainder: innerInfo.remainder,
+        result: innerInfo.result.ok
+          ? { ok: true, value: resultValue, remainder: innerInfo.remainder }
+          : { ok: false, error: innerInfo.result.error, remainder: innerInfo.remainder },
+        name: chosenName,
+        description: chosen[1].description,
+        aliases: chosen[1].aliases,
+        config: innerInfo,
+        commands: {},
+        help: innerInfo.help,
+      };
+
+      let allCommandInfos: Record<string, CommandInfo<Command<unknown, string>>> = {
+        [chosenName]: commandInfo,
+      };
 
       return {
         type: "commands",
         parser,
-        result: inner.result,
-        remainder,
-        commands: infos,
-        help,
-      } as unknown as CommandsInfo<Command<unknown, string>>;
+        prefix: ctx.prefix,
+        claims,
+        remainder: innerInfo.remainder,
+        result,
+        commands: allCommandInfos as CommandsInfo<ResultType>["commands"],
+        help: innerInfo.help,
+      } as unknown as CommandsInfo<ResultType>;
     },
-    help(input: Input = {}, ctx?: ParseContext): string {
-      let c = ctx ?? createContext(input);
-      let matched = match(c.args, cmds);
-      if (matched) {
-        let [name, cmd, rest] = matched;
-        return cmd.help(
-          { ...input, args: rest },
-          scope(name, { ...c, commands: cmds, args: rest }),
-        );
-      }
-      return format(parser.inspect(c));
+    help(input, ctx) {
+      return format(parser.inspect(ctx ?? createContext(input)));
     },
-  } as CommandsParser<Command<unknown, string>>;
+  } as CommandsParser<ResultType>;
 
-  for (
-    let [name, entry] of Object.entries(map) as [string, CommandEntry][]
-  ) {
-    let p = typeof entry.parse === "function"
-      ? entry as Parser<unknown>
-      : Object.assign(constant(true), entry);
-    cmds[name] = command(name, p) as CommandParser<
-      Command<unknown, string>
-    >;
-  }
-
-  return parser as unknown as CommandsParser<
-    { [K in keyof T & string]: Command<T[K], K> }[keyof T & string]
-  >;
+  return parser as CommandsParser<{
+    [I in keyof E]: E[I] extends readonly [infer N extends string, Parser<infer V>]
+      ? Command<V, N>
+      : never;
+  }[number]>;
 }
 
 export class NoCommandMatchError extends Error {
@@ -126,123 +170,4 @@ export class NoCommandMatchError extends Error {
     super(`No command matched. Available: ${available.join(", ")}`);
     this.name = "NoCommandMatchError";
   }
-}
-
-// --- internal ---
-
-function match(
-  args: string[],
-  cmds: Record<string, CommandParser<Command<unknown, string>>>,
-  opts?: { default?: string },
-): [string, CommandParser<Command<unknown, string>>, string[]] | undefined {
-  if (args.length > 0) {
-    if (args[0] in cmds) return [args[0], cmds[args[0]], args.slice(1)];
-    for (let [name, cmd] of Object.entries(cmds)) {
-      if (cmd.aliases?.includes(args[0])) return [name, cmd, args.slice(1)];
-    }
-  }
-  if (opts?.default && cmds[opts.default]) {
-    return [opts.default, cmds[opts.default], args];
-  }
-  return undefined;
-}
-
-function command<T, const Name extends string>(
-  name: Name,
-  inner: Parser<T>,
-): CommandParser<Command<T, Name>> {
-  let parser: CommandParser<Command<T, Name>> = {
-    description: inner.description,
-    aliases: inner.aliases,
-    parse(input: Input, ctx?: ParseContext) {
-      return parser.inspect(ctx ?? createContext(input)).result;
-    },
-    inspect(ctx: ParseContext): CommandInfo<Command<T, Name>> {
-      let cmdCtx = {
-        ...ctx,
-        progname: [...ctx.progname, name],
-        commands: ctx.commands,
-      };
-      let remainder = { args: ctx.args, values: ctx.values, envs: ctx.envs };
-
-      if (ctx.args[0] === "--help" || ctx.args[0] === "-h") {
-        let config = inner.inspect({ ...cmdCtx, args: [] });
-        let help = {
-          ...config.help,
-          progname: [...ctx.progname, name],
-          opts: [...config.help.opts, helpOpt],
-        };
-        let text = format({ ...config, help });
-        return {
-          type: "command",
-          parser,
-          result: {
-            ok: true as const,
-            value: { name, help: true as const, text } as Command<T, Name>,
-            remainder,
-          },
-          name,
-          description: inner.description,
-          aliases: inner.aliases,
-          config,
-          commands: {},
-          help,
-          remainder,
-        };
-      }
-
-      let config = inner.inspect(cmdCtx);
-      let result = config.result.ok
-        ? {
-          ok: true as const,
-          value: { name, config: config.result.value } as Command<T, Name>,
-          remainder: { ...remainder, args: config.result.remainder.args },
-        }
-        : config.result;
-
-      return {
-        type: "command",
-        parser,
-        result,
-        name,
-        description: inner.description,
-        aliases: inner.aliases,
-        config,
-        commands: {},
-        help: {
-          progname: [...ctx.progname, name],
-          args: config.help.args,
-          opts: [...config.help.opts, helpOpt],
-          commands: config.help.commands,
-        },
-        remainder,
-      };
-    },
-    help(input: Input = {}, ctx?: ParseContext): string {
-      return format(parser.inspect(ctx ?? createContext(input)));
-    },
-  };
-  return parser;
-}
-
-function scope(name: string, ctx: ParseContext): ParseContext {
-  let prefix = toSnake(name).toUpperCase() + "_";
-  let values = ctx.values.flatMap((v) => {
-    if (v.value == null) return [];
-    let obj = v.value as Record<string, unknown>;
-    if (!(name in obj)) return [];
-    return [{ name: v.name, value: obj[name] }];
-  });
-  let envs = ctx.envs.map((env) => {
-    let scoped: Record<string, string> = {};
-    for (let [key, val] of Object.entries(env.value)) {
-      if (key.startsWith(prefix)) {
-        scoped[key.slice(prefix.length)] = val;
-      } else {
-        scoped[key] = val;
-      }
-    }
-    return { name: env.name, value: scoped };
-  });
-  return { ...ctx, values, envs };
 }
