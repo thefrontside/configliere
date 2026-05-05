@@ -1,5 +1,4 @@
 import type {
-  AvailableInput,
   Input,
   ParserInfo,
   Token,

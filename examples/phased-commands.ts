@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { type } from "arktype";
-import { cli, field } from "../lib/field.ts";
+import { argument } from "../lib/argument.ts";
+import { option } from "../lib/option.ts";
 import { object } from "../lib/object.ts";
 import { commands } from "../lib/commands.ts";
 import { inject } from "../lib/inject.ts";
@@ -11,52 +12,50 @@ let app = program({
   name: "myctl",
   version: "2.0.0",
   config: object({
-    config: {
+    config: option(type("string"), {
       description: "config file",
       aliases: ["-c"],
-      ...field(type("string")),
-    },
+    }),
     next: inject((_config: { serve?: { host?: string } }) =>
-      commands({
-        init: {
-          description: "initialize a new project",
-          ...object({
-            template: {
+      commands([
+        [
+          "init",
+          object({
+            template: option(type("string"), {
               description: "project template",
               aliases: ["-t"],
-              ...field(type("string"), field.default("default")),
-            },
+              default: "default",
+            }),
           }),
-        },
-        serve: {
-          description: "start the server",
-          ...object({
-            port: {
+        ],
+        [
+          "serve",
+          object({
+            port: option(type("number"), {
               description: "port to listen on",
               aliases: ["-p"],
-              ...field(type("number"), field.default(3000)),
-            },
-            host: {
+              default: 3000,
+            }),
+            host: option(type("string"), {
               description: "hostname to bind",
               aliases: ["-H"],
-              ...field(type("string"), field.default("localhost")),
-            },
+              default: "localhost",
+            }),
           }),
-        },
-        migrate: {
-          description: "run database migrations",
-          ...object({
-            target: {
+        ],
+        [
+          "migrate",
+          object({
+            target: argument(type("string"), {
               description: "migration target version",
-              ...field(type("string"), cli.argument()),
-            },
-            dry: {
+            }),
+            dry: option(type("boolean"), {
               description: "dry run without applying",
-              ...field(type("boolean"), field.default(false)),
-            },
+              default: false,
+            }),
           }),
-        },
-      })
+        ],
+      ])
     ),
   }),
 });
@@ -85,7 +84,9 @@ let resume = phase1.next as unknown as (
   deps: { serve?: { host?: string } },
 ) => Parser<unknown>;
 let parser2 = resume({ serve: { host: "0.0.0.0" } });
+// Phase 2 re-parses with original args + loaded config values
 let phase2 = parser2.parse({
+  args: ["-c", "app.json", "serve", "-p", "8080"],
   values: [{ name: "app.json", value: { serve: { host: "0.0.0.0" } } }],
 });
 assert(phase2.ok);

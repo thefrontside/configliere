@@ -1,4 +1,4 @@
-import type { Input, ParseContext, Parser, ParserInfo } from "./types.ts";
+import type { ParseContext, Parser, ParserInfo } from "./types.ts";
 import { createContext, toAvailable } from "./context.ts";
 import { format } from "./help.ts";
 

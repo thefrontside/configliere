@@ -1,5 +1,5 @@
 import type { FieldInfo, ParserInfo } from "./types.ts";
-import { optionKey } from "./parse-args.ts";
+import { toKebabCase } from "./case.ts";
 
 export function format(info: ParserInfo<unknown>, name?: string): string {
   let { progname, args, opts, commands } = info.help;
@@ -59,6 +59,10 @@ export function format(info: ParserInfo<unknown>, name?: string): string {
 }
 
 // --- internal ---
+
+function optionKey(path: string[]): string {
+  return `--${toKebabCase(path.join(".")).toLowerCase()}`;
+}
 
 function printArg(info: FieldInfo<unknown>): string {
   let key = info.path.join(".");

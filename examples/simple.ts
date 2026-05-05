@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { type } from "arktype";
-import { cli, field } from "../lib/field.ts";
+import { argument } from "../lib/argument.ts";
+import { option } from "../lib/option.ts";
 import { object } from "../lib/object.ts";
 import { program } from "../lib/program.ts";
 import { createContext } from "../lib/context.ts";
@@ -9,25 +10,24 @@ let serve = program({
   name: "serve",
   version: "1.0.0",
   config: object({
-    host: {
+    host: option(type("string"), {
       description: "hostname to bind",
       aliases: ["-H"],
-      ...field(type("string"), field.default("localhost")),
-    },
-    port: {
+      default: "localhost",
+    }),
+    port: option(type("number"), {
       description: "port to listen on",
       aliases: ["-p"],
-      ...field(type("number"), field.default(3000)),
-    },
-    debug: {
+      default: 3000,
+    }),
+    debug: option(type("boolean"), {
       description: "enable debug logging",
       aliases: ["-d"],
-      ...field(type("boolean"), field.default(false)),
-    },
-    entry: {
+      default: false,
+    }),
+    entry: argument(type("string"), {
       description: "entrypoint file",
-      ...field(type("string"), cli.argument()),
-    },
+    }),
   }),
 });
 
