@@ -37,12 +37,10 @@ a unified addressing scheme rooted in the parser tree's path structure.
 3. Every parser executes its claim against its given input. Whatever it does
    not claim is its remainder. **Claims happen regardless of validation
    outcome** — claim is about token consumption, not value correctness.
-4. Compound parsers orchestrate — they route their input through children
-   in a parent-decided order, threading remainder forward. A compound parser
-   *may also* make its own claims (e.g., `commands` claims a selector
-   token, `program` claims `--help`/`--version`); when it does, the two
-   concerns are kept separate within the parser implementation. Pure
-   orchestrators that make no claims (e.g., `object`) are common.
+4. Every parser's `claims` is the **aggregate** of its own claims and all
+   its descendants' claims. Compound parsers may delegate matching to
+   children; the resulting tokens propagate up so conservation
+   `claims ∪ remainder == available` holds at every level.
 5. Outermost parsers see input first; whatever they claim is gone before any
    inner parser sees it. There is no global option-matching — every claim is
    scoped to "the input my parent gave me."
@@ -247,22 +245,24 @@ interface ParserInfo<T> {
   type: string;            // discriminator: "object", "option", "commands", …
   parser: Parser<T>;
   prefix: Prefix;
-  claims: Token[];         // [] when nothing claimed; tokens emitted by this parser
+  claims: Token[];         // aggregate: own claims plus all descendants'
   remainder: AvailableInput; // available view minus claimed entries
   result: ParseResult<T>;
   // ... existing fields: help info, etc.
 }
 ```
 
-Claims are output records emitted by the parser. Remainder is the
-parser's `available` view with the claimed entries removed — same shape
-as `AvailableInput`, ready to be threaded as the next parser's input.
+Claims are output records aggregated from the parser and all its
+descendants. Remainder is the parser's `available` view with those
+claimed entries removed — same shape as `AvailableInput`, ready to be
+threaded as the next parser's input.
 
 Conservation: for every parser, the addresses referenced by its `claims`
 plus the addresses still present in its `remainder` equal the addresses
-of its `available` input. By induction over the tree, every address in
-the original `input` is either reached by some parser's `claims` or
-present in the root's final `remainder`.
+of its `available` input. The property holds at every node, not just the
+root: a leaf claims its own tokens; a compound's `claims` aggregates
+descendants' tokens, so the equation balances locally as well as
+globally.
 
 `type` is the existing discriminator string used to type-narrow
 `ParserInfo` to specific subtypes (`ObjectInfo`, `CommandsInfo`,
@@ -271,10 +271,11 @@ present in the root's final `remainder`.
 becomes `"object"`, `"option"`, `"argument"`, `"constant"`, `"many"`,
 `"passthrough"`, `"commands"`, `"command"`, `"program"`, `"inject"`.
 
-Pure-orchestrator compounds (`object`) have empty `claims` of their own.
-Compounds that also claim (`commands`, `program`) have non-empty `claims`
-recording their own selector or sentinel tokens. Children's claims are
-reached by walking the tree. Conservation is verified by tree-walk.
+`info.claims` is the union of every claim made at this node and below —
+own plus all descendants. Conservation holds at every level:
+`info.claims ∪ info.remainder == info.available`. Audit walks the tree to
+attribute each address to a specific parser; for any single node,
+conservation is locally verifiable.
 
 ## 6. Claim Grammar Per Primitive
 
