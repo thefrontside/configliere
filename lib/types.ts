@@ -48,12 +48,16 @@ export interface ParseContext {
   prefix: Prefix;
   input: Input;
   available: AvailableInput;
+  read(token: Extract<Token, { type: "arg" }>): string[];
+  read(token: Extract<Token, { type: "value" }>): unknown;
+  read(token: Extract<Token, { type: "env" }>): string;
 }
 
 export interface Parser<T, Info extends ParserInfo<T> = ParserInfo<T>> {
   description?: string;
   aliases?: string[];
   parse(input?: Input, ctx?: ParseContext): ParseResult<T>;
+  claim(ctx: ParseContext): Token[];
   inspect(ctx: ParseContext): Info;
   help(input?: Input, ctx?: ParseContext): string;
 }
