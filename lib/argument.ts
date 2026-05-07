@@ -1,16 +1,15 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type {
-  ParseContext,
+  FieldInfo,
+  HelpInfo,
   ParseResult,
   Parser,
   ParserInfo,
   Token,
 } from "./types.ts";
 import { validate, ValidationError } from "./validate.ts";
-import { createContext } from "./context.ts";
 import { defaultSource, noneSource, resolve, type Source } from "./source.ts";
-import { format } from "./help.ts";
-import { subtract } from "./available.ts";
+import { defineParser } from "./parser.ts";
 
 export interface ArgumentInfo<T> extends ParserInfo<T> {
   type: "argument";
@@ -37,43 +36,49 @@ export function argument<T>(
   schema: StandardSchemaV1<T>,
   opts: ArgumentOpts<T> = {},
 ): Parser<T, ArgumentInfo<T>> {
-  let parser: Parser<T, ArgumentInfo<T>> = {
+  return defineParser<T, ArgumentInfo<T>>({
+    type: "argument",
     description: opts.description,
-    parse(input, ctx) {
-      return parser.inspect(ctx ?? createContext(input)).result;
+    claim(ctx) {
+      let entry = ctx.available.args.find((a) => !a.value.startsWith("-"));
+      if (entry) {
+        let token: Token = { type: "arg", from: entry.index, to: entry.index };
+        return [token];
+      } else {
+        return [];
+      }
     },
-    inspect(ctx: ParseContext): ArgumentInfo<T> {
-      let { prefix, available } = ctx;
-      let claims: Token[] = [];
+    parse(ctx, claims, remainder) {
+      let { prefix } = ctx;
       let sources: Source<T>[] = [noneSource(schema)];
       if (opts.default !== undefined) {
         sources.push(defaultSource(schema, opts.default));
       }
 
-      let entry = available.args.find((a) => !a.value.startsWith("-"));
-      if (entry) {
-        claims.push({ type: "arg", from: entry.index, to: entry.index });
-        let res = validate(schema, entry.value);
+      if (claims.length > 0) {
+        let token = claims[0] as Extract<Token, { type: "arg" }>;
+        let raw = ctx.read(token)[0];
+        let res = validate(schema, raw);
         sources.push({
           sourceType: "cli",
           sourceName: "cli",
-          value: (res.issues ? entry.value : (res as { value: T }).value) as T,
+          value: (res.issues ? raw : (res as { value: T }).value) as T,
           issues: res.issues,
         });
       }
 
       let { winner } = resolve(sources);
-      let remainder = subtract(available, claims);
       let result: ParseResult<T> = winner.issues
         ? { ok: false, error: new ValidationError(sources), remainder }
         : { ok: true, value: winner.value, remainder };
 
-      let info: ArgumentInfo<T> = {
-        type: "argument",
-        parser,
-        prefix,
-        claims,
-        remainder,
+      let help: HelpInfo = {
+        progname: ctx.progname,
+        args: [],
+        opts: [],
+        commands: [],
+      };
+      let extras = {
         result,
         schema,
         required: !!validate(schema, undefined).issues,
@@ -82,18 +87,14 @@ export function argument<T>(
         source: winner,
         sources,
         path: prefix.values,
-        argument: true,
-        array: false,
-        boolean: false,
-        help: { progname: ctx.progname, args: [], opts: [], commands: [] },
+        argument: true as const,
+        array: false as const,
+        boolean: false as const,
+        help,
       };
-      info.help.args.push(info as unknown as import("./types.ts").FieldInfo<unknown>);
-      return info;
+      // mirror previous behavior: register self in help.args
+      help.args.push(extras as unknown as FieldInfo<unknown>);
+      return extras;
     },
-    help(input, ctx) {
-      let info = parser.inspect(ctx ?? createContext(input));
-      return format(info, info.prefix.args.join("."));
-    },
-  };
-  return parser;
+  });
 }

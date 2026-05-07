@@ -1,4 +1,6 @@
 import type {
+  AvailableInput,
+  ObjectInfo,
   ParseContext,
   ParseResult,
   Parser,
@@ -6,10 +8,9 @@ import type {
   Prefix,
   Token,
 } from "./types.ts";
-import { createContext } from "./context.ts";
-import { format } from "./help.ts";
 import { toEnvCase } from "./case.ts";
 import { subtract } from "./available.ts";
+import { defineParser } from "./parser.ts";
 
 export type Attrs<T extends object> = {
   [K in keyof T]: Parser<T[K]>;
@@ -17,81 +18,72 @@ export type Attrs<T extends object> = {
 
 export function object<T extends object>(
   attrs: Attrs<T>,
-): Parser<T, import("./types.ts").ObjectInfo<T>> {
-  let parser: Parser<T, import("./types.ts").ObjectInfo<T>> = {
-    parse(input, ctx) {
-      return parser.inspect(ctx ?? createContext(input)).result;
+): Parser<T, ObjectInfo<T>> {
+  let entries = Object.entries(attrs) as [keyof T & string, Parser<unknown>][];
+
+  return defineParser<T, ObjectInfo<T>>({
+    type: "object",
+    claim(ctx) {
+      let claims: Token[] = [];
+      let av = ctx.available;
+      for (let [key, child] of entries) {
+        let childCtx: ParseContext = {
+          ...ctx,
+          prefix: childPrefix(ctx.prefix, key),
+          available: av,
+        };
+        let inner = child.claim(childCtx);
+        claims.push(...inner);
+        av = subtract(av, inner);
+      }
+      return claims;
     },
-    inspect(ctx: ParseContext): import("./types.ts").ObjectInfo<T> {
-      let entries = Object.entries(attrs) as [keyof T & string, Parser<unknown>][];
-      let result: Record<string, unknown> = {};
-      let attrInfos: Record<string, ParserInfo<unknown>> = {};
-      let aggClaims: Token[] = [];
-      let available = ctx.available;
+    parse(ctx, _claims, remainder) {
+      let value: Record<string, unknown> = {};
+      let infos: Record<string, ParserInfo<unknown>> = {};
       let errors: { path: string[]; error: Error }[] = [];
+      let av: AvailableInput = ctx.available;
 
       for (let [key, child] of entries) {
-        let childPrefix: Prefix = {
-          values: ctx.prefix.values.concat(key),
-          envs: ctx.prefix.envs + toEnvCase(key) + "_",
-          args: ctx.prefix.args.concat(key),
-        };
-        let childInfo = child.inspect({
-          ...ctx,
-          prefix: childPrefix,
-          available,
-        });
-        attrInfos[key] = childInfo;
-        aggClaims.push(...childInfo.claims);
-        if (childInfo.result.ok) {
-          result[key] = childInfo.result.value;
+        let prefix = childPrefix(ctx.prefix, key);
+        let childCtx: ParseContext = { ...ctx, prefix, available: av };
+        let info = child.inspect(childCtx);
+        infos[key] = info;
+        if (info.result.ok) {
+          value[key] = info.result.value;
         } else {
-          errors.push({
-            path: childPrefix.values,
-            error: childInfo.result.error,
-          });
+          errors.push({ path: prefix.values, error: info.result.error });
         }
-        // strip all claims (args, values, envs) so next sibling cannot over-claim
-        available = subtract(available, childInfo.claims);
+        av = subtract(av, info.claims);
       }
 
-      let remainder = available;
-      let resultPR: ParseResult<T> = errors.length > 0
+      let result: ParseResult<T> = errors.length > 0
         ? {
           ok: false,
           error: new ObjectValidationError(errors),
           remainder,
         }
-        : { ok: true, value: result as T, remainder };
+        : { ok: true, value: value as T, remainder };
 
-      let help: import("./types.ts").ObjectInfo<T>["help"] = {
+      let help: ObjectInfo<T>["help"] = {
         progname: ctx.progname,
         args: [],
         opts: [],
         commands: [],
       };
-      for (let info of Object.values(attrInfos) as ParserInfo<unknown>[]) {
+      for (let info of Object.values(infos) as ParserInfo<unknown>[]) {
         help.args.push(...info.help.args);
         help.opts.push(...info.help.opts);
         help.commands.push(...info.help.commands);
       }
 
       return {
-        type: "object",
-        parser,
-        prefix: ctx.prefix,
-        claims: aggClaims,
-        remainder,
-        result: resultPR,
-        attrs: attrInfos as import("./types.ts").ObjectInfo<T>["attrs"],
+        result,
+        attrs: infos as ObjectInfo<T>["attrs"],
         help,
       };
     },
-    help(input, ctx) {
-      return format(parser.inspect(ctx ?? createContext(input)));
-    },
-  };
-  return parser;
+  });
 }
 
 export class ObjectValidationError extends Error {
@@ -104,3 +96,12 @@ export class ObjectValidationError extends Error {
   }
 }
 
+// --- internal ---
+
+function childPrefix(parent: Prefix, key: string): Prefix {
+  return {
+    values: parent.values.concat(key),
+    envs: parent.envs + toEnvCase(key) + "_",
+    args: parent.args.concat(key),
+  };
+}

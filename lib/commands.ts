@@ -9,9 +9,8 @@ import type {
   Prefix,
   Token,
 } from "./types.ts";
-import { createContext } from "./context.ts";
-import { format } from "./help.ts";
 import { toEnvCase } from "./case.ts";
+import { defineParser } from "./parser.ts";
 
 export type CommandEntry<Name extends string, T> = readonly [Name, Parser<T>];
 
@@ -34,129 +33,63 @@ export function commands<
 > {
   type ResultType = Command<unknown, string>;
 
-  let parser: CommandsParser<ResultType> = {
-    default: opts.default,
-    parse(input, ctx) {
-      return parser.inspect(ctx ?? createContext(input)).result;
-    },
-    inspect(ctx: ParseContext): CommandsInfo<ResultType> {
-      let { available } = ctx;
-
-      let nameSet = new Set(entries.map(([n]) => n));
-      let matchPos = available.args.findIndex((a) =>
-        !a.value.startsWith("-") && nameSet.has(a.value)
-      );
-      let chosenName: string | undefined;
+  let parser = defineParser<ResultType, CommandsInfo<ResultType>>({
+    type: "commands",
+    claim(ctx) {
       let claims: Token[] = [];
-      let innerAvailable: AvailableInput;
+      let dispatch = chooseCommand(ctx, entries, opts.default);
+      if (!dispatch) return claims;
 
-      if (matchPos !== -1) {
-        let matched = available.args[matchPos];
-        chosenName = matched.value;
-        claims.push({ type: "arg", from: matched.index, to: matched.index });
-        innerAvailable = {
-          ...available,
-          args: available.args.filter((_, i) => i !== matchPos),
-        };
-      } else if (opts.default && nameSet.has(opts.default)) {
-        chosenName = opts.default;
-        innerAvailable = available;
-      } else {
-        innerAvailable = available;
-      }
+      if (dispatch.token) claims.push(dispatch.token);
 
-      // gather metadata for ALL entries so help.commands is fully populated
-      let allCommandInfos: Record<string, CommandInfo<Command<unknown, string>>> = {};
-      for (let [name, cmd] of entries) {
-        let metaPrefix: Prefix = {
-          values: ctx.prefix.values.concat(name),
-          envs: ctx.prefix.envs + toEnvCase(name) + "_",
-          args: [],
-        };
-        let metaValues = scopeValues(available.values, name);
-        let metaEnvs = scopeEnvs(available.envs, metaPrefix.envs);
-        let metaInfo = cmd.inspect({
-          ...ctx,
-          prefix: metaPrefix,
-          available: { args: [], values: metaValues, envs: metaEnvs },
-        });
-        allCommandInfos[name] = {
-          type: "command",
-          parser: cmd as unknown as Parser<Command<unknown, string>>,
-          prefix: metaPrefix,
-          claims: [],
-          remainder: metaInfo.remainder,
-          result: metaInfo.result.ok
-            ? { ok: true, value: { name, config: metaInfo.result.value } as Command<unknown, string>, remainder: metaInfo.remainder }
-            : { ok: false, error: metaInfo.result.error, remainder: metaInfo.remainder },
-          name,
-          description: cmd.description,
-          aliases: cmd.aliases,
-          config: metaInfo,
-          commands: {},
-          help: metaInfo.help,
-        };
-      }
+      let chosen = entries.find(([n]) => n === dispatch.name)!;
+      let innerCtx = innerContext(ctx, dispatch.name, dispatch.innerArgs);
+      claims.push(...chosen[1].claim(innerCtx));
+      return claims;
+    },
+    parse(ctx, _claims, remainder) {
+      let dispatch = chooseCommand(ctx, entries, opts.default);
+      let allInfos = gatherMetadata(ctx, entries);
 
-      if (chosenName === undefined) {
-        let remainder = available;
+      if (!dispatch) {
         return {
-          type: "commands",
-          parser,
-          prefix: ctx.prefix,
-          claims: [],
-          remainder,
           result: {
             ok: false,
-            error: new NoCommandMatchError([...nameSet]),
+            error: new NoCommandMatchError(entries.map(([n]) => n)),
             remainder,
           },
-          commands: allCommandInfos as CommandsInfo<ResultType>["commands"],
+          commands: allInfos as CommandsInfo<ResultType>["commands"],
           help: {
             progname: ctx.progname,
             args: [],
             opts: [],
-            commands: Object.values(allCommandInfos),
+            commands: Object.values(allInfos),
           },
-        } as unknown as CommandsInfo<ResultType>;
+        };
       }
 
-      let chosen = entries.find(([n]) => n === chosenName)!;
-
-      let innerPrefix: Prefix = {
-        values: ctx.prefix.values.concat(chosenName),
-        envs: ctx.prefix.envs + toEnvCase(chosenName) + "_",
-        args: [],
-      };
-
-      let scopedValues = scopeValues(innerAvailable.values, chosenName);
-      let scopedEnvs = scopeEnvs(innerAvailable.envs, innerPrefix.envs);
-
-      let innerCtx: ParseContext = {
-        ...ctx,
-        prefix: innerPrefix,
-        available: { args: innerAvailable.args, values: scopedValues, envs: scopedEnvs },
-      };
+      let chosen = entries.find(([n]) => n === dispatch.name)!;
+      let innerCtx = innerContext(ctx, dispatch.name, dispatch.innerArgs);
       let innerInfo = chosen[1].inspect(innerCtx);
 
-      let resultValue: Command<unknown, string> = innerInfo.result.ok
-        ? { name: chosenName, config: innerInfo.result.value } as Command<unknown, string>
-        : { name: chosenName } as unknown as Command<unknown, string>;
+      let value: Command<unknown, string> = innerInfo.result.ok
+        ? { name: dispatch.name, config: innerInfo.result.value } as Command<unknown, string>
+        : { name: dispatch.name } as unknown as Command<unknown, string>;
 
       let result: ParseResult<ResultType> = innerInfo.result.ok
-        ? { ok: true, value: resultValue as ResultType, remainder: innerInfo.remainder }
-        : { ok: false, error: innerInfo.result.error, remainder: innerInfo.remainder };
+        ? { ok: true, value: value as ResultType, remainder }
+        : { ok: false, error: innerInfo.result.error, remainder };
 
       let commandInfo: CommandInfo<Command<unknown, string>> = {
         type: "command",
         parser: chosen[1] as unknown as Parser<Command<unknown, string>>,
-        prefix: innerPrefix,
+        prefix: innerCtx.prefix,
         claims: [],
         remainder: innerInfo.remainder,
         result: innerInfo.result.ok
-          ? { ok: true, value: resultValue, remainder: innerInfo.remainder }
+          ? { ok: true, value, remainder: innerInfo.remainder }
           : { ok: false, error: innerInfo.result.error, remainder: innerInfo.remainder },
-        name: chosenName,
+        name: dispatch.name,
         description: chosen[1].description,
         aliases: chosen[1].aliases,
         config: innerInfo,
@@ -164,29 +97,22 @@ export function commands<
         help: innerInfo.help,
       };
 
-      // replace the metadata-only entry for the matched command with the dispatched info
-      allCommandInfos[chosenName] = commandInfo;
+      allInfos[dispatch.name] = commandInfo;
 
       return {
-        type: "commands",
-        parser,
-        prefix: ctx.prefix,
-        claims,
-        remainder: innerInfo.remainder,
         result,
-        commands: allCommandInfos as CommandsInfo<ResultType>["commands"],
+        commands: allInfos as CommandsInfo<ResultType>["commands"],
         help: {
           progname: ctx.progname,
           args: [],
           opts: [],
-          commands: Object.values(allCommandInfos),
+          commands: Object.values(allInfos),
         },
-      } as unknown as CommandsInfo<ResultType>;
+      };
     },
-    help(input, ctx) {
-      return format(parser.inspect(ctx ?? createContext(input)));
-    },
-  } as CommandsParser<ResultType>;
+  }) as CommandsParser<ResultType>;
+
+  parser.default = opts.default;
 
   return parser as CommandsParser<{
     [I in keyof E]: E[I] extends readonly [infer N extends string, Parser<infer V>]
@@ -203,6 +129,102 @@ export class NoCommandMatchError extends Error {
 }
 
 // --- internal ---
+
+interface Dispatch {
+  name: string;
+  token: Token | undefined;
+  innerArgs: AvailableInput["args"];
+}
+
+function chooseCommand(
+  ctx: ParseContext,
+  entries: readonly (readonly [string, Parser<unknown>])[],
+  fallback: string | undefined,
+): Dispatch | undefined {
+  let { available } = ctx;
+  let names = new Set(entries.map(([n]) => n));
+  let pos = available.args.findIndex((a) =>
+    !a.value.startsWith("-") && names.has(a.value)
+  );
+  if (pos !== -1) {
+    let matched = available.args[pos];
+    return {
+      name: matched.value,
+      token: { type: "arg", from: matched.index, to: matched.index },
+      innerArgs: available.args.filter((_, i) => i !== pos),
+    };
+  }
+  if (fallback && names.has(fallback)) {
+    return { name: fallback, token: undefined, innerArgs: available.args };
+  }
+  return undefined;
+}
+
+function innerContext(
+  ctx: ParseContext,
+  name: string,
+  innerArgs: AvailableInput["args"],
+): ParseContext {
+  let prefix: Prefix = {
+    values: ctx.prefix.values.concat(name),
+    envs: ctx.prefix.envs + toEnvCase(name) + "_",
+    args: [],
+  };
+  return {
+    ...ctx,
+    prefix,
+    available: {
+      args: innerArgs,
+      values: scopeValues(ctx.available.values, name),
+      envs: scopeEnvs(ctx.available.envs, prefix.envs),
+    },
+  };
+}
+
+function gatherMetadata(
+  ctx: ParseContext,
+  entries: readonly (readonly [string, Parser<unknown>])[],
+): Record<string, CommandInfo<Command<unknown, string>>> {
+  let infos: Record<string, CommandInfo<Command<unknown, string>>> = {};
+  for (let [name, cmd] of entries) {
+    let prefix: Prefix = {
+      values: ctx.prefix.values.concat(name),
+      envs: ctx.prefix.envs + toEnvCase(name) + "_",
+      args: [],
+    };
+    let metaCtx: ParseContext = {
+      ...ctx,
+      prefix,
+      available: {
+        args: [],
+        values: scopeValues(ctx.available.values, name),
+        envs: scopeEnvs(ctx.available.envs, prefix.envs),
+      },
+    };
+    let info = cmd.inspect(metaCtx);
+    infos[name] = {
+      type: "command",
+      parser: cmd as unknown as Parser<Command<unknown, string>>,
+      prefix,
+      claims: [],
+      remainder: info.remainder,
+      result: info.result.ok
+        ? {
+          ok: true,
+          value: { name, config: info.result.value } as Command<unknown, string>,
+          remainder: info.remainder,
+        }
+        : { ok: false, error: info.result.error, remainder: info.remainder },
+      name,
+      description: cmd.description,
+      aliases: cmd.aliases,
+      config: info,
+      commands: {},
+      help: info.help,
+    };
+  }
+  return infos;
+}
 
 function scopeValues(
   values: AvailableInput["values"],

@@ -1,50 +1,36 @@
-import type {
-  ParseContext,
-  Parser,
-  ParserInfo,
-  Token,
-} from "./types.ts";
-import { createContext } from "./context.ts";
-import { format } from "./help.ts";
-import { subtract } from "./available.ts";
+import type { Parser, ParserInfo, Token } from "./types.ts";
+import { defineParser } from "./parser.ts";
 
 export interface PassthroughInfo extends ParserInfo<string[] | undefined> {
   type: "passthrough";
 }
 
 export function passthrough(): Parser<string[] | undefined, PassthroughInfo> {
-  let parser: Parser<string[] | undefined, PassthroughInfo> = {
-    parse(input, ctx) {
-      return parser.inspect(ctx ?? createContext(input)).result;
-    },
-    inspect(ctx: ParseContext): PassthroughInfo {
-      let { prefix, available } = ctx;
-      let claims: Token[] = [];
-      let value: string[] | undefined;
-
-      let sentinelPos = available.args.findIndex((a) => a.value === "--");
-      if (sentinelPos !== -1) {
-        let sentinel = available.args[sentinelPos];
-        let last = available.args[available.args.length - 1];
-        claims.push({ type: "arg", from: sentinel.index, to: last.index });
-        value = available.args.slice(sentinelPos + 1).map((a) => a.value);
+  return defineParser<string[] | undefined, PassthroughInfo>({
+    type: "passthrough",
+    claim(ctx) {
+      let { args } = ctx.available;
+      let pos = args.findIndex((a) => a.value === "--");
+      if (pos === -1) {
+        return [];
+      } else {
+        let sentinel = args[pos];
+        let last = args[args.length - 1];
+        let token: Token = { type: "arg", from: sentinel.index, to: last.index };
+        return [token];
       }
-
-      let remainder = subtract(available, claims);
-
+    },
+    parse(ctx, claims, remainder) {
+      let value: string[] | undefined;
+      if (claims.length > 0) {
+        let slice = ctx.read(claims[0] as Extract<Token, { type: "arg" }>);
+        // slice includes the leading "--" sentinel; drop it
+        value = slice.slice(1);
+      }
       return {
-        type: "passthrough",
-        parser,
-        prefix,
-        claims,
-        remainder,
         result: { ok: true, value, remainder },
         help: { progname: ctx.progname, args: [], opts: [], commands: [] },
       };
     },
-    help(input, ctx) {
-      return format(parser.inspect(ctx ?? createContext(input)));
-    },
-  };
-  return parser;
+  });
 }
