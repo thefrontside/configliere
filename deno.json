@@ -2,19 +2,15 @@
   "name": "@frontside/configliere",
   "exports": "./mod.ts",
   "license": "MIT",
-  "publish": { "include": ["vendor", "lib", "mod.ts", "README.md"] },
+  "publish": { "include": ["mod.ts", "README.md", "LICENSE.md"] },
   "imports": {
-    "@standard-schema/spec": "npm:@standard-schema/spec@^1.0.0",
-    "@std/expect": "jsr:@std/expect@^1.0.16",
-    "@std/testing": "jsr:@std/testing@^1.0.15",
-    "arktype": "npm:arktype@^2.1.20",
-    "ts-case-convert": "npm:ts-case-convert@^2.1.0",
     "dnt": "jsr:@deno/dnt@0.42.3"
   },
   "lint": {
-    "rules": { "exclude": ["prefer-const", "require-yield", "ban-types"] }
+    "rules": { "exclude": ["prefer-const"] }
   },
   "tasks": {
+    "test": "deno test mod.ts test",
     "build:npm": "deno run -A tasks/build-npm.ts",
     "build:jsr": "deno run -A tasks/build-jsr.ts"
   }
