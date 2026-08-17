@@ -4,13 +4,16 @@
   "license": "MIT",
   "publish": { "include": ["mod.ts", "README.md", "LICENSE.md"] },
   "imports": {
-    "dnt": "jsr:@deno/dnt@0.42.3"
+    "@std/testing/bdd": "jsr:@std/testing@^1.0.19/bdd",
+    "arktype": "npm:arktype@^2.2.3",
+    "dnt": "jsr:@deno/dnt@0.42.3",
+    "@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0"
   },
   "lint": {
     "rules": { "exclude": ["prefer-const"] }
   },
   "tasks": {
-    "test": "deno test mod.ts test",
+    "test": "deno test",
     "build:npm": "deno run -A tasks/build-npm.ts",
     "build:jsr": "deno run -A tasks/build-jsr.ts"
   }
