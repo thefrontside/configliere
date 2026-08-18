@@ -1,51 +1,153 @@
 // deno-lint-ignore-file no-import-prefix
-import { expect } from "jsr:@std/expect@^1.0.19";
+import { expect as base, type Expected } from "jsr:@std/expect@^1.0.19";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { parse } from "../lib/parse.ts";
-import { name, option, route } from "../lib/route.ts";
-import type { Path, Resolve, Result, Route } from "../lib/types.ts";
+import { name, option, route, version } from "../lib/route.ts";
+import type { AnyRoute } from "../lib/types.ts";
+
+let app = route(
+  name("simulacrum"),
+  version("1.2.0"),
+  option("port", type("number")),
+);
+let $ = cli(app);
 
 describe("parse()", () => {
-  it("resolves help for every route", () => {
-    let app = route(
-      name("simulacrum"),
-      option("port", type("number")),
-    );
+  describe("help", () => {
+    it("resolves either help flag against the root route", () => {
+      expect(
+        $("simulacrum -h"),
+      ).toHaveRoute("HELP /simulacrum");
 
-    for (let arg of ["-h", "--help"]) {
-      expectHelp(parse(app, { argv: [arg] }), app, []);
-    }
+      expect(
+        $("simulacrum --help"),
+      ).toHaveRoute("HELP /simulacrum");
+    });
+
+    it("resolves help before validating other arguments", () => {
+      expect(
+        $("simulacrum --unknown --help"),
+      ).toHaveRoute("HELP /simulacrum");
+    });
+
+    it("does not treat help after -- as a control", () => {
+      let result = $("simulacrum -- --help");
+
+      expect(result).toHaveRoute("EXECUTE /simulacrum");
+    });
   });
 
-  it("resolves help before validating other arguments", () => {
-    let app = route(name("simulacrum"));
+  describe("version", () => {
+    it("resolves either version flag against a versioned route", () => {
+      expect(
+        $("simulacrum -v"),
+      ).toHaveRoute("VERSION /simulacrum");
 
-    expectHelp(parse(app, { argv: ["--unknown", "--help"] }), app, []);
-  });
+      expect(
+        $("simulacrum --version"),
+      ).toHaveRoute("VERSION /simulacrum");
+    });
 
-  it("does not treat help after -- as a control", () => {
-    let app = route(name("simulacrum"));
-    let result = parse(app, { argv: ["--", "--help"] });
+    it("resolves version before validating other arguments", () => {
+      expect(
+        $("simulacrum --unknown --version"),
+      ).toHaveRoute("VERSION /simulacrum");
+    });
 
-    expect("type" in result && result.type === "help").toBe(false);
+    it.skip("rejects version for a route without a version", () => undefined);
+
+    it("does not treat version after -- as a control", () => {
+      let result = $("simulacrum -- --version");
+
+      expect(result).toHaveRoute("EXECUTE /simulacrum");
+    });
   });
 });
 
-function expectHelp<
-  R extends Route<string, object>,
-  const P extends Path,
->(
-  result: Result<Resolve<R, P>>,
-  route: R,
-  path: P,
-): void {
-  if (!("type" in result)) {
-    throw new Error("expected help");
+interface RouteExpected extends Expected {
+  toHaveRoute(expected: Target): unknown;
+}
+
+interface Outcome {
+  input: string;
+  route: string;
+  target: Target;
+}
+
+type Target = `${string} /${string}`;
+
+base.extend({
+  toHaveRoute(context, expected: Target) {
+    let outcome = inspect(context.value);
+    let leaf = outcome?.target.slice(outcome.target.lastIndexOf("/") + 1);
+    let pass = outcome?.target === expected && outcome.route === leaf;
+
+    return {
+      pass,
+      message: () =>
+        outcome
+          ? `Expected ${
+            JSON.stringify(outcome.input)
+          } to resolve ${expected}, ` +
+            `but it resolved ${outcome.target} with route ${
+              JSON.stringify(outcome.route)
+            }`
+          : `Expected a request resolving ${expected}, but received no route intent`,
+    };
+  },
+});
+
+const expect = base<RouteExpected>;
+
+function cli<R extends AnyRoute>(app: R) {
+  return (input: string) => {
+    let [root, ...argv] = input.trim().split(/\s+/);
+
+    if (root !== app.name) {
+      throw new Error(
+        `Expected command ${JSON.stringify(app.name)}, received ${
+          JSON.stringify(root)
+        }`,
+      );
+    }
+
+    return {
+      input,
+      root,
+      result: parse(app, { argv }),
+    };
+  };
+}
+
+function inspect(value: unknown): Outcome | undefined {
+  if (!record(value)) {
+    return;
   }
 
-  expect(result.ok).toBe(true);
-  expect(result.type).toBe("help");
-  expect(result.route).toBe(route);
-  expect(result.path).toEqual(path);
+  let { input, root, result } = value;
+  if (
+    typeof input !== "string" || typeof root !== "string" || !record(result)
+  ) {
+    return;
+  }
+
+  let { ok, type, route, path } = result;
+  if (
+    ok !== true || typeof type !== "string" || !record(route) ||
+    typeof route.name !== "string" || !Array.isArray(path) ||
+    !path.every((part) => typeof part === "string")
+  ) {
+    return;
+  }
+
+  return {
+    input,
+    route: route.name,
+    target: `${type.toUpperCase()} /${[root, ...path].join("/")}`,
+  };
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

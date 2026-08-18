@@ -1,7 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { name, option, route } from "../lib/route.ts";
-import type { Route } from "../lib/types.ts";
+import type { AnyRoute, Route } from "../lib/types.ts";
 
 describe("route() types", () => {
   it("preserves the literal route name through each element", () => {
@@ -33,6 +33,20 @@ describe("route() types", () => {
     expectType<
       Equal<Model<typeof result>, { port: number; domain: string }>
     >(true);
+  });
+
+  it("preserves exact children while adding an option", () => {
+    let auth0 = route(name("auth0"));
+    let parent = {
+      ...name("simulacrum"),
+      children: [auth0] as const,
+    };
+    let result = option("port", type("number"))(parent);
+
+    expectType<
+      Equal<typeof result.children, readonly [typeof auth0]>
+    >(true);
+    expectType<Equal<Model<typeof result>, { port: number }>>(true);
   });
 
   it("rejects a first value that is not a Route", () => {
@@ -105,8 +119,8 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   : false
   : false;
 
-type Model<R extends Route<string, object>> = R extends Route<string, infer T>
-  ? T
+type Model<R extends AnyRoute> = R extends
+  Route<string, infer T, readonly AnyRoute[]> ? T
   : never;
 
 function expectType<T extends true>(_value: T): void {

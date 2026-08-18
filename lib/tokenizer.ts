@@ -4,7 +4,10 @@ export class Tokenizer implements Iterable<AnyToken> {
   tokens: Iterable<AnyToken>;
   claimed: Set<number>;
 
-  constructor(tokens: typeof this.tokens, claimed: typeof this.claimed = new Set()) {
+  constructor(
+    tokens: typeof this.tokens,
+    claimed: typeof this.claimed = new Set(),
+  ) {
     this.tokens = tokens;
     this.claimed = claimed;
   }
@@ -19,7 +22,7 @@ export class Tokenizer implements Iterable<AnyToken> {
       }
     }
     let rest = new Tokenizer(this, claims);
-    return { tokens, rest }
+    return { tokens, rest };
   }
 
   *[Symbol.iterator]() {
