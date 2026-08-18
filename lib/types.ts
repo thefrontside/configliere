@@ -5,10 +5,12 @@ export type Schema<T> = StandardSchemaV1<T, T>;
 
 export interface Route<
   N extends string,
+  M extends Method,
   T extends object,
   C extends readonly AnyRoute[],
 > {
   readonly name: N;
+  readonly methods: readonly M[];
   readonly version?: string;
   readonly params: {
     [K in keyof T]: K extends string ? Param<K, T[K]> : never;
@@ -18,12 +20,14 @@ export interface Route<
 
 export interface AnyRoute {
   readonly name: string;
+  readonly methods: readonly Method[];
   readonly version?: string;
   readonly params: Readonly<Record<string, Param<string, unknown>>>;
   readonly children: readonly AnyRoute[];
 }
 
 export type Method = "help" | "version" | "execute";
+export type MethodsOf<R extends AnyRoute> = R["methods"][number];
 
 export type Path = readonly string[];
 
@@ -41,12 +45,12 @@ export interface Failure<C extends Status> {
   readonly code: C;
 }
 
-export type Result<T> = T | Failure<Status>;
+export type Result<T> = T | NotFound | MethodNotAllowed | UnprocessableContent;
 
 export type Resolve<R extends AnyRoute, P extends Path> =
   | Help<R, P>
-  | Version<R, P>
-  | Execute<R, P>;
+  | ("version" extends MethodsOf<R> ? Version<R, P> : never)
+  | ("execute" extends MethodsOf<R> ? Execute<R, P> : never);
 
 export type Help<R extends AnyRoute, P extends Path> = {
   readonly ok: true;
@@ -76,14 +80,17 @@ export type Status =
 
 export interface NotFound extends Failure<"route-not-found"> {}
 
-export interface MethodNotAllound<R extends AnyRoute>
+export interface MethodNotAllowed
   extends Failure<"method-not-allowed"> {
-  route: R;
-  allowed: Method[];
+    readonly route: AnyRoute;
+    readonly path: Path;
+    readonly method: Method;
+    readonly allowed: readonly Method[];
 }
 
-export interface UnprocessableContent<R extends AnyRoute>
+export interface UnprocessableContent
   extends Failure<"unprocessable-content"> {
-  route: R;
-  issues: Issue[];
+    readonly route: AnyRoute;
+    readonly path: Path;
+    readonly issues: Issue[];
 }

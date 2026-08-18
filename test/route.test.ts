@@ -1,7 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
-import { name, option, route } from "../lib/route.ts";
-import type { AnyRoute, Route } from "../lib/types.ts";
+import { name, option, route, version } from "../lib/route.ts";
+import type { AnyRoute, Method, Route } from "../lib/types.ts";
 
 describe("route() types", () => {
   it("preserves the literal route name through each element", () => {
@@ -12,6 +12,32 @@ describe("route() types", () => {
     );
 
     expectType<Equal<typeof result.name, "simulacrum">>(true);
+  });
+
+  it("starts with help as its only supported method", () => {
+    let result = route(name("simulacrum"));
+
+    expectType<Equal<Methods<typeof result>, "help">>(true);
+  });
+
+  it("preserves supported methods while adding options", () => {
+    let result = route(
+      name("simulacrum"),
+      option("port", type("number")),
+    );
+
+    expectType<Equal<Methods<typeof result>, "help">>(true);
+  });
+
+  it("adds version to the supported methods", () => {
+    let result = route(
+      name("simulacrum"),
+      option("port", type("number")),
+      version("1.2.0"),
+    );
+
+    expectType<Equal<Methods<typeof result>, "help" | "version">>(true);
+    expectType<Equal<Model<typeof result>, { port: number }>>(true);
   });
 
   it("infers a plain object model from option schema outputs", () => {
@@ -120,8 +146,10 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   : false;
 
 type Model<R extends AnyRoute> = R extends
-  Route<string, infer T, readonly AnyRoute[]> ? T
+  Route<string, Method, infer T, readonly AnyRoute[]> ? T
   : never;
+
+type Methods<R extends AnyRoute> = R["methods"][number];
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.

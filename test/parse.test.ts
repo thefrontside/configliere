@@ -4,7 +4,7 @@ import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { parse } from "../lib/parse.ts";
 import { name, option, route, version } from "../lib/route.ts";
-import type { AnyRoute } from "../lib/types.ts";
+import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
 let app = route(
   name("simulacrum"),
@@ -12,6 +12,10 @@ let app = route(
   option("port", type("number")),
 );
 let $ = cli(app);
+let exec = cli({
+  ...name("simulacrum"),
+  methods: ["help", "execute"] as const,
+});
 
 describe("parse()", () => {
   describe("help", () => {
@@ -32,7 +36,7 @@ describe("parse()", () => {
     });
 
     it("does not treat help after -- as a control", () => {
-      let result = $("simulacrum -- --help");
+      let result = exec("simulacrum -- --help");
 
       expect(result).toHaveRoute("EXECUTE /simulacrum");
     });
@@ -55,12 +59,40 @@ describe("parse()", () => {
       ).toHaveRoute("VERSION /simulacrum");
     });
 
-    it.skip("rejects version for a route without a version", () => undefined);
+    it("rejects version for a route without a version", () => {
+      let plain = cli(route(name("simulacrum")));
+
+      expect(plain("simulacrum --version").result).toMatchObject({
+        ok: false,
+        code: "method-not-allowed",
+        route: { name: "simulacrum" },
+        path: [],
+        method: "version",
+        allowed: ["help"],
+      });
+    });
 
     it("does not treat version after -- as a control", () => {
-      let result = $("simulacrum -- --version");
+      let result = exec("simulacrum -- --version");
 
       expect(result).toHaveRoute("EXECUTE /simulacrum");
+    });
+  });
+
+  describe("types", () => {
+    it("exposes only methods supported by a route", () => {
+      type Plain = Route<"simulacrum", "help", Empty, []>;
+      type Versioned = Route<
+        "simulacrum",
+        "help" | "version",
+        Empty,
+        []
+      >;
+
+      expectType<Equal<Resolve<Plain, []>["type"], "help">>(true);
+      expectType<
+        Equal<Resolve<Versioned, []>["type"], "help" | "version">
+      >(true);
     });
   });
 });
@@ -76,6 +108,13 @@ interface Outcome {
 }
 
 type Target = `${string} /${string}`;
+type Empty = Record<never, never>;
+
+type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
+  (<T>() => T extends R ? 1 : 2)
+  ? (<T>() => T extends R ? 1 : 2) extends (<T>() => T extends L ? 1 : 2) ? true
+  : false
+  : false;
 
 base.extend({
   toHaveRoute(context, expected: Target) {
@@ -150,4 +189,8 @@ function inspect(value: unknown): Outcome | undefined {
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function expectType<T extends true>(_value: T): void {
+  // Compile-time assertion.
 }

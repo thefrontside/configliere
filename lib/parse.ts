@@ -1,11 +1,16 @@
 import { type AnyToken, tokenize } from "./tokenize.ts";
 import { Tokenizer } from "./tokenizer.ts";
-import type { AnyRoute, Input, Resolve, Result } from "./types.ts";
+import type { AnyRoute, Input, Path, Resolve, Result } from "./types.ts";
 
 export function parse<const R extends AnyRoute>(
   route: R,
   input: Input,
-): Result<Resolve<R, []>> {
+): Result<Resolve<R, Path>>;
+
+export function parse(
+  route: AnyRoute,
+  input: Input,
+): Result<Resolve<AnyRoute, Path>> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claim(flags("-h", "--help"));
 
@@ -20,7 +25,7 @@ export function parse<const R extends AnyRoute>(
 
   let version = help.rest.claim(flags("-v", "--version"));
   if (version.tokens.length > 0) {
-    if (route.version) {
+    if (route.methods.includes("version")) {
       return {
         ok: true,
         type: "version",
@@ -28,7 +33,15 @@ export function parse<const R extends AnyRoute>(
         path: [],
       };
     } else {
-      // should this be an error?
+      return {
+        ok: false,
+        code: "method-not-allowed",
+        route,
+        path: [],
+        method: "version",
+        allowed: route.methods,
+
+      };
     }
   }
 
