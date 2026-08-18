@@ -4,8 +4,9 @@ export interface Token<T extends string> {
   text: string;
 }
 export type AnyToken =
-  | Setter
+  | Word
   | Flag
+  | Setter
   | Separator
   | Literal;
 
@@ -18,6 +19,8 @@ export interface Flag extends Token<"flag"> {
   flagText: string;
   flagType: "short" | "long";
 }
+
+export type Word = Token<"word">;
 
 export interface Separator extends Token<"separator"> {
   readonly text: "--";
@@ -59,7 +62,7 @@ export function tokenize(argv: string[]): readonly AnyToken[] {
       });
       continue;
     }
-    tokens.push({ type: "literal", index, text });
+    tokens.push({ type: "word", index, text });
   }
   return tokens;
 }

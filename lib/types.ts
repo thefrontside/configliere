@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { Literal } from "./tokenize.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
@@ -45,7 +46,7 @@ export interface Failure<C extends Status> {
   readonly code: C;
 }
 
-export type Result<T> = T | NotFound | MethodNotAllowed | UnprocessableContent;
+export type Result<T> = T | MethodNotAllowed | UnprocessableContent;
 
 export type Resolve<R extends AnyRoute, P extends Path> =
   | Help<R, P>
@@ -57,6 +58,7 @@ export type Help<R extends AnyRoute, P extends Path> = {
   readonly type: "help";
   readonly route: R;
   readonly path: P;
+  readonly literals: Iterable<Literal>;
 };
 
 export type Version<R extends AnyRoute, P extends Path> = {
@@ -64,6 +66,7 @@ export type Version<R extends AnyRoute, P extends Path> = {
   readonly type: "version";
   readonly route: R;
   readonly path: P;
+  readonly literals: Iterable<Literal>;
 };
 
 export type Execute<R extends AnyRoute, P extends Path> = {
@@ -71,14 +74,12 @@ export type Execute<R extends AnyRoute, P extends Path> = {
   readonly type: "execute";
   readonly route: R;
   readonly path: P;
+  readonly literals: Iterable<Literal>;
 };
 
 export type Status =
-  | "route-not-found"
   | "method-not-allowed"
   | "unprocessable-content";
-
-export interface NotFound extends Failure<"route-not-found"> {}
 
 export interface MethodNotAllowed
   extends Failure<"method-not-allowed"> {

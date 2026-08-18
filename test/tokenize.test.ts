@@ -37,7 +37,7 @@ describe("tokenize()", () => {
         valueText: "9000",
       },
       {
-        type: "literal",
+        type: "word",
         index: 4,
         text: "database",
       },

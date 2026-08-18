@@ -11,11 +11,6 @@ let app = route(
   version("1.2.0"),
   option("port", type("number")),
 );
-let $ = cli(app);
-let exec = cli({
-  ...name("simulacrum"),
-  methods: ["help", "execute"] as const,
-});
 
 describe("parse()", () => {
   describe("help", () => {
@@ -40,6 +35,8 @@ describe("parse()", () => {
 
       expect(result).toHaveRoute("EXECUTE /simulacrum");
     });
+
+    it.skip("accounts for options left unconsumed by help", () => undefined);
   });
 
   describe("version", () => {
@@ -60,9 +57,7 @@ describe("parse()", () => {
     });
 
     it("rejects version for a route without a version", () => {
-      let plain = cli(route(name("simulacrum")));
-
-      expect(plain("simulacrum --version").result).toMatchObject({
+      expect(plain("simulacrum --version")).toMatchObject({
         ok: false,
         code: "method-not-allowed",
         route: { name: "simulacrum" },
@@ -77,6 +72,42 @@ describe("parse()", () => {
 
       expect(result).toHaveRoute("EXECUTE /simulacrum");
     });
+  });
+
+  describe("routes", () => {
+    it.skip("resolves a direct child route", () => undefined);
+    it.skip("resolves the deepest matching route", () => undefined);
+    it.skip("resolves controls against the deepest matching route", () =>
+      undefined);
+    it.skip("discovers routes across unresolved parameter tokens", () =>
+      undefined);
+    it.skip("stops discovering routes at --", () => undefined);
+    it.skip("treats child names as route selectors before binding parameters", () =>
+      undefined);
+  });
+
+  describe("segments", () => {
+    it.skip("preserves parameter token order within each route segment", () =>
+      undefined);
+    it.skip("assigns tokens on either side of a selector to their respective routes", () =>
+      undefined);
+    it.skip("assigns literals to the matching route", () => undefined);
+    it.skip("keeps literals separate from parameter tokens", () => undefined);
+  });
+
+  describe("route methods", () => {
+    it.skip("uses the methods supported by the matching route", () =>
+      undefined);
+    it.skip("reports the matching route when a method is unsupported", () =>
+      undefined);
+    it.skip("allows an executable route to contain executable children", () =>
+      undefined);
+  });
+
+  describe("binding", () => {
+    it.skip("treats unmatched words as arguments to the matching route", () =>
+      undefined);
+    it.skip("reports surplus arguments as a binding error", () => undefined);
   });
 
   describe("types", () => {
@@ -94,11 +125,27 @@ describe("parse()", () => {
         Equal<Resolve<Versioned, []>["type"], "help" | "version">
       >(true);
     });
+
+    it.skip("exposes the exact intents of every reachable route", () =>
+      undefined);
   });
+});
+
+const requests = new WeakMap<object, Request>();
+const $ = cli(app);
+const plain = cli(route(name("simulacrum")));
+const exec = cli({
+  ...name("simulacrum"),
+  methods: ["help", "execute"] as const,
 });
 
 interface RouteExpected extends Expected {
   toHaveRoute(expected: Target): unknown;
+}
+
+interface Request {
+  input: string;
+  root: string;
 }
 
 interface Outcome {
@@ -151,11 +198,9 @@ function cli<R extends AnyRoute>(app: R) {
       );
     }
 
-    return {
-      input,
-      root,
-      result: parse(app, { argv }),
-    };
+    let result = parse(app, { argv });
+    requests.set(result, { input, root });
+    return result;
   };
 }
 
@@ -164,14 +209,13 @@ function inspect(value: unknown): Outcome | undefined {
     return;
   }
 
-  let { input, root, result } = value;
-  if (
-    typeof input !== "string" || typeof root !== "string" || !record(result)
-  ) {
+  let request = requests.get(value);
+  if (!request) {
     return;
   }
 
-  let { ok, type, route, path } = result;
+  let { input, root } = request;
+  let { ok, type, route, path } = value;
   if (
     ok !== true || typeof type !== "string" || !record(route) ||
     typeof route.name !== "string" || !Array.isArray(path) ||

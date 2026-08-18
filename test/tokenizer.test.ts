@@ -9,7 +9,7 @@ describe("Tokenizer", () => {
     let source = tokenize(["-h", "database", "--verbose", "--port=9000"]);
     let tokenizer = new Tokenizer(source);
 
-    let claim = tokenizer.claim((token) => token.type === "flag");
+    let claim = tokenizer.claimAll((token) => token.type === "flag");
 
     expect(indices(claim.tokens)).toEqual([0, 2]);
     expect(indices(claim.rest)).toEqual([1, 3]);
@@ -19,7 +19,7 @@ describe("Tokenizer", () => {
     let source = tokenize(["-h", "database", "--port=9000"]);
     let tokenizer = new Tokenizer(source);
 
-    tokenizer.claim((token) => token.type === "flag");
+    tokenizer.claimAll((token) => token.type === "flag");
 
     expect(indices(tokenizer)).toEqual([0, 1, 2]);
   });
@@ -33,23 +33,23 @@ describe("Tokenizer", () => {
     ]);
     let tokenizer = new Tokenizer(source);
 
-    let flags = tokenizer.claim((token) => token.type === "flag");
-    let setters = flags.rest.claim((token) => token.type === "setter");
-    let literals = setters.rest.claim((token) => token.type === "literal");
+    let flags = tokenizer.claimAll((token) => token.type === "flag");
+    let setters = flags.rest.claimAll((token) => token.type === "setter");
+    let words = setters.rest.claimAll((token) => token.type === "word");
 
     expect(indices(flags.tokens)).toEqual([0, 2]);
     expect(indices(setters.tokens)).toEqual([3]);
-    expect(indices(literals.tokens)).toEqual([1]);
-    expect(indices(literals.rest)).toEqual([]);
+    expect(indices(words.tokens)).toEqual([1]);
+    expect(indices(words.rest)).toEqual([]);
   });
 
   it("does not test already claimed tokens again", () => {
     let source = tokenize(["-h", "database", "--port=9000"]);
     let tokenizer = new Tokenizer(source);
-    let first = tokenizer.claim((token) => token.index === 0);
+    let first = tokenizer.claimAll((token) => token.index === 0);
     let tested: number[] = [];
 
-    first.rest.claim((token) => {
+    first.rest.claimAll((token) => {
       tested.push(token.index);
       return false;
     });

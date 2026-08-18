@@ -1,6 +1,20 @@
-import { type AnyToken, tokenize } from "./tokenize.ts";
+import {
+  type AnyToken,
+  type Flag,
+  type Literal,
+  type Setter,
+  tokenize,
+  type Word,
+} from "./tokenize.ts";
 import { Tokenizer } from "./tokenizer.ts";
-import type { AnyRoute, Input, Path, Resolve, Result } from "./types.ts";
+import type {
+  AnyRoute,
+  Input,
+  Method,
+  Path,
+  Resolve,
+  Result,
+} from "./types.ts";
 
 export function parse<const R extends AnyRoute>(
   route: R,
@@ -12,47 +26,90 @@ export function parse(
   input: Input,
 ): Result<Resolve<AnyRoute, Path>> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
-  let help = tokenizer.claim(flags("-h", "--help"));
+  let help = tokenizer.claimAll(flags("-h", "--help"));
+  let version = help.rest.claimAll(flags("-v", "--version"));
+  let escape = version.rest.claimAll((t) => t.type === "separator");
+  let literals = escape.rest.claimAll((t) => t.type === "literal");
+
+  let method: Method = "execute";
 
   if (help.tokens.length > 0) {
+    method = "help";
+  } else if (version.tokens.length > 0) {
+    method = "version";
+  }
+
+  let [match] = search({ route, tokenizer: literals.rest, path: [] });
+
+  if (match.route.methods.includes(method)) {
     return {
       ok: true,
-      type: "help",
+      type: method,
+      route: match.route,
+      path: match.path,
+      literals: literals.tokens as Iterable<Literal>,
+    };
+  } else {
+    return {
+      ok: false,
+      code: "method-not-allowed",
       route,
       path: [],
+      method: method,
+      allowed: route.methods,
     };
   }
-
-  let version = help.rest.claim(flags("-v", "--version"));
-  if (version.tokens.length > 0) {
-    if (route.methods.includes("version")) {
-      return {
-        ok: true,
-        type: "version",
-        route,
-        path: [],
-      };
-    } else {
-      return {
-        ok: false,
-        code: "method-not-allowed",
-        route,
-        path: [],
-        method: "version",
-        allowed: route.methods,
-
-      };
-    }
-  }
-
-  return {
-    ok: true,
-    type: "execute",
-    route,
-    path: [],
-  };
 }
 
 function flags(...texts: string[]): (token: AnyToken) => boolean {
   return (token) => token.type === "flag" && texts.includes(token.text);
+}
+
+interface SearchOptions {
+  route: AnyRoute;
+  tokenizer: Tokenizer;
+  path: Path;
+}
+
+interface Segment {
+  route: AnyRoute;
+  path: Path;
+  tokens: Array<Flag | Word | Setter>;
+}
+
+export function search(options: SearchOptions): [Segment, ...Segment[]] {
+  const { route, tokenizer } = options;
+  const segment: Segment = {
+    route,
+    path: options.path,
+    tokens: [],
+  };
+
+  let { token, rest } = tokenizer.claimOne();
+
+  while (token) {
+    if (token?.type === "flag" || token?.type === "setter") {
+      segment.tokens.push(token);
+    } else if (token.type === "word") {
+      const { text } = token;
+      const child = route.children.find((child) => child.name === text);
+      if (child) {
+        return [
+          ...search({
+            route: child,
+            tokenizer: rest,
+            path: options.path.concat(child.name),
+          }),
+          segment,
+        ];
+      } else {
+        segment.tokens.push(token);
+      }
+    } else {
+      throw new TypeError(`unexpected token ${JSON.stringify(token)}`);
+    }
+
+    ({ token, rest } = rest.claimOne());
+  }
+  return [segment];
 }
