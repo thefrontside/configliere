@@ -14,7 +14,7 @@ import type {
   Method,
   Path,
   Resolve,
-  Result,
+  Result
 } from "./types.ts";
 
 export function parse<const R extends AnyRoute>(
@@ -45,8 +45,9 @@ export function parse(
   if (match.route.methods.includes(method)) {
     return {
       ok: true,
-      type: method,
-      route: match.route,
+      method: method,
+      route: `/${match.path.join("/")}`,
+      definition: match.route,
       path: match.path,
       literals: literals.tokens as Iterable<Literal>,
     };

@@ -12,14 +12,14 @@ export class Tokenizer implements Iterable<AnyToken> {
     this.claimed = claimed;
   }
 
-  claimOne(): { token?: AnyToken; rest: Tokenizer} {
+  claimOne(): { token?: AnyToken; rest: Tokenizer } {
     let [first] = this;
     return {
       token: first,
-      rest: new Tokenizer(this, first ? new Set([first.index]): new Set()),
+      rest: new Tokenizer(this, first ? new Set([first.index]) : new Set()),
     };
   }
-  
+
   claimAll(match: (token: AnyToken) => boolean): Claim {
     let tokens: AnyToken[] = [];
     let claims = new Set<number>();

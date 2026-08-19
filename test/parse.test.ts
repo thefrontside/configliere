@@ -26,23 +26,23 @@ describe("parse()", () => {
     it("resolves either help flag against the root route", () => {
       expect(
         $("simulacrum -h"),
-      ).toHaveRoute("HELP /simulacrum");
+      ).toHaveRoute("HELP /");
 
       expect(
         $("simulacrum --help"),
-      ).toHaveRoute("HELP /simulacrum");
+      ).toHaveRoute("HELP /");
     });
 
     it("resolves help before validating other arguments", () => {
       expect(
         $("simulacrum --unknown --help"),
-      ).toHaveRoute("HELP /simulacrum");
+      ).toHaveRoute("HELP /");
     });
 
     it("does not treat help after -- as a control", () => {
       let result = exec("simulacrum -- --help");
 
-      expect(result).toHaveRoute("EXECUTE /simulacrum");
+      expect(result).toHaveRoute("EXECUTE /");
     });
 
     it.skip("accounts for options left unconsumed by help", () => undefined);
@@ -52,17 +52,17 @@ describe("parse()", () => {
     it("resolves either version flag against a versioned route", () => {
       expect(
         $("simulacrum -v"),
-      ).toHaveRoute("VERSION /simulacrum");
+      ).toHaveRoute("VERSION /");
 
       expect(
         $("simulacrum --version"),
-      ).toHaveRoute("VERSION /simulacrum");
+      ).toHaveRoute("VERSION /");
     });
 
     it("resolves version before validating other arguments", () => {
       expect(
         $("simulacrum --unknown --version"),
-      ).toHaveRoute("VERSION /simulacrum");
+      ).toHaveRoute("VERSION /");
     });
 
     it("rejects version for a route without a version", () => {
@@ -79,7 +79,7 @@ describe("parse()", () => {
     it("does not treat version after -- as a control", () => {
       let result = exec("simulacrum -- --version");
 
-      expect(result).toHaveRoute("EXECUTE /simulacrum");
+      expect(result).toHaveRoute("EXECUTE /");
     });
   });
 
@@ -87,32 +87,32 @@ describe("parse()", () => {
     it("resolves a direct child route", () => {
       expect(
         $("simulacrum auth0 --help"),
-      ).toHaveRoute("HELP /simulacrum/auth0");
+      ).toHaveRoute("HELP /auth0");
     });
     it("resolves the deepest matching route", () => {
       expect(
         $("simulacrum database clean --help"),
-      ).toHaveRoute("HELP /simulacrum/database/clean");
+      ).toHaveRoute("HELP /database/clean");
     });
     it("resolves controls against the deepest matching route", () => {
       expect(
         $("simulacrum --help database clean"),
-      ).toHaveRoute("HELP /simulacrum/database/clean");
+      ).toHaveRoute("HELP /database/clean");
     });
     it("discovers routes across unresolved parameter tokens", () => {
       expect(
         $("simulacrum --root value database --db=value clean --help"),
-      ).toHaveRoute("HELP /simulacrum/database/clean");
+      ).toHaveRoute("HELP /database/clean");
     });
     it("stops discovering routes at --", () => {
       expect(
         $("simulacrum --help database -- clean"),
-      ).toHaveRoute("HELP /simulacrum/database");
+      ).toHaveRoute("HELP /database");
     });
     it("treats child names as route selectors before binding parameters", () => {
       expect(
         $("simulacrum --target auth0 --help"),
-      ).toHaveRoute("HELP /simulacrum/auth0");
+      ).toHaveRoute("HELP /auth0");
     });
   });
 
@@ -122,7 +122,7 @@ describe("parse()", () => {
 
       expectOk(result);
 
-      expect(result).toHaveRoute("HELP /simulacrum/database");
+      expect(result).toHaveRoute("HELP /database");
       expect(Array.from(result.literals, (literal) => literal.text)).toEqual([
         "clean",
         "--force",
@@ -147,7 +147,7 @@ describe("parse()", () => {
     it("uses the methods supported by the matching route", () => {
       expect(
         scoped("simulacrum auth0 --version"),
-      ).toHaveRoute("VERSION /simulacrum/auth0");
+      ).toHaveRoute("VERSION /auth0");
     });
     it("reports the matching route when a method is unsupported", () => {
       expect(
@@ -164,11 +164,11 @@ describe("parse()", () => {
     it("allows an executable route to contain executable children", () => {
       expect(
         commands("simulacrum database"),
-      ).toHaveRoute("EXECUTE /simulacrum/database");
+      ).toHaveRoute("EXECUTE /database");
 
       expect(
         commands("simulacrum database clean"),
-      ).toHaveRoute("EXECUTE /simulacrum/database/clean");
+      ).toHaveRoute("EXECUTE /database/clean");
     });
   });
 
@@ -217,20 +217,20 @@ describe("parse()", () => {
         []
       >;
 
-      expectType<Equal<Resolve<Plain>["type"], "help">>(true);
+      expectType<Equal<Resolve<Plain>["method"], "help">>(true);
       expectType<
-        Equal<Resolve<Versioned>["type"], "help" | "version">
+        Equal<Resolve<Versioned>["method"], "help" | "version">
       >(true);
     });
 
     it("exposes the exact intents of every reachable route", () => {
       type Actual = TargetOf<ReturnType<typeof $>>;
       type Expected =
-        | ["help", "simulacrum", []]
-        | ["version", "simulacrum", []]
-        | ["help", "auth0", ["auth0"]]
-        | ["help", "database", ["database"]]
-        | ["help", "clean", ["database", "clean"]];
+        | ["help", "/", []]
+        | ["version", "/", []]
+        | ["help", "/auth0", ["auth0"]]
+        | ["help", "/database", ["database"]]
+        | ["help", "/database/clean", ["database", "clean"]];
 
       expectType<Equal<Actual, Expected>>(true);
     });
@@ -277,17 +277,19 @@ interface Request {
 
 interface Outcome {
   input: string;
-  route: string;
+  root: string;
+  definition: string;
   target: Target;
 }
 
 type Target = `${string} /${string}`;
 type Empty = Record<never, never>;
 type TargetOf<T> = T extends {
-  readonly type: infer M;
-  readonly route: { readonly name: infer N };
+  readonly ok: true;
+  readonly method: infer M;
+  readonly route: infer R;
   readonly path: infer P;
-} ? [M, N, P]
+} ? [M, R, P]
   : never;
 
 type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
@@ -299,8 +301,11 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
 base.extend({
   toHaveRoute(context, expected: Target) {
     let outcome = inspect(context.value);
-    let leaf = outcome?.target.slice(outcome.target.lastIndexOf("/") + 1);
-    let pass = outcome?.target === expected && outcome.route === leaf;
+    let route = expected.slice(expected.indexOf(" ") + 1);
+    let leaf = route === "/"
+      ? outcome?.root
+      : route.slice(route.lastIndexOf("/") + 1);
+    let pass = outcome?.target === expected && outcome.definition === leaf;
 
     return {
       pass,
@@ -309,8 +314,8 @@ base.extend({
           ? `Expected ${
             JSON.stringify(outcome.input)
           } to resolve ${expected}, ` +
-            `but it resolved ${outcome.target} with route ${
-              JSON.stringify(outcome.route)
+            `but it resolved ${outcome.target} with definition ${
+              JSON.stringify(outcome.definition)
             }`
           : `Expected a request resolving ${expected}, but received no route intent`,
     };
@@ -348,19 +353,20 @@ function inspect(value: unknown): Outcome | undefined {
   }
 
   let { input, root } = request;
-  let { ok, type, route, path } = value;
+  let { ok, method, route, definition } = value;
   if (
-    ok !== true || typeof type !== "string" || !record(route) ||
-    typeof route.name !== "string" || !Array.isArray(path) ||
-    !path.every((part) => typeof part === "string")
+    ok !== true || typeof method !== "string" || typeof route !== "string" ||
+    !route.startsWith("/") || !record(definition) ||
+    typeof definition.name !== "string"
   ) {
     return;
   }
 
   return {
     input,
-    route: route.name,
-    target: `${type.toUpperCase()} /${[root, ...path].join("/")}`,
+    root,
+    definition: definition.name,
+    target: `${method.toUpperCase()} ${route}` as Target,
   };
 }
 

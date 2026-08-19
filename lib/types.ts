@@ -48,89 +48,106 @@ export interface Failure<C extends Status> {
 
 export type Result<T> = T | MethodNotAllowed | UnprocessableContent;
 
-export type Resolve<R extends AnyRoute> = ResolveAt<R, []>;
+export type Resolve<R extends AnyRoute> = ResolveAt<R, `/`>;
+
+export type RoutePath = `/${string}`;
+
+export type PathOf<R extends RoutePath> = R extends "/" ? []
+  : R extends `/${infer Rest}` ? Split<Rest>
+  : never;
+
+type Split<S extends string> = string extends S ? Path
+  : S extends `${infer Head}/${infer Tail}` ? [Head, ...Split<Tail>]
+  : S extends "" ? []
+  : [S];
+
+type Append<
+  A extends RoutePath,
+  N extends string,
+> = A extends "/" ? `/${N}`
+  : `${A}/${N}`;
 
 type ResolveAt<
   R extends AnyRoute,
-  P extends Path,
+  P extends RoutePath,
 > =
   | ResolveRoute<R, P>
   | ResolveChildren<R["children"], P>;
 
 type ResolveRoute<
   R extends AnyRoute,
-  P extends Path,
+  P extends RoutePath,
 > =
   | Help<R, P>
   | (
-    "version" extends MethodsOf<R>
-      ? Version<R, P>
+    "version" extends MethodsOf<R> ? Version<R, P>
       : never
   )
   | (
-    "execute" extends MethodsOf<R>
-      ? Execute<R, P>
+    "execute" extends MethodsOf<R> ? Execute<R, P>
       : never
   );
 
 export type AnyResolve =
-  | Help<AnyRoute, Path>
-  | Version<AnyRoute, Path>
-  | Execute<AnyRoute, Path>;
+  | Help<AnyRoute, RoutePath>
+  | Version<AnyRoute, RoutePath>
+  | Execute<AnyRoute, RoutePath>;
 
 type ResolveChildren<
   C extends readonly AnyRoute[],
-  P extends Path,
+  P extends RoutePath,
 > = C extends readonly [
   infer Head extends AnyRoute,
   ...infer Tail extends readonly AnyRoute[],
-]
-  ? (
-    | ResolveAt<Head, [...P, Head["name"]]>
+] ? (
+    | ResolveAt<Head, Append<P, Head["name"]>>
     | ResolveChildren<Tail, P>
   )
   : never;
 
-
-export type Help<R extends AnyRoute, P extends Path> = {
+export interface Intent<
+  M extends Method,
+  R extends AnyRoute,
+  P extends RoutePath,
+> {
   readonly ok: true;
-  readonly type: "help";
-  readonly route: R;
-  readonly path: P;
+  readonly method: M;
+  readonly route: P;
+  readonly definition: R;
+  readonly path: PathOf<P>;
   readonly literals: Iterable<Literal>;
-};
+}
+export type Help<R extends AnyRoute, P extends RoutePath> = Intent<
+  "help",
+  R,
+  P
+>;
 
-export type Version<R extends AnyRoute, P extends Path> = {
-  readonly ok: true;
-  readonly type: "version";
-  readonly route: R;
-  readonly path: P;
-  readonly literals: Iterable<Literal>;
-};
+export type Version<R extends AnyRoute, P extends RoutePath> = Intent<
+  "version",
+  R,
+  P
+>;
 
-export type Execute<R extends AnyRoute, P extends Path> = {
-  readonly ok: true;
-  readonly type: "execute";
-  readonly route: R;
-  readonly path: P;
-  readonly literals: Iterable<Literal>;
-};
+export type Execute<R extends AnyRoute, P extends RoutePath> = Intent<
+  "execute",
+  R,
+  P
+>;
 
 export type Status =
   | "method-not-allowed"
   | "unprocessable-content";
 
-export interface MethodNotAllowed
-  extends Failure<"method-not-allowed"> {
-    readonly route: AnyRoute;
-    readonly path: Path;
-    readonly method: Method;
-    readonly allowed: readonly Method[];
+export interface MethodNotAllowed extends Failure<"method-not-allowed"> {
+  readonly route: AnyRoute;
+  readonly path: Path;
+  readonly method: Method;
+  readonly allowed: readonly Method[];
 }
 
-export interface UnprocessableContent
-  extends Failure<"unprocessable-content"> {
-    readonly route: AnyRoute;
-    readonly path: Path;
-    readonly issues: Issue[];
+export interface UnprocessableContent extends Failure<"unprocessable-content"> {
+  readonly route: AnyRoute;
+  readonly path: Path;
+  readonly issues: Issue[];
 }

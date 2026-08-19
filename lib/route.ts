@@ -157,7 +157,12 @@ export function option<const K extends string, T>(
       params: {
         ...route.params,
         [key]: { key, schema },
-      } as Route<R["name"], R["methods"][number], Output, R["children"]>["params"],
+      } as Route<
+        R["name"],
+        R["methods"][number],
+        Output,
+        R["children"]
+      >["params"],
     };
   };
 }
@@ -169,12 +174,12 @@ export function version(
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
->(route: Route<N,M,T,C>) => Route<N,M | "version", T, C> {
+>(route: Route<N, M, T, C>) => Route<N, M | "version", T, C> {
   return (route) => ({
     ...route,
     methods: [...route.methods, "version"] as const,
     version: semver,
-  }) ;
+  });
 }
 
 export function executable(): <
@@ -182,12 +187,11 @@ export function executable(): <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
->(route: Route<N,M,T,C>) => Route<N,M | "execute", T, C> {
+>(route: Route<N, M, T, C>) => Route<N, M | "execute", T, C> {
   return (route) => ({
     ...route,
     methods: [...route.methods, "execute"] as const,
-
-  }) ;
+  });
 }
 
 export function routes<const C extends readonly AnyRoute[]>(
