@@ -10,7 +10,8 @@
     "jsr:@std/testing@^1.0.19": "1.0.19",
     "npm:@standard-schema/spec@*": "1.1.0",
     "npm:@standard-schema/spec@^1.1.0": "1.1.0",
-    "npm:arktype@^2.2.3": "2.2.3"
+    "npm:arktype@^2.2.3": "2.2.3",
+    "npm:zod@*": "4.4.3"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -73,6 +74,9 @@
         "@ark/util",
         "arkregex"
       ]
+    },
+    "zod@4.4.3": {
+      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
     }
   },
   "workspace": {

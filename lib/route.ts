@@ -1,5 +1,5 @@
 // deno-lint-ignore-file ban-types
-import type { AnyRoute, Method, Route, Schema } from "./types.ts";
+import type { AnyRoute, Method, MethodsOf, Route, Schema } from "./types.ts";
 
 export type RouteZero<N extends string = string> = Route<N, "help", {}, []>;
 
@@ -175,6 +175,48 @@ export function version(
     methods: [...route.methods, "version"] as const,
     version: semver,
   }) ;
+}
+
+export function executable(): <
+  const N extends string,
+  const M extends Method,
+  const T extends object,
+  const C extends readonly AnyRoute[],
+>(route: Route<N,M,T,C>) => Route<N,M | "execute", T, C> {
+  return (route) => ({
+    ...route,
+    methods: [...route.methods, "execute"] as const,
+
+  }) ;
+}
+
+export function routes<const C extends readonly AnyRoute[]>(
+  ...children: C
+): <R extends AnyRoute>(
+  route: R,
+) => Route<
+  R["name"],
+  MethodsOf<R>,
+  Model<R>,
+  readonly [...R["children"], ...C]
+> {
+  return <R extends AnyRoute>(route: R) => {
+    type Output = Route<
+      R["name"],
+      MethodsOf<R>,
+      Model<R>,
+      readonly [...R["children"], ...C]
+    >;
+
+    return {
+      ...route,
+      children: [
+        ...route.children,
+        ...children,
+      ] as unknown as Output["children"],
+      params: route.params as Output["params"],
+    };
+  };
 }
 
 type Model<R extends AnyRoute> = R extends

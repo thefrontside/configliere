@@ -6,11 +6,20 @@ import { parse } from "../lib/parse.ts";
 import { name, option, route, version } from "../lib/route.ts";
 import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
-let app = route(
-  name("simulacrum"),
-  version("1.2.0"),
-  option("port", type("number")),
-);
+let app = {
+  ...route(
+    name("simulacrum"),
+    version("1.2.0"),
+    option("port", type("number")),
+  ),
+  children: [
+    route(name("auth0")),
+    {
+      ...route(name("database")),
+      children: [route(name("clean"))] as const,
+    },
+  ] as const,
+};
 
 describe("parse()", () => {
   describe("help", () => {
@@ -75,39 +84,127 @@ describe("parse()", () => {
   });
 
   describe("routes", () => {
-    it.skip("resolves a direct child route", () => undefined);
-    it.skip("resolves the deepest matching route", () => undefined);
-    it.skip("resolves controls against the deepest matching route", () =>
-      undefined);
-    it.skip("discovers routes across unresolved parameter tokens", () =>
-      undefined);
-    it.skip("stops discovering routes at --", () => undefined);
-    it.skip("treats child names as route selectors before binding parameters", () =>
-      undefined);
+    it("resolves a direct child route", () => {
+      expect(
+        $("simulacrum auth0 --help"),
+      ).toHaveRoute("HELP /simulacrum/auth0");
+    });
+    it("resolves the deepest matching route", () => {
+      expect(
+        $("simulacrum database clean --help"),
+      ).toHaveRoute("HELP /simulacrum/database/clean");
+    });
+    it("resolves controls against the deepest matching route", () => {
+      expect(
+        $("simulacrum --help database clean"),
+      ).toHaveRoute("HELP /simulacrum/database/clean");
+    });
+    it("discovers routes across unresolved parameter tokens", () => {
+      expect(
+        $("simulacrum --root value database --db=value clean --help"),
+      ).toHaveRoute("HELP /simulacrum/database/clean");
+    });
+    it("stops discovering routes at --", () => {
+      expect(
+        $("simulacrum --help database -- clean"),
+      ).toHaveRoute("HELP /simulacrum/database");
+    });
+    it("treats child names as route selectors before binding parameters", () => {
+      expect(
+        $("simulacrum --target auth0 --help"),
+      ).toHaveRoute("HELP /simulacrum/auth0");
+    });
   });
 
-  describe("segments", () => {
-    it.skip("preserves parameter token order within each route segment", () =>
-      undefined);
-    it.skip("assigns tokens on either side of a selector to their respective routes", () =>
-      undefined);
-    it.skip("assigns literals to the matching route", () => undefined);
-    it.skip("keeps literals separate from parameter tokens", () => undefined);
+  describe("literals", () => {
+    it("assigns literals to the matching route", () => {
+      let result = $("simulacrum --help database -- clean --force");
+
+      expectOk(result);
+
+      expect(result).toHaveRoute("HELP /simulacrum/database");
+      expect(Array.from(result.literals, (literal) => literal.text)).toEqual([
+        "clean",
+        "--force",
+      ]);
+    });
+
+    it("keeps literals separate from parameter tokens", () => {
+      let result = $(
+        "simulacrum --help --value before -- literal --force",
+      );
+
+      expectOk(result);
+
+      expect(Array.from(result.literals, (literal) => literal.text)).toEqual([
+        "literal",
+        "--force",
+      ]);
+    });
   });
 
   describe("route methods", () => {
-    it.skip("uses the methods supported by the matching route", () =>
-      undefined);
-    it.skip("reports the matching route when a method is unsupported", () =>
-      undefined);
-    it.skip("allows an executable route to contain executable children", () =>
-      undefined);
+    it("uses the methods supported by the matching route", () => {
+      expect(
+        scoped("simulacrum auth0 --version"),
+      ).toHaveRoute("VERSION /simulacrum/auth0");
+    });
+    it("reports the matching route when a method is unsupported", () => {
+      expect(
+        $("simulacrum database clean --version"),
+      ).toMatchObject({
+        ok: false,
+        code: "method-not-allowed",
+        route: { name: "clean" },
+        path: ["database", "clean"],
+        method: "version",
+        allowed: ["help"],
+      });
+    });
+    it("allows an executable route to contain executable children", () => {
+      expect(
+        commands("simulacrum database"),
+      ).toHaveRoute("EXECUTE /simulacrum/database");
+
+      expect(
+        commands("simulacrum database clean"),
+      ).toHaveRoute("EXECUTE /simulacrum/database/clean");
+    });
   });
 
   describe("binding", () => {
-    it.skip("treats unmatched words as arguments to the matching route", () =>
-      undefined);
-    it.skip("reports surplus arguments as a binding error", () => undefined);
+    it.skip("preserves parameter token order while binding", () => {
+      // expect(
+      //   $("simulacrum --tag first --tag=second"),
+      // ).toHaveConfig({ tag: ["first", "second"] });
+    });
+
+    it.skip("binds parameters to the route segment that owns them", () => {
+      // expect(
+      //   $("simulacrum --verbose database --verbose clean --verbose"),
+      // ).toHaveConfig({
+      //   verbose: true,
+      //   database: {
+      //     verbose: true,
+      //     clean: { verbose: true },
+      //   },
+      // });
+    });
+
+    it.skip("treats unmatched words as arguments to the matching route", () => {
+      // expect(
+      //   $("simulacrum input.json"),
+      // ).toHaveConfig({ input: "input.json" });
+    });
+
+    it.skip("reports surplus arguments as a binding error", () => {
+      // expect(
+      //   $("simulacrum databaes clean"),
+      // ).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      // });
+    });
   });
 
   describe("types", () => {
@@ -120,20 +217,50 @@ describe("parse()", () => {
         []
       >;
 
-      expectType<Equal<Resolve<Plain, []>["type"], "help">>(true);
+      expectType<Equal<Resolve<Plain>["type"], "help">>(true);
       expectType<
-        Equal<Resolve<Versioned, []>["type"], "help" | "version">
+        Equal<Resolve<Versioned>["type"], "help" | "version">
       >(true);
     });
 
-    it.skip("exposes the exact intents of every reachable route", () =>
-      undefined);
+    it("exposes the exact intents of every reachable route", () => {
+      type Actual = TargetOf<ReturnType<typeof $>>;
+      type Expected =
+        | ["help", "simulacrum", []]
+        | ["version", "simulacrum", []]
+        | ["help", "auth0", ["auth0"]]
+        | ["help", "database", ["database"]]
+        | ["help", "clean", ["database", "clean"]];
+
+      expectType<Equal<Actual, Expected>>(true);
+    });
   });
 });
 
 const requests = new WeakMap<object, Request>();
 const $ = cli(app);
 const plain = cli(route(name("simulacrum")));
+const scoped = cli({
+  ...route(name("simulacrum")),
+  children: [
+    route(name("auth0"), version("2.0.0")),
+  ] as const,
+});
+const commands = cli({
+  ...name("simulacrum"),
+  children: [
+    {
+      ...name("database"),
+      methods: ["help", "execute"] as const,
+      children: [
+        {
+          ...name("clean"),
+          methods: ["help", "execute"] as const,
+        },
+      ] as const,
+    },
+  ] as const,
+});
 const exec = cli({
   ...name("simulacrum"),
   methods: ["help", "execute"] as const,
@@ -156,6 +283,12 @@ interface Outcome {
 
 type Target = `${string} /${string}`;
 type Empty = Record<never, never>;
+type TargetOf<T> = T extends {
+  readonly type: infer M;
+  readonly route: { readonly name: infer N };
+  readonly path: infer P;
+} ? [M, N, P]
+  : never;
 
 type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   (<T>() => T extends R ? 1 : 2)
@@ -237,4 +370,10 @@ function record(value: unknown): value is Record<string, unknown> {
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
+}
+
+function expectOk<T extends { readonly ok: boolean }>(
+  result: T,
+): asserts result is Extract<T, { readonly ok: true }> {
+  expect(result.ok).toBe(true);
 }

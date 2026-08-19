@@ -1,40 +1,60 @@
+// deno-lint-ignore-file no-import-prefix
+import { expect } from "jsr:@std/expect@^1.0.19";
 import { describe, it } from "@std/testing/bdd";
+import { type } from "arktype";
+import { command } from "../lib/command.ts";
+import { name, option, route, routes, version } from "../lib/route.ts";
+import type { AnyRoute, Method, Route } from "../lib/types.ts";
 
 describe("command()", () => {
-  describe("construction", () => {
-    it.skip("creates an executable Route without an explicit executable() element", () =>
-      undefined);
-    it.skip("accepts the same elements as route() and applies them from left to right", () =>
-      undefined);
-    it.skip("preserves the literal command name and exact option model", () =>
-      undefined);
-    it.skip("does not mutate any Route supplied by an element", () =>
-      undefined);
+  it("creates an executable route without an explicit executable element", () => {
+    let result = command(name("simulacrum"));
+
+    expect(result.methods).toEqual(["help", "execute"]);
+    expectType<Equal<typeof result.name, "simulacrum">>(true);
+    expectType<Equal<Methods<typeof result>, "help" | "execute">>(true);
   });
 
-  describe("controls", () => {
-    it.skip("makes EXECUTE valid for the command route", () => undefined);
-    it.skip("keeps HELP valid for the command route", () => undefined);
-    it.skip("makes VERSION valid only when the route has a version", () =>
-      undefined);
-    it.skip("rejects a control that is not valid for the resolved route", () =>
-      undefined);
+  it("composes the same route elements from left to right", () => {
+    let auth0 = route(name("auth0"));
+    let result = command(
+      name("simulacrum"),
+      version("1.2.0"),
+      option("port", type("number")),
+      option("domain", type("string")),
+      routes(auth0),
+    );
+
+    expectType<
+      Equal<Methods<typeof result>, "help" | "execute" | "version">
+    >(true);
+    expectType<
+      Equal<Model<typeof result>, { port: number; domain: string }>
+    >(true);
+    expectType<Equal<typeof result.children, readonly [typeof auth0]>>(true);
   });
 
-  describe("nesting", () => {
-    it.skip("lets an executable command contain child routes and commands", () =>
-      undefined);
-    it.skip("executes the parent command when its route is the exact match", () =>
-      undefined);
-    it.skip("executes a child command when its route is the exact match", () =>
-      undefined);
-    it.skip("resolves a nested command to its complete route path", () =>
-      undefined);
-    it.skip("scopes command-local options to the resolved route", () =>
-      undefined);
-    it.skip("keeps routing tokens distinct from positional arguments", () =>
-      undefined);
-    it.skip("infers the executed config from global, ancestor, and command-local options", () =>
-      undefined);
+  it("does not mutate the route used to start the command", () => {
+    let start = name("simulacrum");
+    let result = command(start);
+
+    expect(start.methods).toEqual(["help"]);
+    expect(result.methods).toEqual(["help", "execute"]);
   });
 });
+
+type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
+  (<T>() => T extends R ? 1 : 2)
+  ? (<T>() => T extends R ? 1 : 2) extends (<T>() => T extends L ? 1 : 2) ? true
+  : false
+  : false;
+
+type Model<R extends AnyRoute> = R extends
+  Route<string, Method, infer T, readonly AnyRoute[]> ? T
+  : never;
+
+type Methods<R extends AnyRoute> = R["methods"][number];
+
+function expectType<T extends true>(_value: T): void {
+  // Compile-time assertion.
+}

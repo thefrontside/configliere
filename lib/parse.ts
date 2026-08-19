@@ -8,6 +8,7 @@ import {
 } from "./tokenize.ts";
 import { Tokenizer } from "./tokenizer.ts";
 import type {
+  AnyResolve,
   AnyRoute,
   Input,
   Method,
@@ -19,12 +20,12 @@ import type {
 export function parse<const R extends AnyRoute>(
   route: R,
   input: Input,
-): Result<Resolve<R, Path>>;
+): Result<Resolve<R>>;
 
 export function parse(
   route: AnyRoute,
   input: Input,
-): Result<Resolve<AnyRoute, Path>> {
+): Result<AnyResolve> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claimAll(flags("-h", "--help"));
   let version = help.rest.claimAll(flags("-v", "--version"));
@@ -53,10 +54,10 @@ export function parse(
     return {
       ok: false,
       code: "method-not-allowed",
-      route,
-      path: [],
+      route: match.route,
+      path: match.path,
       method: method,
-      allowed: route.methods,
+      allowed: match.route.methods,
     };
   }
 }
@@ -77,7 +78,7 @@ interface Segment {
   tokens: Array<Flag | Word | Setter>;
 }
 
-export function search(options: SearchOptions): [Segment, ...Segment[]] {
+function search(options: SearchOptions): [Segment, ...Segment[]] {
   const { route, tokenizer } = options;
   const segment: Segment = {
     route,

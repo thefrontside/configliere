@@ -48,10 +48,49 @@ export interface Failure<C extends Status> {
 
 export type Result<T> = T | MethodNotAllowed | UnprocessableContent;
 
-export type Resolve<R extends AnyRoute, P extends Path> =
+export type Resolve<R extends AnyRoute> = ResolveAt<R, []>;
+
+type ResolveAt<
+  R extends AnyRoute,
+  P extends Path,
+> =
+  | ResolveRoute<R, P>
+  | ResolveChildren<R["children"], P>;
+
+type ResolveRoute<
+  R extends AnyRoute,
+  P extends Path,
+> =
   | Help<R, P>
-  | ("version" extends MethodsOf<R> ? Version<R, P> : never)
-  | ("execute" extends MethodsOf<R> ? Execute<R, P> : never);
+  | (
+    "version" extends MethodsOf<R>
+      ? Version<R, P>
+      : never
+  )
+  | (
+    "execute" extends MethodsOf<R>
+      ? Execute<R, P>
+      : never
+  );
+
+export type AnyResolve =
+  | Help<AnyRoute, Path>
+  | Version<AnyRoute, Path>
+  | Execute<AnyRoute, Path>;
+
+type ResolveChildren<
+  C extends readonly AnyRoute[],
+  P extends Path,
+> = C extends readonly [
+  infer Head extends AnyRoute,
+  ...infer Tail extends readonly AnyRoute[],
+]
+  ? (
+    | ResolveAt<Head, [...P, Head["name"]]>
+    | ResolveChildren<Tail, P>
+  )
+  : never;
+
 
 export type Help<R extends AnyRoute, P extends Path> = {
   readonly ok: true;
