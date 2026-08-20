@@ -4,6 +4,12 @@ import type { Literal } from "./tokenize.ts";
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
 
+export interface Definition<N extends string> {
+  name: N;
+  description?: string;
+}
+
+
 export interface Route<
   N extends string,
   M extends Method,
@@ -19,6 +25,10 @@ export interface Route<
   readonly children: C;
 }
 
+export type ModelOf<R extends AnyRoute> = R extends
+  Route<string, Method, infer T, readonly AnyRoute[]> ? T
+  : never;
+
 export interface AnyRoute {
   readonly name: string;
   readonly methods: readonly Method[];
@@ -33,7 +43,7 @@ export type MethodsOf<R extends AnyRoute> = R["methods"][number];
 export type Path = readonly string[];
 
 export interface Param<K extends string, T> {
-  key: K;
+  name: K;
   schema: Schema<T>;
 }
 

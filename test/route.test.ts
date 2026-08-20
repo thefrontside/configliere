@@ -1,14 +1,16 @@
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
-import { name, option, route, version } from "../lib/route.ts";
+import { option } from "../lib/option.ts";
+import { schema } from "../lib/param.ts";
+import { name, route, version } from "../lib/route.ts";
 import type { AnyRoute, Method, Route } from "../lib/types.ts";
 
 describe("route() types", () => {
   it("preserves the literal route name through each element", () => {
     let result = route(
       name("simulacrum"),
-      option("port", type("number")),
-      option("domain", type("string")),
+      option(name("port"), schema(type("number"))),
+      option(name("domain"), schema(type("string"))),
     );
 
     expectType<Equal<typeof result.name, "simulacrum">>(true);
@@ -23,7 +25,7 @@ describe("route() types", () => {
   it("preserves supported methods while adding options", () => {
     let result = route(
       name("simulacrum"),
-      option("port", type("number")),
+      option(name("port"), schema(type("number"))),
     );
 
     expectType<Equal<Methods<typeof result>, "help">>(true);
@@ -32,7 +34,7 @@ describe("route() types", () => {
   it("adds version to the supported methods", () => {
     let result = route(
       name("simulacrum"),
-      option("port", type("number")),
+      option(name("port"), schema(type("number"))),
       version("1.2.0"),
     );
 
@@ -43,7 +45,7 @@ describe("route() types", () => {
   it("infers a plain object model from option schema outputs", () => {
     let result = route(
       name("simulacrum"),
-      option("port", type("number")),
+      option(name("port"), schema(type("number"))),
     );
 
     expectType<Equal<Model<typeof result>, { port: number }>>(true);
@@ -52,8 +54,8 @@ describe("route() types", () => {
   it("preserves exact option keys and values across several elements", () => {
     let result = route(
       name("simulacrum"),
-      option("port", type("number")),
-      option("domain", type("string")),
+      option(name("port"), schema(type("number"))),
+      option(name("domain"), schema(type("string"))),
     );
 
     expectType<
@@ -67,7 +69,7 @@ describe("route() types", () => {
       ...name("simulacrum"),
       children: [auth0] as const,
     };
-    let result = option("port", type("number"))(parent);
+    let result = option(name("port"), schema(type("number")))(parent);
 
     expectType<
       Equal<typeof result.children, readonly [typeof auth0]>
@@ -106,15 +108,15 @@ describe("route() types", () => {
   it("preserves inference through the longest supported pipeline", () => {
     let result = route(
       name("simulacrum"),
-      option("one", type("string")),
-      option("two", type("number")),
-      option("three", type("boolean")),
-      option("four", type("string")),
-      option("five", type("number")),
-      option("six", type("boolean")),
-      option("seven", type("string")),
-      option("eight", type("number")),
-      option("nine", type("boolean")),
+      option(name("one"), schema(type("string"))),
+      option(name("two"), schema(type("number"))),
+      option(name("three"), schema(type("boolean"))),
+      option(name("four"), schema(type("string"))),
+      option(name("five"), schema(type("number"))),
+      option(name("six"), schema(type("boolean"))),
+      option(name("seven"), schema(type("string"))),
+      option(name("eight"), schema(type("number"))),
+      option(name("nine"), schema(type("boolean"))),
     );
 
     expectType<

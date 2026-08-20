@@ -2,15 +2,17 @@
 import { expect as base, type Expected } from "jsr:@std/expect@^1.0.19";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { option } from "../lib/option.ts";
+import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { name, option, route, version } from "../lib/route.ts";
+import { name, route, version } from "../lib/route.ts";
 import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
 let app = {
   ...route(
     name("simulacrum"),
     version("1.2.0"),
-    option("port", type("number")),
+    option(name("port"), schema(type("number"))),
   ),
   children: [
     route(name("auth0")),
@@ -173,6 +175,56 @@ describe("parse()", () => {
   });
 
   describe("binding", () => {
+    it.skip("binds an option from a following token", () => {
+      // expect(
+      //   $("simulacrum --port 9001"),
+      // ).toHaveConfig({ port: 9001 });
+    });
+
+    it.skip("binds an option from a setter", () => {
+      // expect(
+      //   $("simulacrum --port=9001"),
+      // ).toHaveConfig({ port: 9001 });
+    });
+
+    it.skip("binds a positional argument", () => {
+      // let input = cli(command(
+      //   name("simulacrum"),
+      //   argument("input", type("string")),
+      // ));
+      //
+      // expect(
+      //   input("simulacrum input.txt"),
+      // ).toHaveConfig({ input: "input.txt" });
+    });
+
+    it.skip("reports an unknown option as a binding error", () => {
+      // expect(
+      //   $("simulacrum --unknown"),
+      // ).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      // });
+    });
+
+    it.skip("reports an invalid option value as a binding error", () => {
+      // expect(
+      //   $("simulacrum --port nope"),
+      // ).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      // });
+    });
+
+    it.skip("reports a surplus argument as a binding error", () => {
+      // expect(
+      //   $("simulacrum extra"),
+      // ).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      // });
+    });
+
     it.skip("preserves parameter token order while binding", () => {
       // expect(
       //   $("simulacrum --tag first --tag=second"),
@@ -191,13 +243,7 @@ describe("parse()", () => {
       // });
     });
 
-    it.skip("treats unmatched words as arguments to the matching route", () => {
-      // expect(
-      //   $("simulacrum input.json"),
-      // ).toHaveConfig({ input: "input.json" });
-    });
-
-    it.skip("reports surplus arguments as a binding error", () => {
+    it.skip("reports several surplus arguments as a binding error", () => {
       // expect(
       //   $("simulacrum databaes clean"),
       // ).toMatchObject({

@@ -1,5 +1,5 @@
 // deno-lint-ignore-file ban-types
-import type { AnyRoute, Method, MethodsOf, Route, Schema } from "./types.ts";
+import type { AnyRoute, Method, MethodsOf, ModelOf, Route, Schema } from "./types.ts";
 
 export type RouteZero<N extends string = string> = Route<N, "help", {}, []>;
 
@@ -132,41 +132,6 @@ export function name<N extends string>(name: N): RouteZero<N> {
   return { name, methods: ["help"], params: {}, children: [] };
 }
 
-export function option<const K extends string, T>(
-  key: K,
-  schema: Schema<T>,
-): <R extends AnyRoute>(
-  route: R,
-) => Route<
-  R["name"],
-  R["methods"][number],
-  {
-    [P in keyof ({ [Q in K]: T } & Model<R>)]: ({ [Q in K]: T } & Model<R>)[P];
-  },
-  R["children"]
-> {
-  type Added = { [Q in K]: T };
-
-  return <R extends AnyRoute>(route: R) => {
-    type Output = {
-      [P in keyof (Added & Model<R>)]: (Added & Model<R>)[P];
-    };
-
-    return {
-      ...route,
-      params: {
-        ...route.params,
-        [key]: { key, schema },
-      } as Route<
-        R["name"],
-        R["methods"][number],
-        Output,
-        R["children"]
-      >["params"],
-    };
-  };
-}
-
 export function version(
   semver: string,
 ): <
@@ -201,14 +166,14 @@ export function routes<const C extends readonly AnyRoute[]>(
 ) => Route<
   R["name"],
   MethodsOf<R>,
-  Model<R>,
+  ModelOf<R>,
   readonly [...R["children"], ...C]
 > {
   return <R extends AnyRoute>(route: R) => {
     type Output = Route<
       R["name"],
       MethodsOf<R>,
-      Model<R>,
+      ModelOf<R>,
       readonly [...R["children"], ...C]
     >;
 
@@ -223,15 +188,3 @@ export function routes<const C extends readonly AnyRoute[]>(
   };
 }
 
-type Model<R extends AnyRoute> = R extends
-  Route<string, Method, infer T, readonly AnyRoute[]> ? T
-  : never;
-
-// export function routes<const TChildren extends Route<string, object>(...children: TChildren): <const R extends Route<string, object>>(route: R) => R {
-//   return (route) => {
-//     return {
-//       ....route,
-//       children: route.children.concat(children),
-//     };
-//   }
-// }

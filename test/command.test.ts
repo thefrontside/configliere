@@ -3,7 +3,9 @@ import { expect } from "jsr:@std/expect@^1.0.19";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { command } from "../lib/command.ts";
-import { name, option, route, routes, version } from "../lib/route.ts";
+import { option } from "../lib/option.ts";
+import { schema } from "../lib/param.ts";
+import { name, route, routes, version } from "../lib/route.ts";
 import type { AnyRoute, Method, Route } from "../lib/types.ts";
 
 describe("command()", () => {
@@ -20,8 +22,8 @@ describe("command()", () => {
     let result = command(
       name("simulacrum"),
       version("1.2.0"),
-      option("port", type("number")),
-      option("domain", type("string")),
+      option(name("port"), schema(type("number"))),
+      option(name("domain"), schema(type("string"))),
       routes(auth0),
     );
 
