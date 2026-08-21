@@ -163,9 +163,6 @@ describe("route() types", () => {
       >
     >(true);
   });
-
-  it.skip("infers a nested object model from a nested option address", () =>
-    undefined);
 });
 
 type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
