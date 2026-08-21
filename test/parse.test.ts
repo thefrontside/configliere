@@ -175,6 +175,31 @@ describe("parse()", () => {
   });
 
   describe("binding", () => {
+    it.skip("binds every route segment into its path-addressed model", () => {
+      // let result = request(
+      //   appWithRootHostAndServePort,
+      //   "simulacrum --host localhost serve --port 4040",
+      // );
+      //
+      // expect(result).toHaveModels({
+      //   "/": { host: "localhost" },
+      //   "/serve": { port: 4040 },
+      // });
+    });
+
+    it.skip("validates required parameters on every matched route", () => {
+      // let result = request(
+      //   appWithRequiredRootHostAndServePort,
+      //   "simulacrum serve --port 4040",
+      // );
+      //
+      // expect(result).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      //   issues: [{ path: ["host"] }],
+      // });
+    });
+
     it.skip("binds an option from a following token", () => {
       // expect(
       //   $("simulacrum --port 9001"),

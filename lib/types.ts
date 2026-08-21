@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Literal } from "./tokenize.ts";
+import type { Param } from "./param.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
@@ -8,7 +9,6 @@ export interface Definition<N extends string> {
   name: N;
   description?: string;
 }
-
 
 export interface Route<
   N extends string,
@@ -42,11 +42,6 @@ export type MethodsOf<R extends AnyRoute> = R["methods"][number];
 
 export type Path = readonly string[];
 
-export interface Param<K extends string, T> {
-  name: K;
-  schema: Schema<T>;
-}
-
 export type Input = {
   argv: string[];
 };
@@ -56,11 +51,23 @@ export interface Failure<C extends Status> {
   readonly code: C;
 }
 
-export type Result<T> = T | MethodNotAllowed | UnprocessableContent;
+export type Parse<T> = T | MethodNotAllowed | UnprocessableContent;
 
-export type Resolve<R extends AnyRoute> = ResolveAt<R, `/`>;
+export type Resolve<R extends AnyRoute> = ResolveAt<R, `/`, {}>;
 
 export type RoutePath = `/${string}`;
+
+export type RouteMap = {
+  readonly [path: RoutePath]: object;
+};
+
+export type AppendRouteModel<
+  C extends RouteMap,
+  P extends RoutePath,
+  T extends object,
+> = {
+  [K in keyof C | P]: K extends P ? T : K extends keyof C ? C[K] : never;
+};
 
 export type PathOf<R extends RoutePath> = R extends "/" ? []
   : R extends `/${infer Rest}` ? Split<Rest>
@@ -80,13 +87,15 @@ type Append<
 type ResolveAt<
   R extends AnyRoute,
   P extends RoutePath,
+  T extends RouteMap,
 > =
-  | ResolveRoute<R, P>
-  | ResolveChildren<R["children"], P>;
+  | ResolveRoute<R, P, AppendRouteModel<T, P, ModelOf<R>>>
+  | ResolveChildren<R["children"], P, AppendRouteModel<T, P, ModelOf<R>>>;
 
 type ResolveRoute<
   R extends AnyRoute,
   P extends RoutePath,
+  T extends RouteMap,
 > =
   | Help<R, P>
   | (
@@ -94,24 +103,25 @@ type ResolveRoute<
       : never
   )
   | (
-    "execute" extends MethodsOf<R> ? Execute<R, P>
+    "execute" extends MethodsOf<R> ? Execute<R, P, T>
       : never
   );
 
 export type AnyResolve =
   | Help<AnyRoute, RoutePath>
   | Version<AnyRoute, RoutePath>
-  | Execute<AnyRoute, RoutePath>;
+  | Execute<AnyRoute, RoutePath, RouteMap>;
 
 type ResolveChildren<
   C extends readonly AnyRoute[],
   P extends RoutePath,
+  T extends RouteMap,
 > = C extends readonly [
   infer Head extends AnyRoute,
   ...infer Tail extends readonly AnyRoute[],
 ] ? (
-    | ResolveAt<Head, Append<P, Head["name"]>>
-    | ResolveChildren<Tail, P>
+    | ResolveAt<Head, Append<P, Head["name"]>, T>
+    | ResolveChildren<Tail, P, T>
   )
   : never;
 
@@ -127,6 +137,7 @@ export interface Intent<
   readonly path: PathOf<P>;
   readonly literals: Iterable<Literal>;
 }
+
 export type Help<R extends AnyRoute, P extends RoutePath> = Intent<
   "help",
   R,
@@ -139,11 +150,20 @@ export type Version<R extends AnyRoute, P extends RoutePath> = Intent<
   P
 >;
 
-export type Execute<R extends AnyRoute, P extends RoutePath> = Intent<
-  "execute",
-  R,
-  P
->;
+export interface Execute<
+  R extends AnyRoute,
+  P extends RoutePath,
+  C extends RouteMap,
+> extends
+  Intent<
+    "execute",
+    R,
+    P
+  > {
+  readonly issues: readonly Issue[];
+  readonly model: C[P];
+  readonly models: C;
+}
 
 export type Status =
   | "method-not-allowed"

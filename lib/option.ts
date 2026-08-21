@@ -1,10 +1,6 @@
 import { type Param, param } from "./param.ts";
-import type {
-  AnyRoute,
-  Definition,
-  Method,
-  Route,
-} from "./types.ts";
+import { cli } from "./read.ts";
+import type { AnyRoute, Definition, Method, Route } from "./types.ts";
 
 export function option<const N extends string>(
   named: Definition<N>,
@@ -118,7 +114,7 @@ export function option(
 ): unknown {
   const added = elements.reduce<unknown>(
     (value, element) => element(value as never),
-    param(named),
+    param(named, cli([`--${named.name}`])),
   ) as Param<string, unknown>;
 
   return (route: AnyRoute) => ({
