@@ -1,7 +1,7 @@
 import { AnyToken } from "./tokenize.ts";
 
-export class Tokenizer implements Iterable<AnyToken> {
-  tokens: Iterable<AnyToken>;
+export class Tokenizer<T extends AnyToken> implements Iterable<T> {
+  tokens: Iterable<T>;
   claimed: Set<number>;
 
   constructor(
@@ -12,16 +12,45 @@ export class Tokenizer implements Iterable<AnyToken> {
     this.claimed = claimed;
   }
 
-  claimOne(): { token?: AnyToken; rest: Tokenizer } {
-    let [first] = this;
-    return {
-      token: first,
-      rest: new Tokenizer(this, first ? new Set([first.index]) : new Set()),
-    };
+  claimNext(): Claim<T> {
+    return this.claimOne<T>(() => true);
   }
 
-  claimAll(match: (token: AnyToken) => boolean): Claim {
-    let tokens: AnyToken[] = [];
+  claimOne<S extends T>(match: (token: T) => token is S): Claim<S, T>;
+  claimOne<S extends T>(match: (token: T) => boolean): Claim<T, T>;
+  claimOne(match: (token: T) => boolean): Claim<T> {
+    for (let token of this) {
+      if (match(token)) {
+        return {
+          tokens: [token],
+          rest: new Tokenizer(this, new Set([token.index])),
+        };
+      }
+    }
+    return { tokens: [], rest: this };
+  }
+
+  claimPair(match: (a: T, b: T) => boolean): Claim<T, T> {
+    let previous: T | undefined;
+    for (let token of this) {
+      if (!previous) {
+        previous = token;
+        continue;
+      }
+      if (match(previous, token)) {
+        return {
+          tokens: [previous, token],
+          rest: new Tokenizer(this, new Set([previous.index, token.index])),
+        };
+      }
+    }
+    return { tokens: [], rest: this };
+  }
+
+  claimAll<S extends T>(match: (token: T) => token is S): Claim<S, T>;
+  claimAll(match: (token: T) => boolean): Claim<T, T>;
+  claimAll(match: (token: T) => boolean): Claim<T> {
+    let tokens: T[] = [];
     let claims = new Set<number>();
     for (let token of this) {
       if (match(token)) {
@@ -42,7 +71,7 @@ export class Tokenizer implements Iterable<AnyToken> {
   }
 }
 
-export interface Claim {
-  tokens: AnyToken[];
-  rest: Tokenizer;
+export interface Claim<T extends AnyToken, R extends AnyToken = T> {
+  tokens: T[];
+  rest: Tokenizer<R>;
 }

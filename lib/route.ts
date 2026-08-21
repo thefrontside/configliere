@@ -1,5 +1,12 @@
 // deno-lint-ignore-file ban-types
-import type { AnyRoute, Method, MethodsOf, ModelOf, Route, Schema } from "./types.ts";
+import type {
+  AnyRoute,
+  Method,
+  MethodsOf,
+  ModelOf,
+  Route,
+  Schema,
+} from "./types.ts";
 
 export type RouteZero<N extends string = string> = Route<N, "help", {}, []>;
 
@@ -187,4 +194,3 @@ export function routes<const C extends readonly AnyRoute[]>(
     };
   };
 }
-

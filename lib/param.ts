@@ -1,7 +1,13 @@
-import type { AnyRoute, Definition, ModelOf, Route, Schema } from "./types.ts";
+import { type Decoder, scalar } from "./decode.ts";
+import type { ReadCLI } from "./read.ts";
+import type { AnyToken } from "./tokenize.ts";
+import type { Tokenizer } from "./tokenizer.ts";
+import type { Definition, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
   schema: Schema<T>;
+  cli: ReadCLI;
+  decode: Decoder;
 }
 
 export function param<const K extends string>(
@@ -126,6 +132,18 @@ export function param(
   let zero = {
     ...start,
     schema: unknown,
+    cli: (tokens: Tokenizer<AnyToken>) => ({
+      result: {
+        ok: true,
+        value: { exists: false },
+        issues: [],
+      },
+      claim: {
+        tokens: [],
+        rest: tokens,
+      },
+    }),
+    decode: scalar,
   };
   return elements.reduce<unknown>(
     (value, element) => element(value as never),
@@ -133,7 +151,9 @@ export function param(
   );
 }
 
-export function schema<T>(schema: Schema<T>): <const P extends Param<string,unknown>>(param: P) => Param<P["name"],T> {
+export function schema<T>(
+  schema: Schema<T>,
+): <const P extends Param<string, unknown>>(param: P) => Param<P["name"], T> {
   return (param) => ({
     ...param,
     schema,
