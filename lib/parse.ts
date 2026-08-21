@@ -45,7 +45,7 @@ export function parse(
 
   let segments = search({ route, tokenizer: literals.rest, path: [] });
   let [match] = segments;
-  
+
   if (match.route.methods.includes(method)) {
     if (method !== "execute") {
       return {
@@ -80,8 +80,6 @@ export function parse(
         issues,
       };
     }
-
-
 
     return {
       ok: true,
@@ -182,7 +180,7 @@ function model(segment: Segment): Model {
 
     if (!binding.result.ok) {
       valid = false;
-    } else  {
+    } else {
       config[param.name] = binding.result.value;
     }
   }

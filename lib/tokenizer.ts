@@ -1,4 +1,4 @@
-import { AnyToken } from "./tokenize.ts";
+import type { AnyToken } from "./tokenize.ts";
 
 export class Tokenizer<T extends AnyToken> implements Iterable<T> {
   tokens: Iterable<T>;
@@ -62,7 +62,7 @@ export class Tokenizer<T extends AnyToken> implements Iterable<T> {
     return { tokens, rest };
   }
 
-  *[Symbol.iterator]() {
+  *[Symbol.iterator](): Generator<T, void, unknown> {
     for (let token of this.tokens) {
       if (!this.claimed.has(token.index)) {
         yield token;

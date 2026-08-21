@@ -1,3 +1,4 @@
+// deno-lint-ignore-file ban-types
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Literal } from "./tokenize.ts";
 import type { Param } from "./param.ts";
