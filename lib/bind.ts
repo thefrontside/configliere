@@ -19,10 +19,8 @@ export function bind<T, P extends Param<string, T>>(options: {
   let cli = param.cli(tokens);
 
   if (cli.result.ok) {
-    let read = cli.result.value
-    let value: unknown = read.exists
-      ? read.value
-      : undefined;
+    let read = cli.result.value;
+    let value: unknown = read.exists ? read.value : undefined;
 
     let candidates = typeof value === "string" ? param.decode(value) : [value];
 

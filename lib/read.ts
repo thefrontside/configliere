@@ -61,7 +61,7 @@ export function cli(
       return name.type === "flag" && names.includes(name.text) &&
         value.type === "word";
     });
-    let [,value] = pair.tokens;
+    let [, value] = pair.tokens;
     if (value) {
       return {
         claim: pair,
