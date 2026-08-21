@@ -6,8 +6,8 @@ import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { cli as read } from "../lib/read.ts";
 import { route, routes, version } from "../lib/route.ts";
+import { toggle } from "../lib/toggle.ts";
 import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
 let app = {
@@ -27,31 +27,24 @@ let app = {
 
 let tree = command(
   name("simulacrum"),
-  option(
-    name("verbose"),
-    read(["--verbose"], { switch: true }),
-    schema(type("boolean")),
-  ),
+  toggle(name("verbose")),
   routes(
     command(
       name("database"),
-      option(
-        name("verbose"),
-        read(["--verbose"], { switch: true }),
-        schema(type("boolean")),
-      ),
+      toggle(name("verbose")),
       routes(
         command(
           name("clean"),
-          option(
-            name("verbose"),
-            read(["--verbose"], { switch: true }),
-            schema(type("boolean")),
-          ),
+          toggle(name("verbose")),
         ),
       ),
     ),
   ),
+);
+
+let toggles = command(
+  name("simulacrum"),
+  toggle(name("dryRun")),
 );
 
 let fields = command(
@@ -313,6 +306,20 @@ describe("parse()", () => {
       });
     });
 
+    it("binds default, affirmative, and negative toggles", () => {
+      expect(
+        toggled("simulacrum"),
+      ).toHaveModels({ "/": { dryRun: false } });
+
+      expect(
+        toggled("simulacrum --dry-run"),
+      ).toHaveModels({ "/": { dryRun: true } });
+
+      expect(
+        toggled("simulacrum --no-dry-run"),
+      ).toHaveModels({ "/": { dryRun: false } });
+    });
+
     it("reports several surplus arguments as a binding error", () => {
       let result = exec("simulacrum databaes clean");
 
@@ -354,6 +361,7 @@ describe("parse()", () => {
 const requests = new WeakMap<object, Request>();
 const $ = cli(app);
 const bound = cli(tree);
+const toggled = cli(toggles);
 const configured = cli(fields);
 const segmented = cli(segments);
 const plain = cli(route(name("simulacrum")));
