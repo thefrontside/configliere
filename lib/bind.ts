@@ -24,7 +24,7 @@ export function bind<T, P extends Param<string, T>>(options: {
       ? read.value
       : undefined;
 
-    let candidates = value === "string" ? param.decode(value) : [value];
+    let candidates = typeof value === "string" ? param.decode(value) : [value];
 
     if (candidates.length === 0) {
       return {
