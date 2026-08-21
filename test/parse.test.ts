@@ -1,11 +1,13 @@
 import { expect as base, type Expected } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { route, version } from "../lib/route.ts";
+import { cli as read } from "../lib/read.ts";
+import { route, routes, version } from "../lib/route.ts";
 import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
 let app = {
@@ -22,6 +24,56 @@ let app = {
     },
   ] as const,
 };
+
+let tree = command(
+  name("simulacrum"),
+  option(
+    name("verbose"),
+    read(["--verbose"], { switch: true }),
+    schema(type("boolean")),
+  ),
+  routes(
+    command(
+      name("database"),
+      option(
+        name("verbose"),
+        read(["--verbose"], { switch: true }),
+        schema(type("boolean")),
+      ),
+      routes(
+        command(
+          name("clean"),
+          option(
+            name("verbose"),
+            read(["--verbose"], { switch: true }),
+            schema(type("boolean")),
+          ),
+        ),
+      ),
+    ),
+  ),
+);
+
+let fields = command(
+  name("simulacrum"),
+  option(name("port"), schema(type("number"))),
+);
+
+let options = command(
+  name("simulacrum"),
+  option(name("dryRun"), schema(type("string | undefined"))),
+);
+
+let segments = command(
+  name("simulacrum"),
+  option(name("host"), schema(type("string"))),
+  routes(
+    command(
+      name("serve"),
+      option(name("port"), schema(type("number"))),
+    ),
+  ),
+);
 
 describe("parse()", () => {
   describe("help", () => {
@@ -175,41 +227,58 @@ describe("parse()", () => {
   });
 
   describe("binding", () => {
-    it.skip("binds every route segment into its path-addressed model", () => {
-      // let result = request(
-      //   appWithRootHostAndServePort,
-      //   "simulacrum --host localhost serve --port 4040",
-      // );
-      //
-      // expect(result).toHaveModels({
-      //   "/": { host: "localhost" },
-      //   "/serve": { port: 4040 },
-      // });
+    it("binds every route segment into its path-addressed model", () => {
+      let result = segmented(
+        "simulacrum --host localhost serve --port 4040",
+      );
+
+      expect(result).toHaveModels({
+        "/": { host: "localhost" },
+        "/serve": { port: 4040 },
+      });
     });
 
-    it.skip("validates required parameters on every matched route", () => {
-      // let result = request(
-      //   appWithRequiredRootHostAndServePort,
-      //   "simulacrum serve --port 4040",
-      // );
-      //
-      // expect(result).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      //   issues: [{ path: ["host"] }],
-      // });
+    it("validates required parameters on every matched route", () => {
+      let result = segmented("simulacrum serve --port 4040");
+
+      expect(result).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        issues: [{ path: ["host"] }],
+      });
     });
 
-    it.skip("binds an option from a following token", () => {
-      // expect(
-      //   $("simulacrum --port 9001"),
-      // ).toHaveConfig({ port: 9001 });
+    it("binds an option from a following token", () => {
+      expect(
+        configured("simulacrum --port 9001"),
+      ).toHaveModels({ "/": { port: 9001 } });
     });
 
-    it.skip("binds an option from a setter", () => {
-      // expect(
-      //   $("simulacrum --port=9001"),
-      // ).toHaveConfig({ port: 9001 });
+    it("binds an option from a setter", () => {
+      expect(
+        configured("simulacrum --port=9001"),
+      ).toHaveModels({ "/": { port: 9001 } });
+    });
+
+    it("normalizes camel-case option names to kebab-case", () => {
+      expect(
+        normalized("simulacrum --dry-run yes"),
+      ).toHaveModels({ "/": { dryRun: "yes" } });
+
+      expect(
+        normalized("simulacrum --dry-run=yes"),
+      ).toHaveModels({ "/": { dryRun: "yes" } });
+    });
+
+    it("does not retain the camel-case option spelling as an alias", () => {
+      expect(normalized("simulacrum --dryRun yes")).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        issues: [
+          { message: `unexpected "--dryRun"` },
+          { message: `unexpected "yes"` },
+        ],
+      });
     });
 
     it.skip("binds a positional argument", () => {
@@ -223,32 +292,33 @@ describe("parse()", () => {
       // ).toHaveConfig({ input: "input.txt" });
     });
 
-    it.skip("reports flags left unconsumed after binding every parameter", () => {
-      // expect(
-      //   exec("simulacrum --floop"),
-      // ).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      //   issues: [{ message: "unknown flag --floop" }],
-      // });
+    it("reports flags left unconsumed after binding every parameter", () => {
+      expect(
+        exec("simulacrum --floop"),
+      ).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        issues: [{ message: `unexpected "--floop"` }],
+      });
     });
 
-    it.skip("reports an invalid option value as a binding error", () => {
-      // expect(
-      //   $("simulacrum --port nope"),
-      // ).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      // });
+    it("reports an invalid option value as a binding error", () => {
+      expect(
+        configured("simulacrum --port nope"),
+      ).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        issues: [{ path: ["port"] }],
+      });
     });
 
-    it.skip("reports a surplus argument as a binding error", () => {
-      // expect(
-      //   $("simulacrum extra"),
-      // ).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      // });
+    it("reports a surplus argument as a binding error", () => {
+      expect(
+        exec("simulacrum extra"),
+      ).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+      });
     });
 
     it.skip("preserves parameter token order while binding", () => {
@@ -257,25 +327,23 @@ describe("parse()", () => {
       // ).toHaveConfig({ tag: ["first", "second"] });
     });
 
-    it.skip("binds parameters to the route segment that owns them", () => {
-      // expect(
-      //   $("simulacrum --verbose database --verbose clean --verbose"),
-      // ).toHaveConfig({
-      //   verbose: true,
-      //   database: {
-      //     verbose: true,
-      //     clean: { verbose: true },
-      //   },
-      // });
+    it("binds parameters to the route segment that owns them", () => {
+      let result = bound(
+        "simulacrum --verbose database --verbose clean --verbose",
+      );
+
+      expect(result).toHaveModels({
+        "/": { verbose: true },
+        "/database": { verbose: true },
+        "/database/clean": { verbose: true },
+      });
     });
 
-    it.skip("reports several surplus arguments as a binding error", () => {
-      // expect(
-      //   $("simulacrum databaes clean"),
-      // ).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      // });
+    it("reports several surplus arguments as a binding error", () => {
+      let result = exec("simulacrum databaes clean");
+
+      expectUnprocessable(result);
+      expect(result.issues).toHaveLength(2);
     });
   });
 
@@ -311,6 +379,10 @@ describe("parse()", () => {
 
 const requests = new WeakMap<object, Request>();
 const $ = cli(app);
+const bound = cli(tree);
+const configured = cli(fields);
+const normalized = cli(options);
+const segmented = cli(segments);
 const plain = cli(route(name("simulacrum")));
 const scoped = cli({
   ...route(name("simulacrum")),
@@ -340,6 +412,7 @@ const exec = cli({
 
 interface RouteExpected extends Expected {
   toHaveRoute(expected: Target): unknown;
+  toHaveModels(expected: Models): unknown;
 }
 
 interface Request {
@@ -355,6 +428,7 @@ interface Outcome {
 }
 
 type Target = `${string} /${string}`;
+type Models = Readonly<Record<string, object>>;
 type Empty = Record<never, never>;
 type TargetOf<T> = T extends {
   readonly ok: true;
@@ -390,6 +464,32 @@ base.extend({
               JSON.stringify(outcome.definition)
             }`
           : `Expected a request resolving ${expected}, but received no route intent`,
+    };
+  },
+  toHaveModels(context, expected: Models) {
+    let value = context.value;
+    let models = record(value) && value.ok === true &&
+        value.method === "execute" && record(value.models)
+      ? value.models
+      : undefined;
+
+    return {
+      pass: models !== undefined && context.equal(models, expected),
+      message: () =>
+        models === undefined
+          ? `Expected a successful EXECUTE result with models, but received ${
+            show(
+              record(value)
+                ? {
+                  ok: value.ok,
+                  code: value.code,
+                  path: value.path,
+                  issues: value.issues,
+                }
+                : value,
+            )
+          }`
+          : `Expected models ${show(expected)}, but received ${show(models)}`,
     };
   },
 });
@@ -446,6 +546,10 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function show(value: unknown): string {
+  return Deno.inspect(value, { colors: false, depth: Infinity, sorted: true });
+}
+
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
 }
@@ -454,4 +558,17 @@ function expectOk<T extends { readonly ok: boolean }>(
   result: T,
 ): asserts result is Extract<T, { readonly ok: true }> {
   expect(result.ok).toBe(true);
+}
+
+function expectUnprocessable<T extends { readonly ok: boolean }>(
+  result: T,
+): asserts result is T & {
+  readonly ok: false;
+  readonly code: "unprocessable-content";
+  readonly issues: readonly unknown[];
+} {
+  expect(result).toMatchObject({
+    ok: false,
+    code: "unprocessable-content",
+  });
 }
