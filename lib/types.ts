@@ -6,8 +6,8 @@ export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
 
 export interface Definition<N extends string> {
-  name: N;
-  description?: string;
+  readonly name: N;
+  readonly description?: string;
 }
 
 export interface Route<
@@ -15,8 +15,7 @@ export interface Route<
   M extends Method,
   T extends object,
   C extends readonly AnyRoute[],
-> {
-  readonly name: N;
+> extends Definition<N> {
   readonly methods: readonly M[];
   readonly version?: string;
   readonly params: {
@@ -29,8 +28,7 @@ export type ModelOf<R extends AnyRoute> = R extends
   Route<string, Method, infer T, readonly AnyRoute[]> ? T
   : never;
 
-export interface AnyRoute {
-  readonly name: string;
+export interface AnyRoute extends Definition<string> {
   readonly methods: readonly Method[];
   readonly version?: string;
   readonly params: Readonly<Record<string, Param<string, unknown>>>;

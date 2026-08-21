@@ -1,6 +1,6 @@
 // deno-lint-ignore-file ban-types
-import { executable, route, type RouteZero } from "./route.ts";
-import type { Route } from "./types.ts";
+import { executable, route } from "./route.ts";
+import type { Definition, Route } from "./types.ts";
 
 export type CommandZero<N extends string = string> = Route<
   N,
@@ -9,48 +9,48 @@ export type CommandZero<N extends string = string> = Route<
   []
 >;
 
-export function command<const S extends RouteZero>(
-  start: S,
-): CommandZero<S["name"]>;
+export function command<const N extends string>(
+  start: Definition<N>,
+): CommandZero<N>;
 
-export function command<const S extends RouteZero, A>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
 ): A;
 
-export function command<const S extends RouteZero, A, B>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A, B>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
 ): B;
 
-export function command<const S extends RouteZero, A, B, C>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A, B, C>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
 ): C;
 
-export function command<const S extends RouteZero, A, B, C, D>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A, B, C, D>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
 ): D;
 
-export function command<const S extends RouteZero, A, B, C, D, E>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A, B, C, D, E>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
   de: (value: D) => E,
 ): E;
 
-export function command<const S extends RouteZero, A, B, C, D, E, F>(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+export function command<const N extends string, A, B, C, D, E, F>(
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -59,7 +59,7 @@ export function command<const S extends RouteZero, A, B, C, D, E, F>(
 ): F;
 
 export function command<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -68,8 +68,8 @@ export function command<
   F,
   G,
 >(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -79,7 +79,7 @@ export function command<
 ): G;
 
 export function command<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -89,8 +89,8 @@ export function command<
   G,
   H,
 >(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -101,7 +101,7 @@ export function command<
 ): H;
 
 export function command<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -112,8 +112,8 @@ export function command<
   H,
   I,
 >(
-  start: S,
-  sa: (value: CommandZero<S["name"]>) => A,
+  start: Definition<N>,
+  na: (value: CommandZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -125,7 +125,7 @@ export function command<
 ): I;
 
 export function command(
-  start: RouteZero,
+  start: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
   return elements.reduce<unknown>(

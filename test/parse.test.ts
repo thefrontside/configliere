@@ -1,11 +1,11 @@
-// deno-lint-ignore-file no-import-prefix
-import { expect as base, type Expected } from "jsr:@std/expect@^1.0.19";
+import { expect as base, type Expected } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { name, route, version } from "../lib/route.ts";
+import { route, version } from "../lib/route.ts";
 import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
 
 let app = {
@@ -223,12 +223,13 @@ describe("parse()", () => {
       // ).toHaveConfig({ input: "input.txt" });
     });
 
-    it.skip("reports an unknown option as a binding error", () => {
+    it.skip("reports flags left unconsumed after binding every parameter", () => {
       // expect(
-      //   $("simulacrum --unknown"),
+      //   exec("simulacrum --floop"),
       // ).toMatchObject({
       //   ok: false,
       //   code: "unprocessable-content",
+      //   issues: [{ message: "unknown flag --floop" }],
       // });
     });
 
@@ -318,14 +319,14 @@ const scoped = cli({
   ] as const,
 });
 const commands = cli({
-  ...name("simulacrum"),
+  ...route(name("simulacrum")),
   children: [
     {
-      ...name("database"),
+      ...route(name("database")),
       methods: ["help", "execute"] as const,
       children: [
         {
-          ...name("clean"),
+          ...route(name("clean")),
           methods: ["help", "execute"] as const,
         },
       ] as const,
@@ -333,7 +334,7 @@ const commands = cli({
   ] as const,
 });
 const exec = cli({
-  ...name("simulacrum"),
+  ...route(name("simulacrum")),
   methods: ["help", "execute"] as const,
 });
 

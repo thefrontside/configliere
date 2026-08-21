@@ -1,8 +1,10 @@
+import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { description, name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
-import { name, route, version } from "../lib/route.ts";
+import { route, type RouteZero, version } from "../lib/route.ts";
 import type { AnyRoute, Method, Route } from "../lib/types.ts";
 
 describe("route() types", () => {
@@ -20,6 +22,31 @@ describe("route() types", () => {
     let result = route(name("simulacrum"));
 
     expectType<Equal<Methods<typeof result>, "help">>(true);
+  });
+
+  it("materializes a RouteZero before applying the first element", () => {
+    let result = route(name("simulacrum"), (zero) => {
+      expectType<Equal<typeof zero, RouteZero<"simulacrum">>>(true);
+      expect(zero).toEqual({
+        name: "simulacrum",
+        methods: ["help"],
+        params: {},
+        children: [],
+      });
+      return zero;
+    });
+
+    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
+  });
+
+  it("accepts shared definition elements in the route pipeline", () => {
+    let result = route(
+      name("simulacrum"),
+      description("manage service simulators"),
+    );
+
+    expect(result.description).toBe("manage service simulators");
+    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
   });
 
   it("preserves supported methods while adding options", () => {
@@ -66,7 +93,7 @@ describe("route() types", () => {
   it("preserves exact children while adding an option", () => {
     let auth0 = route(name("auth0"));
     let parent = {
-      ...name("simulacrum"),
+      ...route(name("simulacrum")),
       children: [auth0] as const,
     };
     let result = option(name("port"), schema(type("number")))(parent);
@@ -77,7 +104,7 @@ describe("route() types", () => {
     expectType<Equal<Model<typeof result>, { port: number }>>(true);
   });
 
-  it("rejects a first value that is not a Route", () => {
+  it("rejects a first value that is not a Definition", () => {
     check(() => {
       // @ts-expect-error route() must start with a Route.
       route("simulacrum");
