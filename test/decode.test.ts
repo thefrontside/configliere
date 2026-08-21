@@ -1,5 +1,4 @@
-// deno-lint-ignore-file no-import-prefix
-import { expect } from "jsr:@std/expect@^1.0.19";
+import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { number, scalar } from "../lib/decode.ts";
 

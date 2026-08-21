@@ -182,8 +182,8 @@ function model(segment: Segment): Model {
 
     if (!binding.result.ok) {
       valid = false;
-    } else if (binding.result.value.exists) {
-      config[param.name] = binding.result.value.value;
+    } else  {
+      config[param.name] = binding.result.value;
     }
   }
 

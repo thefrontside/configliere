@@ -4,6 +4,7 @@
   "license": "MIT",
   "publish": { "include": ["mod.ts", "README.md", "LICENSE.md"] },
   "imports": {
+    "@std/expect": "jsr:@std/expect@^1.0.19",
     "@std/testing/bdd": "jsr:@std/testing@^1.0.19/bdd",
     "arktype": "npm:arktype@^2.2.3",
     "dnt": "jsr:@deno/dnt@0.42.3",

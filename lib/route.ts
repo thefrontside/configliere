@@ -1,57 +1,57 @@
 // deno-lint-ignore-file ban-types
 import type {
   AnyRoute,
+  Definition,
   Method,
   MethodsOf,
   ModelOf,
   Route,
-  Schema,
 } from "./types.ts";
 
 export type RouteZero<N extends string = string> = Route<N, "help", {}, []>;
 
-export function route<const S extends RouteZero>(
-  start: S,
-): S;
+export function route<const N extends string>(
+  start: Definition<N>,
+): RouteZero<N>;
 
-export function route<const S extends RouteZero, A>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
 ): A;
 
-export function route<const S extends RouteZero, A, B>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A, B>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
 ): B;
 
-export function route<const S extends RouteZero, A, B, C>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A, B, C>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
 ): C;
 
-export function route<const S extends RouteZero, A, B, C, D>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A, B, C, D>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
 ): D;
 
-export function route<const S extends RouteZero, A, B, C, D, E>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A, B, C, D, E>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
   de: (value: D) => E,
 ): E;
 
-export function route<const S extends RouteZero, A, B, C, D, E, F>(
-  start: S,
-  sa: (value: S) => A,
+export function route<const N extends string, A, B, C, D, E, F>(
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -60,7 +60,7 @@ export function route<const S extends RouteZero, A, B, C, D, E, F>(
 ): F;
 
 export function route<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -69,8 +69,8 @@ export function route<
   F,
   G,
 >(
-  start: S,
-  sa: (value: S) => A,
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -80,7 +80,7 @@ export function route<
 ): G;
 
 export function route<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -90,8 +90,8 @@ export function route<
   G,
   H,
 >(
-  start: S,
-  sa: (value: S) => A,
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -102,7 +102,7 @@ export function route<
 ): H;
 
 export function route<
-  const S extends RouteZero,
+  const N extends string,
   A,
   B,
   C,
@@ -113,8 +113,8 @@ export function route<
   H,
   I,
 >(
-  start: S,
-  sa: (value: S) => A,
+  start: Definition<N>,
+  na: (value: RouteZero<N>) => A,
   ab: (value: A) => B,
   bc: (value: B) => C,
   cd: (value: C) => D,
@@ -126,17 +126,20 @@ export function route<
 ): I;
 
 export function route(
-  start: RouteZero,
+  start: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
+  let zero: RouteZero = {
+    ...start,
+    methods: ["help"],
+    params: {},
+    children: [],
+  };
+
   return elements.reduce<unknown>(
     (value, element) => element(value as never),
-    start,
+    zero,
   );
-}
-
-export function name<N extends string>(name: N): RouteZero<N> {
-  return { name, methods: ["help"], params: {}, children: [] };
 }
 
 export function version(
