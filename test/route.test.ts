@@ -144,6 +144,27 @@ describe("route() types", () => {
       option(name("seven"), schema(type("string"))),
       option(name("eight"), schema(type("number"))),
       option(name("nine"), schema(type("boolean"))),
+      option(name("ten"), schema(type("string"))),
+      option(name("eleven"), schema(type("number"))),
+      option(name("twelve"), schema(type("boolean"))),
+      option(name("thirteen"), schema(type("string"))),
+      option(name("fourteen"), schema(type("number"))),
+      option(name("fifteen"), schema(type("boolean"))),
+      option(name("sixteen"), schema(type("string"))),
+      option(name("seventeen"), schema(type("number"))),
+      option(name("eighteen"), schema(type("boolean"))),
+      option(name("nineteen"), schema(type("string"))),
+      option(name("twenty"), schema(type("number"))),
+      option(name("twentyOne"), schema(type("boolean"))),
+      option(name("twentyTwo"), schema(type("string"))),
+      option(name("twentyThree"), schema(type("number"))),
+      option(name("twentyFour"), schema(type("boolean"))),
+      option(name("twentyFive"), schema(type("string"))),
+      option(name("twentySix"), schema(type("number"))),
+      option(name("twentySeven"), schema(type("boolean"))),
+      option(name("twentyEight"), schema(type("string"))),
+      option(name("twentyNine"), schema(type("number"))),
+      option(name("thirty"), schema(type("boolean"))),
     );
 
     expectType<
@@ -159,6 +180,27 @@ describe("route() types", () => {
           seven: string;
           eight: number;
           nine: boolean;
+          ten: string;
+          eleven: number;
+          twelve: boolean;
+          thirteen: string;
+          fourteen: number;
+          fifteen: boolean;
+          sixteen: string;
+          seventeen: number;
+          eighteen: boolean;
+          nineteen: string;
+          twenty: number;
+          twentyOne: boolean;
+          twentyTwo: string;
+          twentyThree: number;
+          twentyFour: boolean;
+          twentyFive: string;
+          twentySix: number;
+          twentySeven: boolean;
+          twentyEight: string;
+          twentyNine: number;
+          thirty: boolean;
         }
       >
     >(true);
