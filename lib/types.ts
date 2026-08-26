@@ -52,20 +52,20 @@ export interface Failure<C extends Status> {
 
 export type Outcome<T> = T | MethodNotAllowed | UnprocessableContent;
 
-export type Resolve<R extends AnyRoute> = ResolveAt<R, `/`, {}>;
+export type IntentsOf<R extends AnyRoute> = IntentsAt<R, `/`, {}>;
 
 export type RoutePath = `/${string}`;
 
-export type RouteMap = {
+export type ModelsByRoute = {
   readonly [path: RoutePath]: object;
 };
 
-export type AppendRouteModel<
-  C extends RouteMap,
+export type AddModel<
+  M extends ModelsByRoute,
   P extends RoutePath,
   T extends object,
 > = {
-  [K in keyof C | P]: K extends P ? T : K extends keyof C ? C[K] : never;
+  [K in keyof M | P]: K extends P ? T : K extends keyof M ? M[K] : never;
 };
 
 export type PathOf<R extends RoutePath> = R extends "/" ? []
@@ -83,18 +83,18 @@ type Append<
 > = A extends "/" ? `/${N}`
   : `${A}/${N}`;
 
-type ResolveAt<
+type IntentsAt<
   R extends AnyRoute,
   P extends RoutePath,
-  T extends RouteMap,
+  Models extends ModelsByRoute,
 > =
-  | ResolveRoute<R, P, AppendRouteModel<T, P, ModelOf<R>>>
-  | ResolveChildren<R["children"], P, AppendRouteModel<T, P, ModelOf<R>>>;
+  | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
+  | ChildIntents<R["children"], P, AddModel<Models, P, ModelOf<R>>>;
 
-type ResolveRoute<
+type RouteIntents<
   R extends AnyRoute,
   P extends RoutePath,
-  T extends RouteMap,
+  T extends ModelsByRoute,
 > =
   | Help<R, P>
   | (
@@ -106,21 +106,21 @@ type ResolveRoute<
       : never
   );
 
-export type AnyResolve =
+export type AnyIntent =
   | Help<AnyRoute, RoutePath>
   | Version<AnyRoute, RoutePath>
-  | Execute<AnyRoute, RoutePath, RouteMap>;
+  | Execute<AnyRoute, RoutePath, ModelsByRoute>;
 
-type ResolveChildren<
+type ChildIntents<
   C extends readonly AnyRoute[],
   P extends RoutePath,
-  T extends RouteMap,
+  T extends ModelsByRoute,
 > = C extends readonly [
   infer Head extends AnyRoute,
   ...infer Tail extends readonly AnyRoute[],
 ] ? (
-    | ResolveAt<Head, Append<P, Head["name"]>, T>
-    | ResolveChildren<Tail, P, T>
+    | IntentsAt<Head, Append<P, Head["name"]>, T>
+    | ChildIntents<Tail, P, T>
   )
   : never;
 
@@ -152,16 +152,11 @@ export type Version<R extends AnyRoute, P extends RoutePath> = Intent<
 export interface Execute<
   R extends AnyRoute,
   P extends RoutePath,
-  C extends RouteMap,
-> extends
-  Intent<
-    "execute",
-    R,
-    P
-  > {
+  Models extends ModelsByRoute,
+> extends Intent<"execute", R, P> {
   readonly issues: readonly Issue[];
-  readonly model: C[P];
-  readonly models: C;
+  readonly model: Models[P];
+  readonly models: Models;
 }
 
 export type Status =
