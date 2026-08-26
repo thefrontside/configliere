@@ -50,7 +50,7 @@ export interface Failure<C extends Status> {
   readonly code: C;
 }
 
-export type Parse<T> = T | MethodNotAllowed | UnprocessableContent;
+export type Outcome<T> = T | MethodNotAllowed | UnprocessableContent;
 
 export type Resolve<R extends AnyRoute> = ResolveAt<R, `/`, {}>;
 

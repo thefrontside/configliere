@@ -14,7 +14,7 @@ import type {
   Input,
   Issue,
   Method,
-  Parse,
+  Outcome,
   Path,
   Resolve,
   RoutePath,
@@ -23,12 +23,12 @@ import type {
 export function parse<const R extends AnyRoute>(
   route: R,
   input: Input,
-): Parse<Resolve<R>>;
+): Outcome<Resolve<R>>;
 
 export function parse(
   route: AnyRoute,
   input: Input,
-): Parse<AnyResolve> {
+): Outcome<AnyResolve> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claimAll(flags("-h", "--help"));
   let version = help.rest.claimAll(flags("-v", "--version"));

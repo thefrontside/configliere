@@ -40,7 +40,7 @@ export type {
   MethodNotAllowed,
   MethodsOf,
   ModelOf,
-  Parse,
+  Outcome as Parse,
   Path,
   PathOf,
   Resolve,
