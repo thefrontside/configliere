@@ -105,7 +105,7 @@ parameters. Help and version are resolved before execution validation, so
 ## Add commands, keep dispatch flat
 
 Routes form a tree, but callers do not have to mirror that tree with nested
-conditionals. `Resolve<typeof app>` is a flat union of every method and route
+conditionals. `IntentsOf<typeof app>` is a flat union of every method and route
 the definition can reach, so `result.route` is another useful discriminant.
 
 ```ts

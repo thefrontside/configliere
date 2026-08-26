@@ -8,7 +8,7 @@ import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import type { AnyRoute, Resolve, Route } from "../lib/types.ts";
+import type { AnyRoute, IntentsOf, Route } from "../lib/types.ts";
 
 let app = {
   ...route(
@@ -338,9 +338,9 @@ describe("parse()", () => {
         []
       >;
 
-      expectType<Equal<Resolve<Plain>["method"], "help">>(true);
+      expectType<Equal<IntentsOf<Plain>["method"], "help">>(true);
       expectType<
-        Equal<Resolve<Versioned>["method"], "help" | "version">
+        Equal<IntentsOf<Versioned>["method"], "help" | "version">
       >(true);
     });
 

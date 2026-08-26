@@ -9,26 +9,26 @@ import {
 } from "./tokenize.ts";
 import { Tokenizer } from "./tokenizer.ts";
 import type {
-  AnyResolve,
+  AnyIntent,
   AnyRoute,
   Input,
   Issue,
   Method,
   Outcome,
   Path,
-  Resolve,
+  IntentsOf,
   RoutePath,
 } from "./types.ts";
 
 export function parse<const R extends AnyRoute>(
   route: R,
   input: Input,
-): Outcome<Resolve<R>>;
+): Outcome<IntentsOf<R>>;
 
 export function parse(
   route: AnyRoute,
   input: Input,
-): Outcome<AnyResolve> {
+): Outcome<AnyIntent> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claimAll(flags("-h", "--help"));
   let version = help.rest.claimAll(flags("-v", "--version"));

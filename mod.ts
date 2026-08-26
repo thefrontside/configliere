@@ -28,7 +28,7 @@ export { toggle } from "./lib/toggle.ts";
 export type { Literal } from "./lib/tokenize.ts";
 
 export type {
-  AnyResolve,
+  AnyIntent as AnyResolve,
   AnyRoute,
   Definition,
   Execute,
@@ -43,9 +43,9 @@ export type {
   Outcome as Parse,
   Path,
   PathOf,
-  Resolve,
+  IntentsOf as Resolve,
   Route,
-  RouteMap,
+  ModelsByRoute as RouteMap,
   RoutePath,
   Schema,
   UnprocessableContent,
