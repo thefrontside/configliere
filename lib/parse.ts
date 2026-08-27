@@ -12,11 +12,11 @@ import type {
   AnyIntent,
   AnyRoute,
   Input,
+  IntentsOf,
   Issue,
   Method,
   Outcome,
   Path,
-  IntentsOf,
   RoutePath,
 } from "./types.ts";
 

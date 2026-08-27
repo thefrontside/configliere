@@ -60,58 +60,16 @@ export type ModelsByRoute = {
   readonly [path: RoutePath]: object;
 };
 
-export type AddModel<
-  M extends ModelsByRoute,
-  P extends RoutePath,
-  T extends object,
-> = {
-  [K in keyof M | P]: K extends P ? T : K extends keyof M ? M[K] : never;
-};
-
 export type PathOf<R extends RoutePath> = R extends "/" ? []
   : R extends `/${infer Rest}` ? Split<Rest>
   : never;
-
-type Split<S extends string> = string extends S ? Path
-  : S extends `${infer Head}/${infer Tail}` ? [Head, ...Split<Tail>]
-  : S extends "" ? []
-  : [S];
-
-type Append<
-  A extends RoutePath,
-  N extends string,
-> = A extends "/" ? `/${N}`
-  : `${A}/${N}`;
-
-type IntentsAt<
-  R extends AnyRoute,
-  P extends RoutePath,
-  Models extends ModelsByRoute,
-> =
-  | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
-  | ChildIntents<R["children"], P, AddModel<Models, P, ModelOf<R>>>;
-
-type RouteIntents<
-  R extends AnyRoute,
-  P extends RoutePath,
-  T extends ModelsByRoute,
-> =
-  | Help<R, P>
-  | (
-    "version" extends MethodsOf<R> ? Version<R, P>
-      : never
-  )
-  | (
-    "execute" extends MethodsOf<R> ? Execute<R, P, T>
-      : never
-  );
 
 export type AnyIntent =
   | Help<AnyRoute, RoutePath>
   | Version<AnyRoute, RoutePath>
   | Execute<AnyRoute, RoutePath, ModelsByRoute>;
 
-type ChildIntents<
+export type ChildIntents<
   C extends readonly AnyRoute[],
   P extends RoutePath,
   T extends ModelsByRoute,
@@ -175,3 +133,45 @@ export interface UnprocessableContent extends Failure<"unprocessable-content"> {
   readonly path: Path;
   readonly issues: Issue[];
 }
+
+type AddModel<
+  M extends ModelsByRoute,
+  P extends RoutePath,
+  T extends object,
+> = {
+  [K in keyof M | P]: K extends P ? T : K extends keyof M ? M[K] : never;
+};
+
+type Split<S extends string> = string extends S ? Path
+  : S extends `${infer Head}/${infer Tail}` ? [Head, ...Split<Tail>]
+  : S extends "" ? []
+  : [S];
+
+type Append<
+  A extends RoutePath,
+  N extends string,
+> = A extends "/" ? `/${N}`
+  : `${A}/${N}`;
+
+type IntentsAt<
+  R extends AnyRoute,
+  P extends RoutePath,
+  Models extends ModelsByRoute,
+> =
+  | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
+  | ChildIntents<R["children"], P, AddModel<Models, P, ModelOf<R>>>;
+
+type RouteIntents<
+  R extends AnyRoute,
+  P extends RoutePath,
+  T extends ModelsByRoute,
+> =
+  | Help<R, P>
+  | (
+    "version" extends MethodsOf<R> ? Version<R, P>
+      : never
+  )
+  | (
+    "execute" extends MethodsOf<R> ? Execute<R, P, T>
+      : never
+  );
