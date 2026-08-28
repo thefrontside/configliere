@@ -2,6 +2,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Literal } from "./tokenize.ts";
 import type { Param } from "./param.ts";
+import type { Result } from "./result.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
@@ -16,6 +17,7 @@ export interface Route<
   M extends Method,
   T extends object,
   C extends readonly AnyRoute[],
+  Requirements extends readonly unknown[] = [],
 > extends Definition<N> {
   readonly methods: readonly M[];
   readonly version?: string;
@@ -23,11 +25,50 @@ export interface Route<
     [K in keyof T]: K extends string ? Param<K, T[K]> : never;
   };
   readonly children: C;
+  readonly requirements?: Requirements;
 }
 
-export type ModelOf<R extends AnyRoute> = R extends
-  Route<string, Method, infer T, readonly AnyRoute[]> ? T
+export type Parse<R extends AnyRoute> = Outcome<
+  RequirementsOf<R> extends readonly [unknown, ...unknown[]] ? ParseIncrement<R>
+    : IntentsOf<R>
+>;
+
+export interface ParseIncrement<R extends AnyRoute> {
+  readonly ok: true;
+  readonly model: ModelOf<R>;
+
+  resume(
+    result: Result<RequirementOf<R>>,
+  ): Parse<ContinuationOf<R>>;
+}
+
+export type ContinuationOf<R extends AnyRoute> = R extends Route<
+  string,
+  Method,
+  object,
+  readonly AnyRoute[],
+  readonly [unknown, ...infer Tail]
+> ? Route<R["name"], R["methods"][number], ModelOf<R>, R["children"], readonly [...Tail]>
   : never;
+
+export type ModelOf<R extends AnyRoute> = R extends
+  Route<string, Method, infer T, readonly AnyRoute[], readonly unknown[]> ? T
+  : never;
+
+export type RequirementsOf<R extends AnyRoute> = R extends
+  Route<string, Method, object, readonly AnyRoute[], infer T> ? T
+  : never;
+
+export type RequirementOf<R extends AnyRoute> = RequirementsOf<R> extends
+  readonly [infer Requirement, ...readonly unknown[]] ? Requirement : never;
+
+export type WithRequirement<R extends AnyRoute, T> = Route<
+  R["name"],
+  R["methods"][number],
+  ModelOf<R>,
+  R["children"],
+  readonly [T, ...RequirementsOf<R>]
+>;
 
 export interface AnyRoute extends Definition<string> {
   readonly methods: readonly Method[];
