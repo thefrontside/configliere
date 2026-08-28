@@ -122,14 +122,16 @@ export type Status =
   | "unprocessable-content";
 
 export interface MethodNotAllowed extends Failure<"method-not-allowed"> {
-  readonly route: AnyRoute;
+  readonly route: string;
+  readonly definition: AnyRoute;
   readonly path: Path;
   readonly method: Method;
   readonly allowed: readonly Method[];
 }
 
 export interface UnprocessableContent extends Failure<"unprocessable-content"> {
-  readonly route: AnyRoute;
+  readonly route: string;
+  readonly definition: AnyRoute;
   readonly path: Path;
   readonly issues: Issue[];
 }

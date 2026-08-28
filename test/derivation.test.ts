@@ -33,7 +33,7 @@ describe("derives()", () => {
       undefined);
     it.skip("returns the next Increment or Intent instead of the intermediate Route", () =>
       undefined);
-    it.skip("can reach another checkpoint and return another Next", () =>
+    it.skip("can resume into another dynamically introduced checkpoint", () =>
       undefined);
     it.skip("resolves HELP, VERSION, and EXECUTE against the expanded route graph", () =>
       undefined);

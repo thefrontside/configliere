@@ -75,7 +75,8 @@ export function parse(
       return {
         ok: false,
         code: "unprocessable-content",
-        route: match.route,
+        route: match.id,
+        definition: match.route,
         path: match.path,
         issues,
       };
@@ -96,7 +97,8 @@ export function parse(
     return {
       ok: false,
       code: "method-not-allowed",
-      route: match.route,
+      route: match.id,
+      definition: match.route,
       path: match.path,
       method: method,
       allowed: match.route.methods,

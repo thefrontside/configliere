@@ -108,14 +108,18 @@ describe("parse()", () => {
     });
 
     it("rejects version for a route without a version", () => {
-      expect(plain("simulacrum --version")).toMatchObject({
+      let result = plain("simulacrum --version");
+
+      expect(result).toMatchObject({
         ok: false,
         code: "method-not-allowed",
-        route: { name: "simulacrum" },
         path: [],
         method: "version",
         allowed: ["help"],
       });
+      expect(typeof result.route).toBe("string");
+      expect(result.route).toBe("/");
+      expect(result.definition).toMatchObject({ name: "simulacrum" });
     });
 
     it("does not treat version after -- as a control", () => {
@@ -192,16 +196,18 @@ describe("parse()", () => {
       ).toHaveRoute("VERSION /auth0");
     });
     it("reports the matching route when a method is unsupported", () => {
-      expect(
-        $("simulacrum database clean --version"),
-      ).toMatchObject({
+      let result = $("simulacrum database clean --version");
+
+      expect(result).toMatchObject({
         ok: false,
         code: "method-not-allowed",
-        route: { name: "clean" },
         path: ["database", "clean"],
         method: "version",
         allowed: ["help"],
       });
+      expect(typeof result.route).toBe("string");
+      expect(result.route).toBe("/database/clean");
+      expect(result.definition).toMatchObject({ name: "clean" });
     });
     it("allows an executable route to contain executable children", () => {
       expect(
@@ -232,8 +238,11 @@ describe("parse()", () => {
       expect(result).toMatchObject({
         ok: false,
         code: "unprocessable-content",
+        path: ["serve"],
         issues: [{ path: ["host"] }],
       });
+      expect(result.route).toBe("/serve");
+      expect(result.definition).toMatchObject({ name: "serve" });
     });
 
     it("binds an option from a following token", () => {
