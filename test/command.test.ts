@@ -105,7 +105,7 @@ describe("command()", () => {
         p30: number;
       }>
     >(true);
-    expect(result.params.p30.name).toBe("p30");
+    expect(result.phases[0].params.p30.name).toBe("p30");
   });
 
   it("does not mutate the definition used to start the command", () => {

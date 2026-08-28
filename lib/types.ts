@@ -21,7 +21,6 @@ export interface Route<
 > extends Definition<N> {
   readonly methods: readonly M[];
   readonly version?: string;
-  readonly params: Params<T>;
   readonly children: C;
   readonly phases: readonly [Phase<T>, ...readonly Phase<T, unknown>[]];
   readonly requirements?: Requirements;
@@ -93,7 +92,6 @@ export type WithRequirement<R extends AnyRoute, T> = Route<
 export interface AnyRoute extends Definition<string> {
   readonly methods: readonly Method[];
   readonly version?: string;
-  readonly params: Readonly<Record<string, Param<string, unknown>>>;
   readonly phases: readonly [
     Phase<object>,
     ...readonly Phase<object, unknown>[],

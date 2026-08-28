@@ -1099,7 +1099,6 @@ export function route(
   let zero: RouteZero = {
     ...start,
     methods: ["help"],
-    params: {},
     children: [],
     phases: [{
       params: {},
@@ -1159,7 +1158,6 @@ export function routes<const C extends readonly AnyRoute[]>(
         ...route.children,
         ...children,
       ] as unknown as Output["children"],
-      params: route.params as Output["params"],
       phases: route.phases as Output["phases"],
     };
   };
