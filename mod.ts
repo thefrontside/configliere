@@ -28,7 +28,7 @@ export { toggle } from "./lib/toggle.ts";
 export type { Literal } from "./lib/tokenize.ts";
 
 export type {
-  AnyIntent as AnyResolve,
+  AnyIntent,
   AnyRoute,
   Definition,
   Execute,
