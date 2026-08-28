@@ -1101,6 +1101,9 @@ export function route(
     methods: ["help"],
     params: {},
     children: [],
+    phases: [{
+      params: {},
+    }],
   };
   return extend(elements)(zero);
 }
@@ -1157,6 +1160,7 @@ export function routes<const C extends readonly AnyRoute[]>(
         ...children,
       ] as unknown as Output["children"],
       params: route.params as Output["params"],
+      phases: route.phases as Output["phases"],
     };
   };
 }
