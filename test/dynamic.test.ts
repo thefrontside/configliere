@@ -3,14 +3,19 @@ import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
-import {
-  dynamic,
-} from "../lib/dynamic.ts";
+import { dynamic } from "../lib/dynamic.ts";
 import { extend } from "../lib/extend.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
+import { parse } from "../lib/parse.ts";
 import { routes, version } from "../lib/route.ts";
-import type { MethodsOf, ModelOf, RequirementOf, RequirementsOf, ContinuationOf } from "../lib/types.ts";
+import type {
+  ContinuationOf,
+  MethodsOf,
+  ModelOf,
+  RequirementOf,
+  RequirementsOf,
+} from "../lib/types.ts";
 
 describe("dynamic()", () => {
   it("infers its requirements from the resolver parameters", () => {
@@ -127,6 +132,96 @@ describe("dynamic()", () => {
     check(() => {
       // @ts-expect-error a command is a definition, not a route extension.
       dynamic((_config: Config) => command(name("serve")));
+    });
+  });
+
+  describe("parse()", () => {
+    it.skip("returns an increment with the model bound before the phase", () => {
+      let app = command(
+        name("simulacrum"),
+        option(name("config"), schema(type("string"))),
+        dynamic((_config: Config) => extend()),
+      );
+
+      let result = parse(app, {
+        argv: ["--config", "simulacrum.json"],
+      });
+
+      type Success = Extract<typeof result, { readonly ok: true }>;
+
+      // expectType<Equal<Success, ParseIncrement<typeof app>>>(true);
+      // expect(result).toMatchObject({
+      //   ok: true,
+      //   model: { config: "simulacrum.json" },
+      // });
+      // expect("method" in result).toBe(false);
+      // expect("resume" in result && typeof result.resume === "function").toBe(
+      //   true,
+      // );
+    });
+
+    it.skip("exposes only the model available before the phase", () => {
+      // let app = command(
+      //   name("simulacrum"),
+      //   option(name("config"), schema(type("string"))),
+      //   dynamic((_config: Config) =>
+      //     extend(option(name("port"), schema(type("number"))))
+      //   ),
+      // );
+      // let result = parse(app, {
+      //   argv: ["--config", "simulacrum.json"],
+      // });
+      // type Success = Extract<typeof result, { readonly ok: true }>;
+      // expectType<Equal<Success["model"], { config: string }>>(true);
+    });
+
+    it.skip("does not invoke the resolver before resume()", () => {
+      // let calls = 0;
+      // let app = command(
+      //   name("simulacrum"),
+      //   option(name("config"), schema(type("string"))),
+      //   dynamic((_config: Config) => {
+      //     calls++;
+      //     return extend();
+      //   }),
+      // );
+      // parse(app, { argv: ["--config", "simulacrum.json"] });
+      // expect(calls).toBe(0);
+    });
+
+    it.skip("does not expose an increment until preceding input is valid", () => {
+      // let app = command(
+      //   name("simulacrum"),
+      //   option(name("config"), schema(type("string"))),
+      //   dynamic((_config: Config) => extend()),
+      // );
+      // let result = parse(app, { argv: [] });
+      // expect(result).toMatchObject({
+      //   ok: false,
+      //   code: "unprocessable-content",
+      //   issues: [{ path: ["config"] }],
+      // });
+      // expect("resume" in result).toBe(false);
+    });
+
+    it.skip("leaves later tokens for the continuation", () => {
+      // let app = command(
+      //   name("simulacrum"),
+      //   option(name("config"), schema(type("string"))),
+      //   dynamic((_config: Config) =>
+      //     extend(option(name("port"), schema(type("number"))))
+      //   ),
+      // );
+      // let result = parse(app, {
+      //   argv: ["--config", "simulacrum.json", "--port", "9001"],
+      // });
+      // expect(result).toMatchObject({
+      //   ok: true,
+      //   model: { config: "simulacrum.json" },
+      // });
+      // expect("resume" in result && typeof result.resume === "function").toBe(
+      //   true,
+      // );
     });
   });
 });
