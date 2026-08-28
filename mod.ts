@@ -3,6 +3,14 @@ export type { CommandZero } from "./lib/command.ts";
 
 export { description, name } from "./lib/definition.ts";
 
+export type {
+  AnyElement,
+  AnyRouteElement,
+  Build,
+  Element,
+} from "./lib/elements.ts";
+export { withRoute } from "./lib/elements.ts";
+
 export { option } from "./lib/option.ts";
 
 export { param, schema } from "./lib/param.ts";

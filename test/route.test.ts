@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { description, name } from "../lib/definition.ts";
+import { withRoute } from "../lib/elements.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { route, type RouteZero, version } from "../lib/route.ts";
@@ -25,16 +26,39 @@ describe("route() types", () => {
   });
 
   it("materializes a RouteZero before applying the first element", () => {
-    let result = route(name("simulacrum"), (zero) => {
-      expectType<Equal<typeof zero, RouteZero<"simulacrum">>>(true);
-      expect(zero).toEqual({
-        name: "simulacrum",
-        methods: ["help"],
-        params: {},
-        children: [],
-      });
-      return zero;
-    });
+    let result = route(
+      name("simulacrum"),
+      withRoute((zero) => {
+        expectRoute(zero);
+        expect(zero).toEqual({
+          name: "simulacrum",
+          methods: ["help"],
+          params: {},
+          children: [],
+        });
+        return zero;
+      }),
+    );
+
+    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
+  });
+
+  it("materializes a RouteZero with a description", () => {
+    let result = route(
+      name("simulacrum"),
+      description("manage service simulators"),
+      withRoute((zero) => {
+        expectRoute(zero);
+        expect(zero).toEqual({
+          name: "simulacrum",
+          description: "manage service simulators",
+          methods: ["help"],
+          params: {},
+          children: [],
+        });
+        return zero;
+      }),
+    );
 
     expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
   });
@@ -46,7 +70,9 @@ describe("route() types", () => {
     );
 
     expect(result.description).toBe("manage service simulators");
-    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
+    expectType<Equal<Omit<typeof result, "end">, RouteZero<"simulacrum">>>(
+      true,
+    );
   });
 
   it("preserves supported methods while adding options", () => {
@@ -55,6 +81,24 @@ describe("route() types", () => {
       option(name("port"), schema(type("number"))),
     );
 
+    expectType<Equal<Methods<typeof result>, "help">>(true);
+  });
+
+  it("preserves type while adding options", () => {
+    let result = route(
+      name("simulacrum"),
+      option(name("port"), schema(type("number"))),
+      withRoute((zero) => {
+        expectRoute(zero);
+        expect(zero.name).toBe("simulacrum");
+        expect(zero.methods).toEqual(["help"]);
+        expect(Object.keys(zero.params)).toEqual(["port"]);
+        expect(zero.children).toEqual([]);
+        return zero;
+      }),
+    );
+
+    expectType<Equal<Model<typeof result>, { port: number }>>(true);
     expectType<Equal<Methods<typeof result>, "help">>(true);
   });
 
@@ -122,14 +166,13 @@ describe("route() types", () => {
     });
   });
 
-  it("allows an explicit final element to transform a Route into another type", () => {
+  it("allows an explicit final element to receive the route and return it as-is", () => {
     let result = route(
       name("simulacrum"),
-      (value) => ({ type: "bloop" as const, route: value }),
+      withRoute((value) => value),
     );
 
-    expectType<Equal<typeof result.type, "bloop">>(true);
-    expectType<Equal<typeof result.route.name, "simulacrum">>(true);
+    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
   });
 
   it("preserves inference through the longest supported pipeline", () => {
@@ -222,6 +265,13 @@ type Methods<R extends AnyRoute> = R["methods"][number];
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
 }
+
+// Asserts the route a wrapped transformer receives: the formal's fully
+// generic shape. The concrete accumulated type only exists at route()'s
+// inference site, after the lambda is already checked.
+function expectRoute<N extends string, SM extends Method, SP extends object, SC extends readonly AnyRoute[]>(
+  _route: Route<N, SM, SP, SC>,
+): void {}
 
 function check(_body: () => void): void {
   // Compile the callback without executing it.
