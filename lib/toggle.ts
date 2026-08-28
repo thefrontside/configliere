@@ -1,149 +1,30 @@
 import { type Param, param, schema } from "./param.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
-import type { AnyRoute, Definition, Method, Route, Schema } from "./types.ts";
-
-export function toggle<const N extends string>(
-  named: Definition<N>,
-): Toggle<N, boolean>;
+import type { AnyRoute, Definition, Schema } from "./types.ts";
+import type { Element } from "./elements.ts";
 
 export function toggle<const N extends string, T>(
   named: Definition<N>,
-  nt: (value: Param<N, boolean>) => Param<N, T>,
-): Toggle<N, T>;
+  ...transforms: readonly ((value: Param<N, unknown>) => Param<N, T>)[]
+): Element<never, { [K in N]: T }, readonly []> {
+  const transform = ((route: AnyRoute) => {
+    const added = transforms.reduce<Param<N, unknown>>(
+      (value, element) => element(value),
+      param(named, binding(named.name), schema(bool)),
+    );
 
-export function toggle<const N extends string, A, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  at: (value: A) => Param<N, T>,
-): Toggle<N, T>;
+    return {
+      ...route,
+      params: {
+        ...route.params,
+        [added.name]: added,
+      },
+    };
+  }) as unknown as Element<never, { [K in N]: T }, readonly []>;
 
-export function toggle<const N extends string, A, B, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bt: (value: B) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<const N extends string, A, B, C, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  ct: (value: C) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  dt: (value: D) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, E, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  et: (value: E) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, E, F, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  ft: (value: F) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<
-  const N extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  T,
->(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gt: (value: G) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle<
-  const N extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  H,
-  T,
->(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gh: (value: G) => H,
-  ht: (value: H) => Param<N, T>,
-): Toggle<N, T>;
-
-export function toggle(
-  named: Definition<string>,
-  ...elements: readonly ((value: never) => unknown)[]
-): unknown {
-  const added = elements.reduce<unknown>(
-    (value, element) => element(value as never),
-    param(named, binding(named.name), schema(bool)),
-  ) as Param<string, unknown>;
-
-  return (route: AnyRoute) => ({
-    ...route,
-    params: {
-      ...route.params,
-      [added.name]: added,
-    },
-  });
+  return transform;
 }
-
-type Toggle<K extends string, V> = <
-  const N extends string,
-  const M extends Method,
-  const T extends object,
-  const C extends readonly AnyRoute[],
->(
-  route: Route<N, M, T, C>,
-) => Route<
-  N,
-  M,
-  {
-    [P in keyof ({ [Q in K]: V } & T)]: (
-      { [Q in K]: V } & T
-    )[P];
-  },
-  C
->;
 
 function binding(
   name: string,
