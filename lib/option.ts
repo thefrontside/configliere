@@ -1,3 +1,4 @@
+import { extend } from "./extend.ts";
 import { type Param, param } from "./param.ts";
 import { dasherize } from "./dasherize.ts";
 import { cli } from "./read.ts";
@@ -113,8 +114,7 @@ export function option(
   named: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
-  const added = elements.reduce<unknown>(
-    (value, element) => element(value as never),
+  const added = extend(elements)(
     param(named, cli([`--${dasherize(named.name)}`])),
   ) as Param<string, unknown>;
 

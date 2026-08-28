@@ -1,4 +1,5 @@
 // deno-lint-ignore-file ban-types
+import { extend } from "./extend.ts";
 import type {
   AnyRoute,
   Definition,
@@ -1101,11 +1102,7 @@ export function route(
     params: {},
     children: [],
   };
-
-  return elements.reduce<unknown>(
-    (value, element) => element(value as never),
-    zero,
-  );
+  return extend(elements)(zero);
 }
 
 export function version(
