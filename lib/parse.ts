@@ -178,7 +178,7 @@ function model(segment: Segment): Model {
     let binding = bind({ param, tokens });
 
     tokens = binding.rest;
-    issues.push(...binding.result.issues);
+    issues.push(...binding.result.issues ?? []);
 
     if (!binding.result.ok) {
       valid = false;

@@ -1,4 +1,5 @@
 // deno-lint-ignore-file ban-types
+import { extend } from "./extend.ts";
 import { executable, route } from "./route.ts";
 import type { Definition, Route } from "./types.ts";
 
@@ -1094,8 +1095,5 @@ export function command(
   start: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
-  return elements.reduce<unknown>(
-    (value, element) => element(value as never),
-    route(start, executable()),
-  );
+  return extend(elements)(route(start, executable()));
 }
