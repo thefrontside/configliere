@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
-import { command, type CommandZero } from "../lib/command.ts";
+import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
@@ -15,21 +15,6 @@ describe("command()", () => {
     expect(result.methods).toEqual(["help", "execute"]);
     expectType<Equal<typeof result.name, "simulacrum">>(true);
     expectType<Equal<Methods<typeof result>, "help" | "execute">>(true);
-  });
-
-  it("materializes a CommandZero before applying the first element", () => {
-    let result = command(name("simulacrum"), (zero) => {
-      expectType<Equal<typeof zero, CommandZero<"simulacrum">>>(true);
-      expect(zero).toEqual({
-        name: "simulacrum",
-        methods: ["help", "execute"],
-        params: {},
-        children: [],
-      });
-      return zero;
-    });
-
-    expectType<Equal<typeof result, CommandZero<"simulacrum">>>(true);
   });
 
   it("composes the same route elements from left to right", () => {

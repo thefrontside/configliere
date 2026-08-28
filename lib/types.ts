@@ -21,10 +21,9 @@ export interface Route<
 > extends Definition<N> {
   readonly methods: readonly M[];
   readonly version?: string;
-  readonly params: {
-    [K in keyof T]: K extends string ? Param<K, T[K]> : never;
-  };
+  readonly params: Params<T>;
   readonly children: C;
+  readonly phases: readonly [Phase<T>, ...readonly Phase<T, unknown>[]];
   readonly requirements?: Requirements;
 }
 
@@ -32,6 +31,21 @@ export type Parse<R extends AnyRoute> = Outcome<
   RequirementsOf<R> extends readonly [unknown, ...unknown[]] ? ParseIncrement<R>
     : IntentsOf<R>
 >;
+
+export type Phase<Model extends object, Requirement = never> =
+  [Requirement] extends [never] ? {
+      readonly params: Params<Model>;
+    }
+    : {
+      readonly params: Params<Model>;
+      readonly resolver: (
+        requirement: Requirement,
+      ) => (input: AnyRoute) => AnyRoute;
+    };
+
+export type Params<Model extends object> = {
+  [K in keyof Model]: K extends string ? Param<K, Model[K]> : never;
+};
 
 export interface ParseIncrement<R extends AnyRoute> {
   readonly ok: true;
@@ -48,7 +62,13 @@ export type ContinuationOf<R extends AnyRoute> = R extends Route<
   object,
   readonly AnyRoute[],
   readonly [unknown, ...infer Tail]
-> ? Route<R["name"], R["methods"][number], ModelOf<R>, R["children"], readonly [...Tail]>
+> ? Route<
+    R["name"],
+    R["methods"][number],
+    ModelOf<R>,
+    R["children"],
+    readonly [...Tail]
+  >
   : never;
 
 export type ModelOf<R extends AnyRoute> = R extends
@@ -74,6 +94,10 @@ export interface AnyRoute extends Definition<string> {
   readonly methods: readonly Method[];
   readonly version?: string;
   readonly params: Readonly<Record<string, Param<string, unknown>>>;
+  readonly phases: readonly [
+    Phase<object>,
+    ...readonly Phase<object, unknown>[],
+  ];
   readonly children: readonly AnyRoute[];
 }
 

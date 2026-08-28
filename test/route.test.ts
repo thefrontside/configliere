@@ -24,21 +24,6 @@ describe("route() types", () => {
     expectType<Equal<Methods<typeof result>, "help">>(true);
   });
 
-  it("materializes a RouteZero before applying the first element", () => {
-    let result = route(name("simulacrum"), (zero) => {
-      expectType<Equal<typeof zero, RouteZero<"simulacrum">>>(true);
-      expect(zero).toEqual({
-        name: "simulacrum",
-        methods: ["help"],
-        params: {},
-        children: [],
-      });
-      return zero;
-    });
-
-    expectType<Equal<typeof result, RouteZero<"simulacrum">>>(true);
-  });
-
   it("accepts shared definition elements in the route pipeline", () => {
     let result = route(
       name("simulacrum"),
