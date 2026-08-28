@@ -118,13 +118,22 @@ export function toggle(
     param(named, binding(named.name), schema(bool)),
   ) as Param<string, unknown>;
 
-  return (route: AnyRoute) => ({
-    ...route,
-    params: {
-      ...route.params,
-      [added.name]: added,
-    },
-  });
+  return (route: AnyRoute) => {
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+    phases.push({
+      ...phase,
+      params: {
+        ...phase.params,
+        [added.name]: added,
+      },
+    });
+
+    return {
+      ...route,
+      phases,
+    };
+  };
 }
 
 type Toggle<K extends string, V> = <

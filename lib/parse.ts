@@ -174,7 +174,9 @@ function model(segment: Segment): Model {
   let issues: Issue[] = [];
   let valid = true;
 
-  for (let param of Object.values(segment.route.params)) {
+  let { phases: [phase] } = segment.route;
+
+  for (let param of Object.values(phase.params)) {
     let binding = bind({ param, tokens });
 
     tokens = binding.rest;

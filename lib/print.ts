@@ -34,7 +34,7 @@ export function printHelp<
     );
   }
 
-  let options: Row[] = Object.values(route.params).map((param) => [
+  let options: Row[] = params(route).map((param) => [
     label(param),
     param.description,
   ]);
@@ -61,6 +61,12 @@ export function printVersion<
 }
 
 type Row = readonly [label: string, description?: string];
+
+function params(route: AnyRoute): Param<string, unknown>[] {
+  return route.phases.flatMap((phase) =>
+    Object.values(phase.params) as Param<string, unknown>[]
+  );
+}
 
 function title(intent: {
   readonly path: readonly string[];
