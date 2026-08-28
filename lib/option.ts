@@ -1,3 +1,4 @@
+import { extend } from "./extend.ts";
 import { type Param, param } from "./param.ts";
 import { cli } from "./read.ts";
 import type { AnyRoute, Definition, Method, Route } from "./types.ts";
@@ -112,8 +113,7 @@ export function option(
   named: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
-  const added = elements.reduce<unknown>(
-    (value, element) => element(value as never),
+  const added = extend(elements)(
     param(named, cli([`--${named.name}`])),
   ) as Param<string, unknown>;
 
