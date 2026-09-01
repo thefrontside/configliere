@@ -8,10 +8,11 @@
     "@std/testing/bdd": "jsr:@std/testing@^1.0.19/bdd",
     "arktype": "npm:arktype@^2.2.3",
     "dnt": "jsr:@deno/dnt@0.42.3",
-    "@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0"
+    "@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0",
+    "zod": "npm:zod@^4.4.3"
   },
   "lint": {
-    "rules": { "exclude": ["prefer-const"] }
+    "rules": { "exclude": ["ban-types", "prefer-const"] }
   },
   "tasks": {
     "test": "deno test",
