@@ -12,7 +12,8 @@
     "npm:@standard-schema/spec@1.1.0": "1.1.0",
     "npm:@standard-schema/spec@^1.1.0": "1.1.0",
     "npm:arktype@^2.2.3": "2.2.3",
-    "npm:zod@*": "4.4.3"
+    "npm:zod@*": "4.4.3",
+    "npm:zod@^4.4.3": "4.4.3"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -86,7 +87,8 @@
       "jsr:@std/expect@^1.0.19",
       "jsr:@std/testing@^1.0.19",
       "npm:@standard-schema/spec@^1.1.0",
-      "npm:arktype@^2.2.3"
+      "npm:arktype@^2.2.3",
+      "npm:zod@^4.4.3"
     ]
   }
 }

@@ -8,22 +8,20 @@ import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import type { AnyRoute, IntentsOf, Route } from "../lib/types.ts";
+import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
 
-let app = {
-  ...route(
-    name("simulacrum"),
-    version("1.2.0"),
-    option(name("port"), schema(type("number"))),
-  ),
-  children: [
+let app = route(
+  name("simulacrum"),
+  version("1.2.0"),
+  option(name("port"), schema(type("number"))),
+  routes(
     route(name("auth0")),
-    {
-      ...route(name("database")),
-      children: [route(name("clean"))] as const,
-    },
-  ] as const,
-};
+    route(
+      name("database"),
+      routes(route(name("clean"))),
+    ),
+  ),
+);
 
 let tree = command(
   name("simulacrum"),
@@ -155,7 +153,7 @@ describe("parse()", () => {
         $("simulacrum --help database -- clean"),
       ).toHaveRoute("HELP /database");
     });
-    it("treats child names as route selectors before binding parameters", () => {
+    it("does not let an unknown option hide a known child route", () => {
       expect(
         $("simulacrum --target auth0 --help"),
       ).toHaveRoute("HELP /auth0");
@@ -339,12 +337,19 @@ describe("parse()", () => {
 
   describe("types", () => {
     it("exposes only methods supported by a route", () => {
-      type Plain = Route<"simulacrum", "help", Empty, []>;
+      type Plain = Route<
+        "simulacrum",
+        "help",
+        Empty,
+        [],
+        readonly [Done<Empty, []>]
+      >;
       type Versioned = Route<
         "simulacrum",
         "help" | "version",
         Empty,
-        []
+        [],
+        readonly [Done<Empty, []>]
       >;
 
       expectType<Equal<IntentsOf<Plain>["method"], "help">>(true);
@@ -374,31 +379,26 @@ const toggled = cli(toggles);
 const configured = cli(fields);
 const segmented = cli(segments);
 const plain = cli(route(name("simulacrum")));
-const scoped = cli({
-  ...route(name("simulacrum")),
-  children: [
-    route(name("auth0"), version("2.0.0")),
-  ] as const,
-});
-const commands = cli({
-  ...route(name("simulacrum")),
-  children: [
-    {
-      ...route(name("database")),
-      methods: ["help", "execute"] as const,
-      children: [
-        {
-          ...route(name("clean")),
-          methods: ["help", "execute"] as const,
-        },
-      ] as const,
-    },
-  ] as const,
-});
-const exec = cli({
-  ...route(name("simulacrum")),
-  methods: ["help", "execute"] as const,
-});
+const scoped = cli(
+  route(
+    name("simulacrum"),
+    routes(
+      route(name("auth0"), version("2.0.0")),
+    ),
+  ),
+);
+const commands = cli(
+  command(
+    name("simulacrum"),
+    routes(
+      command(
+        name("database"),
+        routes(command(name("clean"))),
+      ),
+    ),
+  ),
+);
+const exec = cli(command(name("simulacrum")));
 
 interface RouteExpected extends Expected {
   toHaveRoute(expected: Target): unknown;

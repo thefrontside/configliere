@@ -4,8 +4,9 @@ import { type } from "arktype";
 import { description, name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
-import { route, type RouteZero, version } from "../lib/route.ts";
-import type { AnyRoute, Method, Route } from "../lib/types.ts";
+import { route, routes, type RouteZero, version } from "../lib/route.ts";
+import { toggle } from "../lib/toggle.ts";
+import type { ChildrenOf, Done, ModelOf } from "../lib/types.ts";
 
 describe("route() types", () => {
   it("preserves the literal route name through each element", () => {
@@ -51,7 +52,7 @@ describe("route() types", () => {
     );
 
     expectType<Equal<Methods<typeof result>, "help" | "version">>(true);
-    expectType<Equal<Model<typeof result>, { port: number }>>(true);
+    expectType<Equal<ModelOf<typeof result>, { port: number }>>(true);
   });
 
   it("infers a plain object model from option schema outputs", () => {
@@ -60,7 +61,7 @@ describe("route() types", () => {
       option(name("port"), schema(type("number"))),
     );
 
-    expectType<Equal<Model<typeof result>, { port: number }>>(true);
+    expectType<Equal<ModelOf<typeof result>, { port: number }>>(true);
   });
 
   it("preserves exact option keys and values across several elements", () => {
@@ -71,22 +72,53 @@ describe("route() types", () => {
     );
 
     expectType<
-      Equal<Model<typeof result>, { port: number; domain: string }>
+      Equal<ModelOf<typeof result>, { port: number; domain: string }>
+    >(true);
+    expectType<
+      Equal<
+        typeof result.phases,
+        readonly [Done<{ port: number; domain: string }, []>]
+      >
     >(true);
   });
 
-  it("preserves exact children while adding an option", () => {
-    let auth0 = route(name("auth0"));
-    let parent = {
-      ...route(name("simulacrum")),
-      children: [auth0] as const,
-    };
-    let result = option(name("port"), schema(type("number")))(parent);
+  it("adds toggle output to the phase that declares it", () => {
+    let result = route(
+      name("simulacrum"),
+      option(name("config"), schema(type("string"))),
+      toggle(name("dryRun")),
+    );
 
     expectType<
-      Equal<typeof result.children, readonly [typeof auth0]>
+      Equal<ModelOf<typeof result>, { config: string; dryRun: boolean }>
     >(true);
-    expectType<Equal<Model<typeof result>, { port: number }>>(true);
+    expectType<
+      Equal<
+        typeof result.phases,
+        readonly [Done<{ config: string; dryRun: boolean }, []>]
+      >
+    >(true);
+  });
+
+  it("adds child routes to the phase that declares them", () => {
+    let serve = route(
+      name("serve"),
+      option(name("port"), schema(type("number"))),
+    );
+    let result = route(
+      name("simulacrum"),
+      routes(serve),
+    );
+
+    expectType<
+      Equal<ChildrenOf<typeof result>, readonly [typeof serve]>
+    >(true);
+    expectType<
+      Equal<
+        typeof result.phases,
+        readonly [Done<{}, readonly [typeof serve]>]
+      >
+    >(true);
   });
 
   it("rejects a first value that is not a Definition", () => {
@@ -154,7 +186,7 @@ describe("route() types", () => {
 
     expectType<
       Equal<
-        Model<typeof result>,
+        ModelOf<typeof result>,
         {
           one: string;
           two: number;
@@ -198,11 +230,8 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   : false
   : false;
 
-type Model<R extends AnyRoute> = R extends
-  Route<string, Method, infer T, readonly AnyRoute[]> ? T
-  : never;
-
-type Methods<R extends AnyRoute> = R["methods"][number];
+type Methods<R extends { readonly methods: readonly unknown[] }> =
+  R["methods"][number];
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.

@@ -12,10 +12,11 @@ import type {
   AnyIntent,
   AnyRoute,
   Input,
-  IntentsOf,
   Issue,
   Method,
   Outcome,
+  Parse,
+  ParseIncrement,
   Path,
   RoutePath,
 } from "./types.ts";
@@ -23,12 +24,12 @@ import type {
 export function parse<const R extends AnyRoute>(
   route: R,
   input: Input,
-): Outcome<IntentsOf<R>>;
+): Parse<R>;
 
 export function parse(
   route: AnyRoute,
   input: Input,
-): Outcome<AnyIntent> {
+): Outcome<AnyIntent | ParseIncrement<AnyRoute>> {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claimAll(flags("-h", "--help"));
   let version = help.rest.claimAll(flags("-v", "--version"));
@@ -140,7 +141,8 @@ function search(options: SearchOptions): [Segment, ...Segment[]] {
       segment.tokens.push(token);
     } else if (token.type === "word") {
       const { text } = token;
-      const child = route.children.find((child) => child.name === text);
+      let [phase] = route.phases;
+      const child = phase.children.find((child) => child.name === text);
       if (child) {
         return [
           ...search({
