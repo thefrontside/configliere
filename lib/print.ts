@@ -14,8 +14,9 @@ export function printHelp<
   let subject = title(intent);
   let heading = route.version ? `${subject} ${route.version}` : subject;
   let usage = `${subject} [OPTIONS]`;
+  let children = route.phases.flatMap((phase) => phase.children);
 
-  if (route.children.length > 0) {
+  if (children.length > 0) {
     usage += route.methods.includes("execute") ? " [COMMAND]" : " <COMMAND>";
   }
 
@@ -26,11 +27,11 @@ export function printHelp<
 
   lines.push("", "Usage:", `  ${usage}`);
 
-  if (route.children.length > 0) {
+  if (children.length > 0) {
     lines.push(
       "",
       "Commands:",
-      ...list(route.children.map((child) => [child.name, child.description])),
+      ...list(children.map((child) => [child.name, child.description])),
     );
   }
 

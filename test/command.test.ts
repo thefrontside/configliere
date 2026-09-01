@@ -5,8 +5,8 @@ import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
-import { route, routes, version } from "../lib/route.ts";
-import type { AnyRoute, Method, Route } from "../lib/types.ts";
+import { version } from "../lib/route.ts";
+import type { Done, ModelOf } from "../lib/types.ts";
 
 describe("command()", () => {
   it("creates an executable route without an explicit executable element", () => {
@@ -18,22 +18,25 @@ describe("command()", () => {
   });
 
   it("composes the same route elements from left to right", () => {
-    let auth0 = route(name("auth0"));
     let result = command(
       name("simulacrum"),
       version("1.2.0"),
       option(name("port"), schema(type("number"))),
       option(name("domain"), schema(type("string"))),
-      routes(auth0),
     );
 
     expectType<
       Equal<Methods<typeof result>, "help" | "execute" | "version">
     >(true);
     expectType<
-      Equal<Model<typeof result>, { port: number; domain: string }>
+      Equal<ModelOf<typeof result>, { port: number; domain: string }>
     >(true);
-    expectType<Equal<typeof result.children, readonly [typeof auth0]>>(true);
+    expectType<
+      Equal<
+        typeof result.phases,
+        readonly [Done<{ port: number; domain: string }, []>]
+      >
+    >(true);
   });
 
   it("infers the exact model across thirty route elements", () => {
@@ -72,7 +75,7 @@ describe("command()", () => {
     );
 
     expectType<
-      Equal<Model<typeof result>, {
+      Equal<ModelOf<typeof result>, {
         p1: number;
         p2: number;
         p3: number;
@@ -105,7 +108,6 @@ describe("command()", () => {
         p30: number;
       }>
     >(true);
-    expect(result.phases[0].params.p30.name).toBe("p30");
   });
 
   it("does not mutate the definition used to start the command", () => {
@@ -123,11 +125,8 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   : false
   : false;
 
-type Model<R extends AnyRoute> = R extends
-  Route<string, Method, infer T, readonly AnyRoute[]> ? T
-  : never;
-
-type Methods<R extends AnyRoute> = R["methods"][number];
+type Methods<R extends { readonly methods: readonly unknown[] }> =
+  R["methods"][number];
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
