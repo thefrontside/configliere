@@ -232,7 +232,7 @@ type RequirementIn<P extends AnyPhase> = P extends {
 type IncrementModelOf<R extends AnyRoute> = R["phases"][0] extends Next<
   infer Model,
   readonly AnyRoute[],
-  unknown
+  infer Requirement
 > ? Model
   : never;
 
