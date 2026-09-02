@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { command } from "../lib/command.ts";
@@ -12,14 +13,18 @@ import { extend } from "../lib/extend.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { version } from "../lib/route.ts";
+import { printHelp } from "../lib/print.ts";
+import { route, routes, version } from "../lib/route.ts";
 import type {
+  AnyRoute,
   ChildrenOf,
   ContinuationOf,
   Done,
   MethodsOf,
   ModelOf,
   Next,
+  Parse,
+  ParseIncrement,
   RequirementOf,
   RequirementsOf,
   Route,
@@ -190,166 +195,163 @@ describe("dynamic()", () => {
   });
 
   describe("parse()", () => {
-    it.skip("returns an increment exposing only the cumulative model before its requirement", () => {
-      let app = command(
-        name("simulacrum"),
-        option(name("config"), schema(type("string"))),
-        dynamic((_config: Config) => extend()),
-      );
+    describe("single checkpoint", () => {
+      it("returns an increment containing only its phase model", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), schema(type("string"))),
+          dynamic((_config: Config) => extend()),
+        );
+        let result = parse(app, {
+          argv: ["--config", "simulacrum.json"],
+        });
 
-      let result = parse(app, {
-        argv: ["--config", "simulacrum.json"],
+        type Success = Extract<typeof result, { readonly ok: true }>;
+
+        expectType<Equal<Success, ParseIncrement<typeof app>>>(true);
+        assertIncrement(result, { config: "simulacrum.json" });
       });
 
-      type Success = Extract<typeof result, { readonly ok: true }>;
+      it("validates its phase before exposing an increment", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), schema(type("string"))),
+          dynamic((_config: Config) => extend()),
+        );
+        let result = parse(app, { argv: [] });
 
-      // expectType<Equal<Success, ParseIncrement<typeof app>>>(true);
-      // expect(result).toMatchObject({
-      //   ok: true,
-      //   model: { config: "simulacrum.json" },
-      // });
-      // expect("method" in result).toBe(false);
-      // expect("resume" in result && typeof result.resume === "function").toBe(
-      //   true,
-      // );
-    });
-
-    it.skip("does not expose an increment until preceding input is valid", () => {
-      // let app = command(
-      //   name("simulacrum"),
-      //   option(name("config"), schema(type("string"))),
-      //   dynamic((_config: Config) => extend()),
-      // );
-      // let result = parse(app, { argv: [] });
-      // expect(result).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      //   issues: [{ path: ["config"] }],
-      // });
-      // expect("resume" in result).toBe(false);
-    });
-
-    it.skip("returns a failed requirement as unprocessable content", () => {
-      // let app = command(
-      //   name("simulacrum"),
-      //   option(name("config"), schema(type("string"))),
-      //   dynamic((_config: Config) => extend()),
-      // );
-      // let increment = parse(app, {
-      //   argv: ["--config", "broken.json"],
-      // });
-      // let result = increment.resume({
-      //   ok: false,
-      //   issues: [{ message: "could not load broken.json" }],
-      // });
-      //
-      // expect(result).toMatchObject({
-      //   ok: false,
-      //   code: "unprocessable-content",
-      //   route: "/",
-      //   path: [],
-      //   issues: [{ message: "could not load broken.json" }],
-      // });
-    });
-
-    describe("same route", () => {
-      it.skip("binds each phase from the same original CLI source", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   option(name("a"), schema(type("string"))),
-        //   dynamic((_config: Config) =>
-        //     extend(
-        //       option(name("b"), schema(type("string"))),
-        //       dynamic((_plugins: Plugins) =>
-        //         extend(option(name("c"), schema(type("string"))))
-        //       ),
-        //     )
-        //   ),
-        // );
-        // let first = parse(app, {
-        //   argv: ["--a", "one", "--b", "two", "--c", "three"],
-        // });
-        //
-        // expect(first).toMatchObject({ model: { a: "one" } });
-        // let second = first.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        // expect(second).toMatchObject({ model: { a: "one", b: "two" } });
-        //
-        // let result = second.resume({
-        //   ok: true,
-        //   value: { names: [] },
-        // });
-        // expect(result).toMatchObject({
-        //   method: "execute",
-        //   model: { a: "one", b: "two", c: "three" },
-        // });
+        expect(result).toMatchObject({
+          ok: false,
+          code: "unprocessable-content",
+          issues: [{ path: ["config"] }],
+        });
       });
 
-      it.skip("lets a later phase claim an existing value source", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   dynamic((_config: Config) =>
-        //     extend(option(name("b"), prop("b")))
-        //   ),
-        // );
-        // let increment = parse(app, {
-        //   argv: [],
-        //   values: [{ name: "settings", value: { b: "two" } }],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        //
-        // expect(result).toMatchObject({ model: { b: "two" } });
+      it("applies the returned extension and completes the parse", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), schema(type("string"))),
+          dynamic((_config: Config) =>
+            extend(option(name("port"), schema(type("number"))))
+          ),
+        );
+        let first = parse(app, {
+          argv: ["--config", "simulacrum.json", "--port", "9001"],
+        });
+
+        assertIncrement(first, { config: "simulacrum.json" });
+        let result = first.resume({
+          ok: true,
+          value: { services: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "execute",
+          route: "/",
+          model: {
+            config: "simulacrum.json",
+            port: 9001,
+          },
+        });
       });
 
-      it.skip("lets a later phase claim an existing environment source", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   dynamic((_config: Config) =>
-        //     extend(option(name("b"), env("B")))
-        //   ),
-        // );
-        // let increment = parse(app, {
-        //   argv: [],
-        //   envs: [{ name: "process", value: { B: "two" } }],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        //
-        // expect(result).toMatchObject({ model: { b: "two" } });
-      });
+      it("turns a failed requirement into unprocessable content", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), schema(type("string"))),
+          dynamic((_config: Config) => extend()),
+        );
+        let first = parse(app, {
+          argv: ["--config", "broken.json"],
+        });
 
-      it.skip("does not let a later phase rebind a completed parameter", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   option(name("a"), schema(type("string"))),
-        //   dynamic((_config: Config) =>
-        //     extend(option(name("b"), schema(type("string"))))
-        //   ),
-        // );
-        // let increment = parse(app, {
-        //   argv: ["--a", "one", "--b", "two", "--a", "three"],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   ok: false,
-        //   code: "unprocessable-content",
-        //   issues: [{ message: 'unexpected "--a"' }],
-        // });
+        assertIncrement(first, { config: "broken.json" });
+        let result = first.resume({
+          ok: false,
+          issues: [{ message: "could not load broken.json" }],
+        });
+
+        expect(result).toMatchObject({
+          ok: false,
+          code: "unprocessable-content",
+          route: "/",
+          path: [],
+          issues: [{ message: "could not load broken.json" }],
+        });
       });
     });
 
-    describe("route segments", () => {
+    describe("recursive phases", () => {
+      it("binds every phase from the original CLI source", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("a"), schema(type("string"))),
+          dynamic((_config: Config) =>
+            extend(
+              option(name("b"), schema(type("string"))),
+              dynamic((_plugins: Plugins) =>
+                extend(option(name("c"), schema(type("string"))))
+              ),
+            )
+          ),
+        );
+        let first = parse(app, {
+          argv: ["--a", "one", "--b", "two", "--c", "three"],
+        });
+
+        assertIncrement(first, { a: "one" });
+        let second = first.resume({
+          ok: true,
+          value: { services: [] },
+        });
+
+        assertIncrement(second, { b: "two" });
+        let result = second.resume({
+          ok: true,
+          value: { names: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "execute",
+          route: "/",
+          model: { a: "one", b: "two", c: "three" },
+        });
+      });
+
+      it("does not let a later phase rebind a completed parameter", () => {
+        let app = command(
+          name("simulacrum"),
+          option(name("a"), schema(type("string"))),
+          dynamic((_config: Config) =>
+            extend(option(name("b"), schema(type("string"))))
+          ),
+        );
+        let first = parse(app, {
+          argv: ["--a", "one", "--b", "two", "--a", "three"],
+        });
+
+        assertIncrement(first, { a: "one" });
+        let result = first.resume({
+          ok: true,
+          value: { services: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: false,
+          code: "unprocessable-content",
+          issues: [
+            { message: 'unexpected "--a"' },
+            { message: 'unexpected "three"' },
+          ],
+        });
+      });
+    });
+
+    describe("dynamic routes", () => {
+      // These sketches remain commented until Parse<R> includes increments
+      // reachable through child routes.
       it.skip("assigns precursor tokens to the parent of a dynamic child", () => {
         // let auth0 = command(name("auth0"));
         // let clean = command(
@@ -501,32 +503,6 @@ describe("dynamic()", () => {
         // });
       });
 
-      it.skip("does not reconsider a child from a completed phase", () => {
-        // let auth0 = command(name("auth0"));
-        // let clean = command(
-        //   name("clean"),
-        //   routes(auth0),
-        //   dynamic((_plugins: Plugins) =>
-        //     extend(toggle(name("audit")))
-        //   ),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, {
-        //   argv: ["clean", "--audit", "auth0"],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: [] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   ok: false,
-        //   code: "unprocessable-content",
-        //   route: "/clean",
-        //   issues: [{ message: 'unexpected "auth0"' }],
-        // });
-      });
-
       it.skip("defers an unknown token until the route frame is final", () => {
         // let clean = command(
         //   name("clean"),
@@ -549,8 +525,9 @@ describe("dynamic()", () => {
       });
     });
 
-    describe("route frames", () => {
-      it.skip("carries cumulative path-addressed models through nested increments", () => {
+    describe("nested route frames", () => {
+      // This sketch also depends on recursively typed child increments.
+      it.skip("yields phase-local models and finishes with path-addressed models", () => {
         // let clean = command(
         //   name("clean"),
         //   option(name("truncate"), schema(type("boolean"))),
@@ -565,16 +542,22 @@ describe("dynamic()", () => {
         // let root = parse(app, {
         //   argv: ["--config", "app.json", "clean", "--truncate", "true"],
         // });
-        // expect(root).toMatchObject({
-        //   route: "/clean",
-        //   models: {
-        //     "/": { config: "app.json" },
-        //     "/clean": { truncate: true },
-        //   },
-        // });
+        // increment(root, { config: "app.json" });
         //
-        // let child = root.resume({ ok: true, value: { root: true } });
-        // expect(child).toMatchObject({
+        // let child = root.resume({
+        //   ok: true,
+        //   value: { root: true },
+        // });
+        // increment(child, { truncate: true });
+        //
+        // let result = child.resume({
+        //   ok: true,
+        //   value: { child: true },
+        // });
+        // expect(result).toMatchObject({
+        //   ok: true,
+        //   method: "execute",
+        //   route: "/clean",
         //   models: {
         //     "/": { config: "app.json" },
         //     "/clean": { truncate: true },
@@ -584,41 +567,173 @@ describe("dynamic()", () => {
     });
 
     describe("controls", () => {
-      it.skip("waits for a phase that can introduce the requested help route", () => {
-        // let auth0 = command(name("auth0"));
+      it("waits for a phase that can introduce the requested help route", () => {
+        let auth0 = command(name("auth0"));
+        let app = command(
+          name("simulacrum"),
+          dynamic((_plugins: Plugins) => extend(routes(auth0))),
+        );
+        let first = parse(app, { argv: ["auth0", "--help"] });
+
+        assertIncrement(first, {});
+        let result = first.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "help",
+          route: "/auth0",
+        });
+      });
+
+      it("waits for all root phases before returning root help", () => {
+        let app = command(
+          name("simulacrum"),
+          dynamic((_plugins: Plugins) => extend()),
+        );
+        let first = parse(app, { argv: ["--help"] });
+
+        assertIncrement(first, {});
+        let result = first.resume({
+          ok: true,
+          value: { names: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "help",
+          route: "/",
+        });
+      });
+
+      it("prints declarations from both sides of a dynamic phase", () => {
+        let app = route(
+          name("simulacrum"),
+          option(name("config")),
+          dynamic((_plugins: Plugins) => option(name("dyno"))),
+          option(name("delay")),
+          routes(command(name("serve"))),
+        );
+        let first = parse(app, { argv: ["--help"] });
+
+        assertIncrement(first, { config: undefined });
+        let result = first.resume({
+          ok: true,
+          value: { names: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "help",
+          route: "/",
+        });
+        if (!result.ok || result.method !== "help") {
+          throw new Error("expected help");
+        }
+
+        expect(printHelp(result)).toBe(`simulacrum
+
+Usage:
+  simulacrum [OPTIONS] <COMMAND>
+
+Commands:
+  serve
+
+Options:
+  --config <VALUE>
+  --dyno <VALUE>
+  --delay <VALUE>
+  -h, --help        Print help`);
+      });
+
+      it("resolves version against a route introduced by a phase", () => {
+        let release = route(name("release"), version("2.0.0"));
+        let app = command(
+          name("simulacrum"),
+          dynamic((_plugins: Plugins) => extend(routes(release))),
+        );
+        let first = parse(app, { argv: ["release", "--version"] });
+
+        assertIncrement(first, {});
+        let result = first.resume({
+          ok: true,
+          value: { names: ["release"] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "version",
+          route: "/release",
+        });
+      });
+
+      it("resolves execute against a route introduced by a phase", () => {
+        let serve = command(name("serve"));
+        let app = command(
+          name("simulacrum"),
+          dynamic((_plugins: Plugins) => extend(routes(serve))),
+        );
+        let first = parse(app, { argv: ["serve"] });
+
+        assertIncrement(first, {});
+        let result = first.resume({
+          ok: true,
+          value: { names: ["serve"] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "execute",
+          route: "/serve",
+        });
+      });
+    });
+
+    describe("future sources", () => {
+      // Input does not expose value or environment sources yet.
+      it.skip("lets a later phase claim an existing value source", () => {
         // let app = command(
         //   name("simulacrum"),
-        //   dynamic((_plugins: Plugins) => extend(routes(auth0))),
+        //   dynamic((_config: Config) =>
+        //     extend(option(name("b"), prop("b")))
+        //   ),
         // );
-        // let increment = parse(app, { argv: ["auth0", "--help"] });
-        //
-        // expect("method" in increment).toBe(false);
-        // let result = increment.resume({
+        // let first = parse(app, {
+        //   argv: [],
+        //   values: [{ name: "settings", value: { b: "two" } }],
+        // });
+        // increment(first, {});
+        // let result = first.resume({
         //   ok: true,
-        //   value: { names: ["auth0"] },
+        //   value: { services: [] },
         // });
         // expect(result).toMatchObject({
-        //   ok: true,
-        //   method: "help",
-        //   route: "/auth0",
+        //   method: "execute",
+        //   model: { b: "two" },
         // });
       });
 
-      it.skip("waits for all root phases before returning root help", () => {
+      it.skip("lets a later phase claim an existing environment source", () => {
         // let app = command(
         //   name("simulacrum"),
-        //   dynamic((_plugins: Plugins) => extend()),
+        //   dynamic((_config: Config) =>
+        //     extend(option(name("b"), env("B")))
+        //   ),
         // );
-        // let increment = parse(app, { argv: ["--help"] });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: [] },
+        // let first = parse(app, {
+        //   argv: [],
+        //   envs: [{ name: "process", value: { B: "two" } }],
         // });
-        //
-        // expect(result).toMatchObject({
+        // increment(first, {});
+        // let result = first.resume({
         //   ok: true,
-        //   method: "help",
-        //   route: "/",
+        //   value: { services: [] },
+        // });
+        // expect(result).toMatchObject({
+        //   method: "execute",
+        //   model: { b: "two" },
         // });
       });
     });
@@ -642,6 +757,14 @@ type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   ? (<T>() => T extends R ? 1 : 2) extends (<T>() => T extends L ? 1 : 2) ? true
   : false
   : false;
+
+function assertIncrement<R extends AnyRoute>(
+  result: Parse<R>,
+  model: object,
+): asserts result is Parse<R> & ParseIncrement<R> {
+  expect(result).toMatchObject({ ok: true, model });
+  expect("resume" in result).toBe(true);
+}
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
