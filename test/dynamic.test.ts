@@ -352,8 +352,8 @@ describe("dynamic()", () => {
     });
 
     describe("dynamic routes", () => {
-      // These sketches remain commented until Parse<R> includes increments
-      // reachable through child routes.
+      // Runtime assertions bridge child increments until Parse<R> includes
+      // them statically.
       it("assigns precursor tokens to the parent of a dynamic child", () => {
         let auth0 = command(name("auth0"));
         let clean = command(
@@ -371,7 +371,7 @@ describe("dynamic()", () => {
           model: { truncate: true },
         });
 
-        assertRuntimeIncrement(increment);
+        assertAnyIncrement(increment);
 
         let result = increment.resume({
           ok: true,
@@ -388,186 +388,217 @@ describe("dynamic()", () => {
         });
       });
 
-      it.skip("assigns tokens after a dynamic selector to the child", () => {
-        // let auth0 = command(name("auth0"), toggle(name("verbose")));
-        // let clean = command(
-        //   name("clean"),
-        //   toggle(name("verbose")),
-        //   dynamic((_plugins: Plugins) => extend(routes(auth0))),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, {
-        //   argv: ["clean", "auth0", "--verbose"],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: ["auth0"] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   route: "/clean/auth0",
-        //   models: {
-        //     "/": {},
-        //     "/clean": { verbose: false },
-        //     "/clean/auth0": { verbose: true },
-        //   },
-        // });
+      it("assigns tokens after a dynamic selector to the child", () => {
+        let auth0 = command(name("auth0"), toggle(name("verbose")));
+        let clean = command(
+          name("clean"),
+          toggle(name("verbose")),
+          dynamic((_plugins: Plugins) => extend(routes(auth0))),
+        );
+        let app = command(name("simulacrum"), routes(clean));
+        let increment = parse(app, {
+          argv: ["clean", "auth0", "--verbose"],
+        });
+
+        expect(increment).toMatchObject({
+          route: "/clean",
+          model: { verbose: false },
+        });
+        assertAnyIncrement(increment);
+
+        let result = increment.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          method: "execute",
+          route: "/clean/auth0",
+          models: {
+            "/": {},
+            "/clean": { verbose: false },
+            "/clean/auth0": { verbose: true },
+          },
+        });
       });
 
-      it.skip("adds parameters and children to the same later phase", () => {
-        // let auth0 = command(name("auth0"));
-        // let clean = command(
-        //   name("clean"),
-        //   dynamic((_plugins: Plugins) =>
-        //     extend(
-        //       toggle(name("audit")),
-        //       routes(auth0),
-        //     )
-        //   ),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, {
-        //   argv: ["clean", "--audit", "auth0"],
-        // });
-        // expect(increment).toMatchObject({
-        //   ok: true,
-        //   route: "/clean",
-        //   model: {},
-        // });
-        // expect("method" in increment).toBe(false);
-        //
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: ["auth0"] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   route: "/clean/auth0",
-        //   models: {
-        //     "/": {},
-        //     "/clean": { audit: true },
-        //     "/clean/auth0": {},
-        //   },
-        // });
+      it("adds parameters and children to the same later phase", () => {
+        let auth0 = command(name("auth0"));
+        let clean = command(
+          name("clean"),
+          dynamic((_plugins: Plugins) =>
+            extend(
+              toggle(name("audit")),
+              routes(auth0),
+            )
+          ),
+        );
+        let app = command(name("simulacrum"), routes(clean));
+        let increment = parse(app, {
+          argv: ["clean", "--audit", "auth0"],
+        });
+
+        expect(increment).toMatchObject({
+          route: "/clean",
+          model: {},
+        });
+        assertAnyIncrement(increment);
+
+        let result = increment.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          method: "execute",
+          route: "/clean/auth0",
+          models: {
+            "/": {},
+            "/clean": { audit: true },
+            "/clean/auth0": {},
+          },
+        });
       });
 
-      it.skip("lets an active parameter capture a word before treating it as a child selector", () => {
-        // let auth0 = command(name("auth0"));
-        // let clean = command(
-        //   name("clean"),
-        //   dynamic((_plugins: Plugins) =>
-        //     extend(
-        //       option(name("target"), schema(type("string"))),
-        //       routes(auth0),
-        //     )
-        //   ),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, {
-        //   argv: ["clean", "--target", "auth0"],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: ["auth0"] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   method: "execute",
-        //   route: "/clean",
-        //   model: { target: "auth0" },
-        // });
+      it("gives a dynamic child selector priority over an option value", () => {
+        let auth0 = command(name("auth0"));
+        let clean = command(
+          name("clean"),
+          dynamic((_plugins: Plugins) =>
+            extend(
+              option(name("target"), schema(type("string"))),
+              routes(auth0),
+            )
+          ),
+        );
+        let app = command(name("simulacrum"), routes(clean));
+        let increment = parse(app, {
+          argv: ["clean", "--target", "auth0"],
+        });
+
+        assertAnyIncrement(increment);
+        let result = increment.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          ok: false,
+          code: "unprocessable-content",
+          route: "/clean/auth0",
+          issues: [{ message: "--target requires a value" }],
+        });
       });
 
-      it.skip("does not let a parent claim tokens after its child selector", () => {
-        // let auth0 = command(name("auth0"), toggle(name("audit")));
-        // let clean = command(
-        //   name("clean"),
-        //   dynamic((_plugins: Plugins) =>
-        //     extend(
-        //       toggle(name("audit")),
-        //       routes(auth0),
-        //     )
-        //   ),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, {
-        //   argv: ["clean", "auth0", "--audit"],
-        // });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: ["auth0"] },
-        // });
-        //
-        // expect(result).toMatchObject({
-        //   route: "/clean/auth0",
-        //   models: {
-        //     "/": {},
-        //     "/clean": { audit: false },
-        //     "/clean/auth0": { audit: true },
-        //   },
-        // });
+      it("does not let a parent claim tokens after its child selector", () => {
+        let auth0 = command(name("auth0"), toggle(name("audit")));
+        let clean = command(
+          name("clean"),
+          dynamic((_plugins: Plugins) =>
+            extend(
+              toggle(name("audit")),
+              routes(auth0),
+            )
+          ),
+        );
+        let app = command(name("simulacrum"), routes(clean));
+        let increment = parse(app, {
+          argv: ["clean", "auth0", "--audit"],
+        });
+
+        expect(increment).toMatchObject({
+          route: "/clean",
+          model: {},
+        });
+        assertAnyIncrement(increment);
+
+        let result = increment.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          method: "execute",
+          route: "/clean/auth0",
+          models: {
+            "/": {},
+            "/clean": { audit: false },
+            "/clean/auth0": { audit: true },
+          },
+        });
       });
 
-      it.skip("defers an unknown token until the route frame is final", () => {
-        // let clean = command(
-        //   name("clean"),
-        //   dynamic((_plugins: Plugins) => extend()),
-        // );
-        // let app = command(name("simulacrum"), routes(clean));
-        // let increment = parse(app, { argv: ["clean", "auth0"] });
-        //
-        // expect(increment).toMatchObject({ ok: true, route: "/clean" });
-        // let result = increment.resume({
-        //   ok: true,
-        //   value: { names: [] },
-        // });
-        // expect(result).toMatchObject({
-        //   ok: false,
-        //   code: "unprocessable-content",
-        //   route: "/clean",
-        //   issues: [{ message: 'unexpected "auth0"' }],
-        // });
+      it("defers an unknown token until the route frame is final", () => {
+        let clean = command(
+          name("clean"),
+          dynamic((_plugins: Plugins) => extend()),
+        );
+        let app = command(name("simulacrum"), routes(clean));
+        let increment = parse(app, { argv: ["clean", "auth0"] });
+
+        expect(increment).toMatchObject({
+          route: "/clean",
+          model: {},
+        });
+        assertAnyIncrement(increment);
+
+        let result = increment.resume({
+          ok: true,
+          value: { names: [] },
+        });
+
+        expect(result).toMatchObject({
+          ok: false,
+          code: "unprocessable-content",
+          route: "/clean",
+          issues: [{ message: 'unexpected "auth0"' }],
+        });
       });
     });
 
     describe("nested route frames", () => {
-      // This sketch also depends on recursively typed child increments.
-      it.skip("yields phase-local models and finishes with path-addressed models", () => {
-        // let clean = command(
-        //   name("clean"),
-        //   option(name("truncate"), schema(type("boolean"))),
-        //   dynamic((_child: Child) => extend()),
-        // );
-        // let app = command(
-        //   name("simulacrum"),
-        //   option(name("config"), schema(type("string"))),
-        //   routes(clean),
-        //   dynamic((_root: Root) => extend()),
-        // );
-        // let root = parse(app, {
-        //   argv: ["--config", "app.json", "clean", "--truncate", "true"],
-        // });
-        // increment(root, { config: "app.json" });
-        //
-        // let child = root.resume({
-        //   ok: true,
-        //   value: { root: true },
-        // });
-        // increment(child, { truncate: true });
-        //
-        // let result = child.resume({
-        //   ok: true,
-        //   value: { child: true },
-        // });
-        // expect(result).toMatchObject({
-        //   ok: true,
-        //   method: "execute",
-        //   route: "/clean",
-        //   models: {
-        //     "/": { config: "app.json" },
-        //     "/clean": { truncate: true },
-        //   },
-        // });
+      it("yields phase-local models and finishes with path-addressed models", () => {
+        let clean = command(
+          name("clean"),
+          toggle(name("truncate")),
+          dynamic((_child: { readonly child: true }) => extend()),
+        );
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), schema(type("string"))),
+          routes(clean),
+          dynamic((_root: { readonly root: true }) => extend()),
+        );
+        let root = parse(app, {
+          argv: ["--config", "app.json", "clean", "--truncate"],
+        });
+
+        assertIncrement(root, { config: "app.json" });
+        let child = root.resume({
+          ok: true,
+          value: { root: true },
+        });
+
+        expect(child).toMatchObject({
+          route: "/clean",
+          model: { truncate: true },
+        });
+        assertAnyIncrement(child);
+
+        let result = child.resume({
+          ok: true,
+          value: { child: true },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "execute",
+          route: "/clean",
+          models: {
+            "/": { config: "app.json" },
+            "/clean": { truncate: true },
+          },
+        });
       });
     });
 
@@ -778,7 +809,7 @@ function assertIncrement<R extends AnyRoute>(
   expect("resume" in result).toBe(true);
 }
 
-function assertRuntimeIncrement(
+function assertAnyIncrement(
   result: unknown,
 ): asserts result is RuntimeIncrement {
   expect(result).toMatchObject({ ok: true });
