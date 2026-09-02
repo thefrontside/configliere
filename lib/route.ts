@@ -1111,7 +1111,7 @@ export function route(
     methods: ["help"],
     phases: [{
       params: {},
-      children: [],
+      routes: [],
     }],
   };
   return extend(elements)(zero);
@@ -1169,7 +1169,7 @@ export function routes<const C extends readonly AnyRoute[]>(
     let phase = phases.pop()!;
     phases.push({
       ...phase,
-      children: [...phase.children, ...children],
+      routes: [...phase.routes, ...children],
     });
     return {
       ...route,

@@ -1,4 +1,3 @@
-// deno-lint-ignore-file ban-types
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Literal } from "./tokenize.ts";
 import type { Param } from "./param.ts";
@@ -44,7 +43,7 @@ export type Next<
   T,
 > = {
   readonly params: Params<Model>;
-  readonly children: Routes;
+  readonly routes: Routes;
   readonly resolver: (
     requirement: T,
   ) => (input: AnyRoute) => AnyRoute;
@@ -55,7 +54,7 @@ export type Done<
   Routes extends readonly AnyRoute[],
 > = {
   readonly params: Params<Model>;
-  readonly children: Routes;
+  readonly routes: Routes;
 };
 
 export type Params<Model extends object> = {
@@ -117,8 +116,8 @@ export interface AnyRoute extends Definition<string> {
 
 export interface AnyPhase {
   readonly params: Params<object>;
-  readonly children: readonly AnyRoute[];
-  readonly resolver?: (requirement: never) => (route: AnyRoute) => AnyRoute;
+  readonly routes: readonly AnyRoute[];
+  readonly resolver?: (requirement: never) => (route: never) => AnyRoute;
 }
 
 export type AnyPhases = readonly [AnyPhase, ...AnyPhase[]];

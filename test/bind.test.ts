@@ -1,8 +1,7 @@
-// deno-lint-ignore-file no-import-prefix no-unversioned-import
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import * as z from "npm:zod";
-import { bind } from "../lib/bind.ts";
+import * as z from "zod";
+import { bind, bindPhase } from "../lib/bind.ts";
 import { name } from "../lib/definition.ts";
 import { param, schema } from "../lib/param.ts";
 import { cli, type Symbol } from "../lib/read.ts";
@@ -85,6 +84,101 @@ describe("bind()", () => {
         issues: [{ message: "--port requires a value" }],
       });
       expect(texts(rest)).toEqual(["--verbose"]);
+    });
+  });
+
+  describe("phase", () => {
+    it("advances a cursor consumed by the phase", () => {
+      let tokens = symbols([
+        "--foo",
+        "--bar",
+        "-c",
+        "app.json",
+        "auth0",
+        "--x",
+        "--y=z",
+      ]);
+      let values = Array.from(tokens);
+      let config = param(
+        name("config"),
+        cli(["-c"]),
+        schema(z.string()),
+      );
+      let x = param(
+        name("x"),
+        cli(["--x"]),
+        schema(z.string().optional()),
+      );
+      let binding = bindPhase({
+        phase: {
+          params: { config, x },
+          routes: [],
+        },
+        segment: {
+          tokens: values,
+          cursor: values.find((token) => token.text === "app.json")?.index,
+        },
+        tokens,
+      });
+
+      expect(binding).toMatchObject({
+        valid: true,
+        model: {
+          config: "app.json",
+          x: undefined,
+        },
+        cursor: values.find((token) => token.text === "auth0")?.index,
+      });
+      expect(texts(binding.rest)).toEqual([
+        "--foo",
+        "--bar",
+        "auth0",
+        "--x",
+        "--y=z",
+      ]);
+    });
+
+    it("retries absent parameters after another parameter advances the cursor", () => {
+      let tokens = symbols([
+        "--target",
+        "local",
+        "--port",
+        "9000",
+        "auth0",
+      ]);
+      let values = Array.from(tokens);
+      let port = param(
+        name("port"),
+        cli(["--port"]),
+        schema(z.number()),
+      );
+      let target = param(
+        name("target"),
+        cli(["--target"]),
+        schema(z.string()),
+      );
+      let binding = bindPhase({
+        phase: {
+          // Port deliberately comes first. It is initially beyond the cursor.
+          params: { port, target },
+          routes: [],
+        },
+        segment: {
+          tokens: values,
+          cursor: values.find((token) => token.text === "local")?.index,
+        },
+        tokens,
+      });
+
+      expect(binding).toMatchObject({
+        valid: true,
+        model: {
+          port: 9000,
+          target: "local",
+        },
+        cursor: values.find((token) => token.text === "auth0")?.index,
+      });
+      expect(texts(binding.rest)).toEqual(["auth0"]);
     });
   });
 });
