@@ -14,7 +14,6 @@ import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { printHelp } from "../lib/print.ts";
-import type { Result } from "../lib/result.ts";
 import { route, routes, version } from "../lib/route.ts";
 import type {
   AnyRoute,
@@ -29,6 +28,7 @@ import type {
   RequirementOf,
   RequirementsOf,
   Route,
+  RoutePath,
 } from "../lib/types.ts";
 import { toggle } from "../lib/toggle.ts";
 
@@ -352,8 +352,6 @@ describe("dynamic()", () => {
     });
 
     describe("dynamic routes", () => {
-      // Runtime assertions bridge child increments until Parse<R> includes
-      // them statically.
       it("assigns precursor tokens to the parent of a dynamic child", () => {
         let auth0 = command(name("auth0"));
         let clean = command(
@@ -371,7 +369,18 @@ describe("dynamic()", () => {
           model: { truncate: true },
         });
 
-        assertAnyIncrement(increment);
+        type Actual = Extract<
+          typeof increment,
+          { readonly ok: true; readonly route: "/clean" }
+        >;
+        type Expected = ParseIncrement<
+          typeof clean,
+          "/clean",
+          { "/": {} }
+        >;
+
+        expectType<Equal<Actual, Expected>>(true);
+        assertIncrementAt(increment, "/clean");
 
         let result = increment.resume({
           ok: true,
@@ -404,7 +413,7 @@ describe("dynamic()", () => {
           route: "/clean",
           model: { verbose: false },
         });
-        assertAnyIncrement(increment);
+        assertIncrementAt(increment, "/clean");
 
         let result = increment.resume({
           ok: true,
@@ -442,7 +451,7 @@ describe("dynamic()", () => {
           route: "/clean",
           model: {},
         });
-        assertAnyIncrement(increment);
+        assertIncrementAt(increment, "/clean");
 
         let result = increment.resume({
           ok: true,
@@ -476,7 +485,7 @@ describe("dynamic()", () => {
           argv: ["clean", "--target", "auth0"],
         });
 
-        assertAnyIncrement(increment);
+        assertIncrementAt(increment, "/clean");
         let result = increment.resume({
           ok: true,
           value: { names: ["auth0"] },
@@ -510,7 +519,7 @@ describe("dynamic()", () => {
           route: "/clean",
           model: {},
         });
-        assertAnyIncrement(increment);
+        assertIncrementAt(increment, "/clean");
 
         let result = increment.resume({
           ok: true,
@@ -540,7 +549,7 @@ describe("dynamic()", () => {
           route: "/clean",
           model: {},
         });
-        assertAnyIncrement(increment);
+        assertIncrementAt(increment, "/clean");
 
         let result = increment.resume({
           ok: true,
@@ -573,6 +582,8 @@ describe("dynamic()", () => {
           argv: ["--config", "app.json", "clean", "--truncate"],
         });
 
+        type Root = Extract<typeof root, { readonly ok: true }>;
+        expectType<Equal<Root, ParseIncrement<typeof app>>>(true);
         assertIncrement(root, { config: "app.json" });
         let child = root.resume({
           ok: true,
@@ -583,7 +594,19 @@ describe("dynamic()", () => {
           route: "/clean",
           model: { truncate: true },
         });
-        assertAnyIncrement(child);
+
+        type Actual = Extract<
+          typeof child,
+          { readonly ok: true; readonly route: "/clean" }
+        >;
+        type Expected = ParseIncrement<
+          typeof clean,
+          "/clean",
+          { "/": { config: string } }
+        >;
+
+        expectType<Equal<Actual, Expected>>(true);
+        assertIncrementAt(child, "/clean");
 
         let result = child.resume({
           ok: true,
@@ -788,13 +811,6 @@ interface Services {
   readonly count: number;
 }
 
-interface RuntimeIncrement {
-  readonly ok: true;
-  readonly route: string;
-  readonly model: object;
-  resume(result: Result<unknown>): unknown;
-}
-
 type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
   (<T>() => T extends R ? 1 : 2)
   ? (<T>() => T extends R ? 1 : 2) extends (<T>() => T extends L ? 1 : 2) ? true
@@ -805,14 +821,18 @@ function assertIncrement<R extends AnyRoute>(
   result: Parse<R>,
   model: object,
 ): asserts result is Parse<R> & ParseIncrement<R> {
-  expect(result).toMatchObject({ ok: true, model });
+  expect(result).toMatchObject({ ok: true, route: "/", model });
   expect("resume" in result).toBe(true);
 }
 
-function assertAnyIncrement(
-  result: unknown,
-): asserts result is RuntimeIncrement {
-  expect(result).toMatchObject({ ok: true });
+function assertIncrementAt<T, const P extends RoutePath>(
+  result: T,
+  route: P,
+): asserts result is Extract<
+  T,
+  { readonly ok: true; readonly route: P; readonly resume: unknown }
+> {
+  expect(result).toMatchObject({ ok: true, route });
   expect(
     typeof (result as { readonly resume?: unknown }).resume,
   ).toBe("function");
