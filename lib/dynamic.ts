@@ -14,10 +14,27 @@ export function dynamic<
   Requirement,
   After extends AnyRoute,
 >(
-  _extension: (requires: Requirement) => (input: Seed<Before>) => After,
+  extension: (requires: Requirement) => (input: Seed<Before>) => After,
 ): (input: Before) => Conjoin<Before, After, Requirement> {
-  //@ts-expect-error;
-  return (id) => id;
+  return (route) => {
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+
+    phases.push({
+      ...phase,
+      resolver: extension,
+    });
+    phases.push({
+      params: {},
+      routes: [],
+    });
+
+    return { ...route, phases } as unknown as Conjoin<
+      Before,
+      After,
+      Requirement
+    >;
+  };
 }
 
 export type PhaseOf<R extends AnyRoute> = R["phases"][0];

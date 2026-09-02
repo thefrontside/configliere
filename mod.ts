@@ -11,7 +11,7 @@ export type { Param } from "./lib/param.ts";
 
 export { parse } from "./lib/parse.ts";
 
-export { printHelp, printVersion } from "./lib/print.ts";
+export { printErrors, printHelp, printVersion } from "./lib/print.ts";
 
 export { cli } from "./lib/read.ts";
 export type {

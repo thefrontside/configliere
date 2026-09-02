@@ -286,6 +286,19 @@ describe("parse()", () => {
       });
     });
 
+    it("reports unconsumed tokens alongside terminal validation errors", () => {
+      expect(
+        configured("simulacrum --floop"),
+      ).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        issues: [
+          { message: `unexpected "--floop"` },
+          { path: ["port"] },
+        ],
+      });
+    });
+
     it("reports a surplus argument as a binding error", () => {
       expect(
         exec("simulacrum extra"),
