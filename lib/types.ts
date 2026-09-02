@@ -25,10 +25,7 @@ export interface Route<
   readonly children?: C;
 }
 
-export type Parse<R extends AnyRoute> = Outcome<
-  [RequirementOf<R>] extends [never] ? IntentsOf<R>
-    : ParseIncrement<R>
->;
+export type Parse<R extends AnyRoute> = Outcome<ParseAt<R, "/", {}>>;
 
 export type Phase<
   Model extends object,
@@ -61,15 +58,18 @@ export type Params<Model extends object> = {
   [K in keyof Model]: K extends string ? Param<K, Model[K]> : never;
 };
 
-export interface ParseIncrement<R extends AnyRoute> {
+export interface ParseIncrement<
+  R extends AnyRoute,
+  P extends RoutePath = "/",
+  Models extends ModelsByRoute = {},
+> {
   readonly ok: true;
-  readonly model: R["phases"] extends readonly [infer Head, ...AnyPhase[]]
-    ? Head extends Phase<infer T, readonly AnyRoute[], unknown> ? T : never
-    : never;
+  readonly route: P;
+  readonly model: IncrementModelOf<R>;
 
   resume(
     result: Result<RequirementOf<R>>,
-  ): Parse<ContinuationOf<R>>;
+  ): Outcome<ParseAt<ContinuationOf<R>, P, Models>>;
 }
 
 export type ContinuationOf<R extends AnyRoute> = R extends Route<
@@ -227,6 +227,40 @@ type RequirementIn<P extends AnyPhase> = P extends {
     requirement: infer Requirement,
   ) => (route: AnyRoute) => AnyRoute;
 } ? Requirement
+  : never;
+
+type IncrementModelOf<R extends AnyRoute> = R["phases"][0] extends Next<
+  infer Model,
+  readonly AnyRoute[],
+  unknown
+> ? Model
+  : never;
+
+type ParseAt<
+  R extends AnyRoute,
+  P extends RoutePath,
+  Models extends ModelsByRoute,
+> = [RequirementOf<R>] extends [never] ? (
+    | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
+    | ParseChildren<
+      ChildrenOf<R>,
+      P,
+      AddModel<Models, P, ModelOf<R>>
+    >
+  )
+  : ParseIncrement<R, P, Models>;
+
+type ParseChildren<
+  C extends readonly AnyRoute[],
+  P extends RoutePath,
+  Models extends ModelsByRoute,
+> = C extends readonly [
+  infer Head extends AnyRoute,
+  ...infer Tail extends readonly AnyRoute[],
+] ? (
+    | ParseAt<Head, Append<P, Head["name"]>, Models>
+    | ParseChildren<Tail, P, Models>
+  )
   : never;
 
 type RequirementsIn<P extends readonly AnyPhase[]> = P extends readonly [
