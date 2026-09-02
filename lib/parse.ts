@@ -27,7 +27,7 @@ export function parse<const R extends AnyRoute>(
 export function parse(
   route: AnyRoute,
   input: Input,
-): RuntimeParse {
+): unknown {
   let tokenizer = new Tokenizer(tokenize(input.argv));
   let help = tokenizer.claimAll(flags("-h", "--help"));
   let version = help.rest.claimAll(flags("-v", "--version"));
@@ -65,7 +65,7 @@ export function parse(
 }
 function resume(
   state: ParserState,
-): RuntimeParse {
+): Outcome<AnyIntent | AnyIncrement> {
   while (true) {
     // Starting from the deepest open segment, synchronously descend through
     // routes visible on each segment's head phase.
@@ -143,6 +143,7 @@ function resume(
 
       return {
         ok: true,
+        route: segment.id,
         model: binding.model,
 
         resume(result) {
@@ -233,13 +234,12 @@ interface ParserState {
   literals: Literal[];
 }
 
-interface RuntimeIncrement {
+interface AnyIncrement {
   readonly ok: true;
+  readonly route: RoutePath;
   readonly model: object;
-  resume(result: Result<unknown>): RuntimeParse;
+  resume(result: Result<unknown>): Outcome<AnyIntent | AnyIncrement>;
 }
-
-type RuntimeParse = Outcome<AnyIntent | RuntimeIncrement>;
 
 interface Segment {
   id: RoutePath;
