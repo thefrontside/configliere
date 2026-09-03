@@ -1,3 +1,4 @@
+import { boolean as decode } from "./decode.ts";
 import { dasherize } from "./dasherize.ts";
 import { type Param, param, schema } from "./param.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
@@ -124,7 +125,10 @@ export function toggle(
 ): unknown {
   const added = elements.reduce<unknown>(
     (value, element) => element(value as never),
-    param(named, binding(named.name), schema(bool)),
+    {
+      ...param(named, binding(named.name), schema(bool)),
+      decode,
+    },
   ) as Param<string, unknown>;
 
   return (route: AnyRoute) => {
