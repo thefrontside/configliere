@@ -38,10 +38,10 @@ interface Rest {
 A source attempt must distinguish absence from a captured value that failed:
 
 ```ts
-type Attempt<T> = Maybe<{
+interface Binding<T> {
   readonly rest: Rest;
   readonly result: Result<T>;
-}>;
+}
 ```
 
 The outcomes mean:
@@ -70,9 +70,9 @@ Source adapters share the attempt shape while retaining their own capture
 mechanics:
 
 ```ts
-fromCLI({ param, view, rest }): Attempt<unknown>;
-fromValues({ param, route, rest }): Attempt<unknown>;
-fromEnv({ param, route, rest }): Attempt<unknown>;
+fromCLI({ param, view, rest }): Maybe<Binding<unknown>>;
+fromValues({ param, route, rest }): Maybe<Binding<unknown>>;
+fromEnv({ param, route, rest }): Maybe<Binding<unknown>>;
 ```
 
 CLI and Env decode captured text before validating it. Values are already
@@ -206,6 +206,7 @@ ever-deepening stack of tokenizer iterators.
 The remaining invariants are:
 
 - Stable global token indices identify every claim.
+- Claims leave holes; they never make originally non-adjacent tokens a pair.
 - `through` is inclusive.
 - An absent `through` means the full route segment is visible.
 - Finding the first remaining word is CLI-binding policy, not generic tokenizer
@@ -240,7 +241,7 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
 
   function accept(
     param: Param<string, unknown>,
-    attempt: Attempt<unknown>,
+    attempt: Maybe<Binding<unknown>>,
   ): void {
     if (!attempt.exists) {
       return;

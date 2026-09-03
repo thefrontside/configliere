@@ -1,66 +1,78 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import * as z from "zod";
-import { bind, bindPhase } from "../lib/bind.ts";
+import { type Binding, bindPhase, fromCLI } from "../lib/bind.ts";
 import { name } from "../lib/definition.ts";
-import { param, schema } from "../lib/param.ts";
+import type { Maybe } from "../lib/maybe.ts";
+import { type Param, param, schema } from "../lib/param.ts";
 import { cli, type Symbol } from "../lib/read.ts";
 import type { Rest } from "../lib/rest.ts";
 import { tokenize } from "../lib/tokenize.ts";
 import { Tokenizer } from "../lib/tokenizer.ts";
 import { Values } from "../lib/values.ts";
 
-describe("bind()", () => {
+describe("binding", () => {
   describe("absence", () => {
     it("validates undefined after every source is absent", () => {
-      let rest = state([]);
-      let { result } = bind({
-        param: param(name("port"), schema(z.number())),
-        view: rest.tokens,
-        rest,
+      let port = param(name("port"), schema(z.number()));
+      let result = bindPhase({
+        phase: phase({ port }),
+        segment: segment(),
+        rest: state([]),
       });
 
       expect(result).toMatchObject({
-        ok: false,
+        valid: false,
         issues: [{ path: ["port"] }],
       });
     });
 
     it("lets an optional schema accept an absent value", () => {
-      let rest = state([]);
-      let { result } = bind({
-        param: param(name("port"), schema(z.number().optional())),
-        view: rest.tokens,
-        rest,
+      let port = param(name("port"), schema(z.number().optional()));
+      let result = bindPhase({
+        phase: phase({ port }),
+        segment: segment(),
+        rest: state([]),
       });
 
-      expect(result).toEqual({
-        ok: true,
-        value: undefined,
+      expect(result).toMatchObject({
+        valid: true,
+        model: { port: undefined },
         issues: [],
       });
     });
 
     it("lets a defaulting schema produce a value from absence", () => {
+      let port = param(name("port"), schema(z.number().default(9000)));
+      let result = bindPhase({
+        phase: phase({ port }),
+        segment: segment(),
+        rest: state([]),
+      });
+
+      expect(result).toMatchObject({
+        valid: true,
+        model: { port: 9000 },
+        issues: [],
+      });
+    });
+
+    it("represents a source miss without validating undefined", () => {
       let rest = state([]);
-      let { result } = bind({
-        param: param(name("port"), schema(z.number().default(9000))),
+      let attempt = fromCLI({
+        param: param(name("port"), schema(z.number())),
         view: rest.tokens,
         rest,
       });
 
-      expect(result).toEqual({
-        ok: true,
-        value: 9000,
-        issues: [],
-      });
+      expect(attempt).toEqual({ exists: false });
     });
   });
 
   describe("candidates", () => {
     it("tries a later decoding after an earlier one fails validation", () => {
       let rest = state(["--digits", "0012"]);
-      let { result } = bind({
+      let attempt = fromCLI({
         param: param(
           name("digits"),
           cli(["--digits"]),
@@ -70,10 +82,16 @@ describe("bind()", () => {
         rest,
       });
 
-      expect(result).toEqual({
-        ok: true,
-        value: "0012",
-        issues: [],
+      expectType<Equal<typeof attempt, Maybe<Binding<string>>>>(true);
+      expect(attempt).toMatchObject({
+        exists: true,
+        value: {
+          result: {
+            ok: true,
+            value: "0012",
+            issues: [],
+          },
+        },
       });
     });
   });
@@ -81,7 +99,7 @@ describe("bind()", () => {
   describe("failed reads", () => {
     it("continues from the remainder of a claimed invalid read", () => {
       let input = state(["--port", "--verbose"]);
-      let { result, rest } = bind({
+      let attempt = fromCLI({
         param: param(
           name("port"),
           cli(["--port"]),
@@ -91,11 +109,47 @@ describe("bind()", () => {
         rest: input,
       });
 
-      expect(result).toMatchObject({
+      assertAttempt(attempt);
+      expect(attempt.value.result).toMatchObject({
         ok: false,
         issues: [{ message: "--port requires a value" }],
       });
-      expect(texts(rest.tokens)).toEqual(["--verbose"]);
+      expect(texts(attempt.value.rest.tokens)).toEqual(["--verbose"]);
+    });
+  });
+
+  it("preserves issues from a successful read", () => {
+    let base = param(
+      name("port"),
+      cli(["--port"]),
+      schema(z.number()),
+    );
+    let read = base.cli;
+    let port = {
+      ...base,
+      cli(tokens: Parameters<typeof read>[0]) {
+        let capture = read(tokens);
+        return capture.result.ok
+          ? {
+            ...capture,
+            result: {
+              ...capture.result,
+              issues: [{ message: "--port is deprecated" }],
+            },
+          }
+          : capture;
+      },
+    };
+    let result = bindPhase({
+      phase: phase({ port }),
+      segment: segment(),
+      rest: state(["--port", "9001"]),
+    });
+
+    expect(result).toMatchObject({
+      valid: true,
+      model: { port: 9001 },
+      issues: [{ message: "--port is deprecated" }],
     });
   });
 
@@ -108,7 +162,7 @@ describe("bind()", () => {
       tokens: symbols(["--port", "9001"]),
       values,
     };
-    let binding = bind({
+    let attempt = fromCLI({
       param: param(
         name("port"),
         cli(["--port"]),
@@ -118,12 +172,13 @@ describe("bind()", () => {
       rest,
     });
 
-    expect(binding.rest.values).toBe(values);
-    expect(texts(binding.rest.tokens)).toEqual([]);
+    assertAttempt(attempt);
+    expect(attempt.value.rest.values).toBe(values);
+    expect(texts(attempt.value.rest.tokens)).toEqual([]);
   });
 
   describe("phase", () => {
-    it("advances a cursor consumed by the phase", () => {
+    it("advances the horizon when the phase consumes it", () => {
       let rest = state([
         "--foo",
         "--bar",
@@ -133,7 +188,6 @@ describe("bind()", () => {
         "--x",
         "--y=z",
       ]);
-      let items = Array.from(rest.tokens);
       let config = param(
         name("config"),
         cli(["-c"]),
@@ -145,15 +199,8 @@ describe("bind()", () => {
         schema(z.string().optional()),
       );
       let binding = bindPhase({
-        phase: {
-          params: { config, x },
-          routes: [],
-          values: [],
-        },
-        segment: {
-          range: { start: -1 },
-          cursor: items.find((token) => token.text === "app.json")?.index,
-        },
+        phase: phase({ config, x }),
+        segment: segment(),
         rest,
       });
 
@@ -163,7 +210,6 @@ describe("bind()", () => {
           config: "app.json",
           x: undefined,
         },
-        cursor: items.find((token) => token.text === "auth0")?.index,
       });
       expect(texts(binding.rest.tokens)).toEqual([
         "--foo",
@@ -174,7 +220,7 @@ describe("bind()", () => {
       ]);
     });
 
-    it("retries absent parameters after another parameter advances the cursor", () => {
+    it("retries absent parameters after another parameter advances the horizon", () => {
       let rest = state([
         "--target",
         "local",
@@ -182,7 +228,6 @@ describe("bind()", () => {
         "9000",
         "auth0",
       ]);
-      let items = Array.from(rest.tokens);
       let port = param(
         name("port"),
         cli(["--port"]),
@@ -194,16 +239,9 @@ describe("bind()", () => {
         schema(z.string()),
       );
       let binding = bindPhase({
-        phase: {
-          // Port deliberately comes first. It is initially beyond the cursor.
-          params: { port, target },
-          routes: [],
-          values: [],
-        },
-        segment: {
-          range: { start: -1 },
-          cursor: items.find((token) => token.text === "local")?.index,
-        },
+        // Port deliberately comes first. It is initially beyond the horizon.
+        phase: phase({ port, target }),
+        segment: segment(),
         rest,
       });
 
@@ -213,7 +251,6 @@ describe("bind()", () => {
           port: 9000,
           target: "local",
         },
-        cursor: items.find((token) => token.text === "auth0")?.index,
       });
       expect(texts(binding.rest.tokens)).toEqual(["auth0"]);
     });
@@ -236,6 +273,37 @@ function state(argv: string[]): Rest {
   };
 }
 
+function phase(params: Record<string, Param<string, unknown>>) {
+  return {
+    params,
+    routes: [],
+    values: [],
+  };
+}
+
+function segment() {
+  return {
+    range: { start: -1 },
+    path: [],
+  };
+}
+
+function assertAttempt<T>(
+  attempt: Maybe<Binding<T>>,
+): asserts attempt is { readonly exists: true; readonly value: Binding<T> } {
+  expect(attempt).toMatchObject({ exists: true });
+}
+
 function texts(tokens: Iterable<Symbol>): string[] {
   return Array.from(tokens, (token) => token.text);
+}
+
+type Equal<L, R> = (<T>() => T extends L ? 1 : 2) extends
+  (<T>() => T extends R ? 1 : 2)
+  ? (<T>() => T extends R ? 1 : 2) extends (<T>() => T extends L ? 1 : 2) ? true
+  : false
+  : false;
+
+function expectType<T extends true>(_value: T): void {
+  // Compile-time assertion.
 }
