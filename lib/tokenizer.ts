@@ -59,7 +59,7 @@ export class Tokenizer<T extends AnyToken> implements TokenInput<T> {
         previous = token;
         continue;
       }
-      if (match(previous, token)) {
+      if (token.index === previous.index + 1 && match(previous, token)) {
         return {
           tokens: [previous, token],
           rest: remainder(this, [previous.index, token.index]),
@@ -136,7 +136,7 @@ class View<T extends AnyToken> implements TokenInput<T> {
         previous = token;
         continue;
       }
-      if (match(previous, token)) {
+      if (token.index === previous.index + 1 && match(previous, token)) {
         return {
           tokens: [previous, token],
           rest: remainder(this.source, [previous.index, token.index]),
