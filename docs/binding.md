@@ -14,8 +14,8 @@ structure:
 
 ```text
 CLI fixed point
-Values
 Env
+Values
 undefined
 ```
 
@@ -271,7 +271,7 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
   }
 
   // Stable address sources: array order is precedence.
-  for (let source of [fromValues, fromEnv]) {
+  for (let source of [fromEnv, fromValues]) {
     for (let param of pending.values()) {
       accept(
         param,
@@ -354,9 +354,9 @@ The design should be established with observable tests for these cases:
   parameters.
 - A stable horizon leaves the entire suffix untouched.
 - CLI overrides Values even when its option is not visible until a later sweep.
-- Values override Env when that is the declared source order.
-- Invalid CLI blocks valid Values and Env.
-- Invalid Values block valid Env.
+- Env overrides Values when that is the declared source order.
+- Invalid CLI blocks valid Env and Values.
+- Invalid Env blocks valid Values.
 - Only total absence invokes required, optional, or defaulting schema behavior.
 - A dynamically introduced child receives every token after its selector.
 - Sources introduced by a phase become available at that phase and persist

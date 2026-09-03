@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { EnvSource } from "./env.ts";
 import type { Literal } from "./tokenize.ts";
 import type { Param } from "./param.ts";
 import type { Result } from "./result.ts";
@@ -43,6 +44,7 @@ export type Next<
   readonly params: Params<Model>;
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
+  readonly envs: readonly EnvSource[];
   readonly resolver: (
     requirement: T,
   ) => (input: AnyRoute) => AnyRoute;
@@ -55,6 +57,7 @@ export type Done<
   readonly params: Params<Model>;
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
+  readonly envs: readonly EnvSource[];
 };
 
 export type Params<Model extends object> = {
@@ -121,6 +124,7 @@ export interface AnyPhase {
   readonly params: Params<object>;
   readonly routes: readonly AnyRoute[];
   readonly values: readonly ValueSource[];
+  readonly envs: readonly EnvSource[];
   readonly resolver?: (requirement: never) => (route: never) => AnyRoute;
 }
 
@@ -134,6 +138,7 @@ export type Path = readonly string[];
 export type Input = {
   argv: string[];
   values?: readonly ValueSource[];
+  envs?: readonly EnvSource[];
 };
 
 export interface Failure<C extends Status> {

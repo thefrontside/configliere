@@ -96,6 +96,36 @@ export function fromValues<const K extends string, T>(options: {
   };
 }
 
+export function fromEnv<const K extends string, T>(options: {
+  readonly param: Param<K, T>;
+  readonly route: Path;
+  readonly rest: Rest;
+}): Maybe<Binding<T>> {
+  let { param, route, rest } = options;
+  let claim = rest.envs.claim({
+    route,
+    address: [param.name],
+    key: param.env,
+  });
+
+  if (!claim.result.exists) {
+    return { exists: false };
+  }
+
+  let value = claim.result.value.value;
+
+  return {
+    exists: true,
+    value: {
+      rest: {
+        ...rest,
+        envs: claim.rest,
+      },
+      result: decode(param, value, param.decode(value), [param.name]),
+    },
+  };
+}
+
 export function bindPhase(options: {
   readonly phase: AnyPhase;
   readonly segment: PhaseSegment;
@@ -148,7 +178,7 @@ export function bindPhase(options: {
   // Address sources have stable visibility once the route is known. They are
   // tried only after CLI has reached its fixed point so a provisional CLI miss
   // cannot let a lower-priority source settle the parameter too early.
-  for (let source of [fromValues]) {
+  for (let source of [fromEnv, fromValues]) {
     for (let param of pending.values()) {
       accept(
         param,
