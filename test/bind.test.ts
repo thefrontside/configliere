@@ -3,6 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import * as z from "zod";
 import { type Binding, bindPhase, fromCLI } from "../lib/bind.ts";
 import { name } from "../lib/definition.ts";
+import { Envs } from "../lib/env.ts";
 import type { Maybe } from "../lib/maybe.ts";
 import { type Param, param, schema } from "../lib/param.ts";
 import { cli, type Symbol } from "../lib/read.ts";
@@ -161,6 +162,7 @@ describe("binding", () => {
     let rest: Rest = {
       tokens: symbols(["--port", "9001"]),
       values,
+      envs: new Envs(),
     };
     let attempt = fromCLI({
       param: param(
@@ -270,6 +272,7 @@ function state(argv: string[]): Rest {
   return {
     tokens: symbols(argv),
     values: new Values(),
+    envs: new Envs(),
   };
 }
 
@@ -278,6 +281,7 @@ function phase(params: Record<string, Param<string, unknown>>) {
     params,
     routes: [],
     values: [],
+    envs: [],
   };
 }
 

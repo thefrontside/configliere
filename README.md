@@ -1,69 +1,109 @@
 # Configliere
 
-> [!NOTE]
-> Configliere is undergoing a ground-up rebuild. The ideas below are working,
-> but the API is not yet stable.
+**A statically typed entry-point router for command-line applications.**
 
-Configliere models a command-line program as a tree of typed routes. Parsing
-does not merely produce a bag of options: it resolves an intent such as
-`HELP /`, `VERSION /`, or `EXECUTE /serve` and, for execution, binds a model for
-every route that led there.
+An argument parser tells you what the user typed. Configliere tells you where
+and how they intend to enter your program. For execution, it marshals a
+validated, statically typed model for that entry point.
 
-The architecture has four small pieces:
+Configliere matches input to an intent: a method at an application-relative
+route, such as:
 
-- A **route** is an application-relative address such as `/` or `/serve`.
-- A **method** says what to do with that route. Every route supports help;
-  `version()` adds version and `command()` creates an executable route.
-- Each route owns its own **model**. An execute intent contains the current
-  `model` and a path-addressed `models` map for the entire matched lineage.
-- Definitions are immutable composition pipelines. Elements such as
-  `description()`, `option()`, `toggle()`, `version()`, and `routes()` enrich
-  both the runtime definition and its TypeScript type.
+```text
+HELP    /
+VERSION /
+EXECUTE /serve
+HELP    /database/clean
+EXECUTE /database/clean
+```
 
-Parameters are validated with [Standard Schema](https://standardschema.dev/), so
-Configliere works with ArkType, Zod, Valibot, and other conforming schema
-libraries. The examples below use ArkType.
+Every reachable intent appears in the result type. Narrow `method` and `route`,
+and TypeScript knows the exact model available at that entry point.
 
-## One command, one model
+Configliere is not a CLI framework. It does not own handlers, effects, output,
+or process lifetime. It is not a CLI parser whose product is a bag of flags. Its
+product is a typed intent; your application decides what that intent does.
 
-`command()` is an executable route. Here it creates the root route `/` with
-help, version, and execute methods:
+```text
+input → route → method → required binding and validation → intent
+```
+
+## Define every way into the program
+
+`route()` declares an address. `command()` declares an executable route. Every
+route supports help; version and execution exist only where they are explicitly
+added.
+
+Definitions are immutable composition pipelines, not handler registrations:
 
 ```ts
-import process from "node:process";
 import {
   command,
   description,
   name,
   option,
-  parse,
-  printHelp,
-  printVersion,
+  route,
+  routes,
   schema,
   toggle,
   version,
 } from "@frontside/configliere";
-import { type } from "arktype";
+import * as z from "zod";
 
-const app = command(
-  name("server"),
-  description("Run the HTTP server."),
+export const app = command(
+  name("simulacrum"),
+  description("Run and manage local service simulators."),
   version("1.0.0"),
-  option(
-    name("port"),
-    description("Port to listen on."),
-    schema(type("number")),
-  ),
-  toggle(
-    name("verbose"),
-    description("Print request diagnostics."),
+  toggle(name("verbose")),
+  routes(
+    command(
+      name("serve"),
+      option(name("port"), schema(z.number().default(4000))),
+    ),
+    route(
+      name("database"),
+      routes(
+        command(
+          name("clean"),
+          toggle(name("dryRun")),
+        ),
+      ),
+    ),
   ),
 );
+```
+
+That definition makes these entry points—and no others—reachable:
+
+```text
+HELP /                  VERSION /              EXECUTE /
+HELP /serve                                    EXECUTE /serve
+HELP /database
+HELP /database/clean                           EXECUTE /database/clean
+```
+
+The root name identifies the executable; it is not repeated in route IDs.
+`simulacrum serve` therefore selects `/serve`, not `/simulacrum/serve`.
+
+## Route an intent
+
+`parse()` returns a discriminated union of the reachable entry points. Dispatch
+can stay flat even when the route tree is deep:
+
+```ts
+import process from "node:process";
+import {
+  parse,
+  printErrors,
+  printHelp,
+  printVersion,
+} from "@frontside/configliere";
+import { app } from "./app.ts";
 
 const result = parse(app, { argv: process.argv.slice(2) });
 
 if (!result.ok) {
-  console.error(result.code, result);
+  console.error(printErrors(result));
   process.exit(1);
 }
 
@@ -71,142 +111,131 @@ switch (result.method) {
   case "help":
     console.log(printHelp(result));
     break;
+
   case "version":
     console.log(printVersion(result));
     break;
-  case "execute":
-    // Exactly { port: number; verbose: boolean }, not Record<string, unknown>.
-    serve(result.model);
-    break;
-}
 
-function serve(model: { port: number; verbose: boolean }): void {
-  console.log(`listening on ${model.port}; verbose=${model.verbose}`);
+  case "execute":
+    switch (result.route) {
+      case "/":
+        result.model.verbose; // boolean
+        break;
+
+      case "/serve":
+        result.model.port; // number
+        result.models["/"].verbose; // boolean
+        break;
+
+      case "/database/clean":
+        result.model.dryRun; // boolean
+        result.models["/"]; // { verbose: boolean }
+        result.models["/database"]; // {}
+        break;
+    }
 }
 ```
 
-`parse()` receives the arguments _after_ the executable name, which is why the
-example passes `process.argv.slice(2)`. The full command lines above resolve as
-follows:
+An execute intent has two views of configuration:
 
-| Invocation                     | Result                                                                       |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| `server --help`                | `HELP /`; `printHelp()` renders the route's usage, options, and descriptions |
-| `server --version`             | `VERSION /`; `printVersion()` returns `server 1.0.0`                         |
-| `server --port 4000`           | `EXECUTE /`; `model` is `{ port: 4000, verbose: false }`                     |
-| `server --port=4000 --verbose` | `EXECUTE /`; `model` is `{ port: 4000, verbose: true }`                      |
-| `server --port nope`           | `unprocessable-content`; execution never receives an invalid model           |
+- `model` is owned by the selected route.
+- `models` contains the statically typed model for every route along the
+  selected path. Sibling routes are absent from both the value and its type.
 
-The method is a discriminant. Once the switch reaches `"execute"`, TypeScript
-knows that `model` exists and has exactly the shape assembled by the command's
-parameters. Help and version are resolved before execution validation, so
-`server --help` does not require a port.
+| Invocation                            | Intent and model                                                    |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| `simulacrum --verbose`                | `EXECUTE /` with `{ verbose: true }`                                |
+| `simulacrum serve --port 4100`        | `EXECUTE /serve` with `{ port: 4100 }`                              |
+| `simulacrum database clean --dry-run` | `EXECUTE /database/clean` with `{ dryRun: true }`                   |
+| `simulacrum --help database clean`    | `HELP /database/clean`; controls target the deepest selected route  |
+| `simulacrum database`                 | `method-not-allowed`; `/database` does not support execution        |
+| `simulacrum serve --port nope`        | `unprocessable-content`; invalid data never reaches the application |
 
-## Add commands, keep dispatch flat
+Command literals are routing tokens, not positional arguments. Configliere
+selects the route first, then binds options to the route segment that owns them.
+This makes identical option names on parent and child routes unambiguous.
 
-Routes form a tree, but callers do not have to mirror that tree with nested
-conditionals. `IntentsOf<typeof app>` is a flat union of every method and route
-the definition can reach, so `result.route` is another useful discriminant.
+## Marshal configuration into the route
+
+CLI arguments are only one source. Configliere can marshal JavaScript values and
+flat environment records into the same route-local models:
+
+```ts
+const result = parse(app, {
+  argv: process.argv.slice(2),
+  values: [{
+    name: "config.json",
+    value: { serve: { port: 4200 } },
+  }],
+  envs: [{
+    name: "process",
+    value: process.env,
+  }],
+});
+```
+
+For `/serve`, `serve.port` and `SERVE_PORT` both address its `port` parameter.
+CLI text and environment text are decoded; JavaScript values are used directly.
+The resulting value is then validated by its
+[Standard Schema](https://standardschema.dev/) schema. Zod, ArkType, Valibot,
+and other conforming libraries work without adapters.
+
+Source precedence is explicit:
+
+```text
+CLI → environment → JavaScript values → schema default
+```
+
+## Pause without surrendering the type system
+
+Sometimes the route cannot be fully configured—or even fully discovered—until
+the application performs I/O. Configliere can pause at a typed checkpoint and
+resume with the result:
 
 ```ts
 import process from "node:process";
 import {
+  checkpoint,
   command,
   name,
   option,
   parse,
-  printHelp,
-  routes,
+  type Result,
   schema,
-  toggle,
+  type ValueSource,
 } from "@frontside/configliere";
-import { type } from "arktype";
+import * as z from "zod";
 
 const app = command(
-  name("simulacrum"),
-  toggle(name("verbose")),
-  routes(
-    command(
-      name("serve"),
-      option(name("port"), schema(type("number"))),
-    ),
-    command(
-      name("inspect"),
-      toggle(name("json")),
-    ),
-  ),
+  name("server"),
+  option(name("config"), schema(z.string())),
+  checkpoint(),
+  option(name("port"), schema(z.number())),
 );
 
-const result = parse(app, { argv: process.argv.slice(2) });
+const step = parse(app, { argv: process.argv.slice(2) });
 
-if (!result.ok) {
-  console.error(result.code, result);
+if (!step.ok) {
   process.exit(1);
 }
 
-if (result.method === "help") {
-  console.log(printHelp(result));
-} else {
-  switch (result.route) {
-    case "/":
-      // model:  { verbose: boolean }
-      // models: { "/": { verbose: boolean } }
-      start(result.model);
-      break;
+step.model.config; // string—the model resolved before the checkpoint
 
-    case "/serve":
-      // model is only the selected route's model.
-      result.model.port; // number
+const loaded = await load(step.model.config);
+const result = step.resume(loaded);
 
-      // models contains every model on the matched route lineage.
-      result.models["/"].verbose; // boolean
-      result.models["/serve"].port; // number
-
-      // @ts-expect-error: /inspect was not part of this match.
-      result.models["/inspect"];
-      serve(result.model, result.models["/"]);
-      break;
-
-    case "/inspect":
-      // model:  { json: boolean }
-      // models: { "/": { verbose: boolean }, "/inspect": { json: boolean } }
-      inspect(result.model, result.models["/"]);
-      break;
-  }
+if (result.ok && result.method === "execute") {
+  result.model; // { config: string; port: number }
 }
 
-function start(model: { verbose: boolean }): void {
-  console.log(`simulacrum; verbose=${model.verbose}`);
-}
-
-function serve(
-  model: { port: number },
-  root: { verbose: boolean },
-): void {
-  console.log(`serving on ${model.port}; verbose=${root.verbose}`);
-}
-
-function inspect(
-  model: { json: boolean },
-  root: { verbose: boolean },
-): void {
-  console.log(`inspecting; json=${model.json}; verbose=${root.verbose}`);
-}
+declare function load(path: string): Promise<Result<ValueSource[]>>;
 ```
 
-| Invocation                               | Result                                                                                               |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `simulacrum --verbose`                   | `EXECUTE /`; `model` and `models["/"]` are `{ verbose: true }`                                       |
-| `simulacrum --verbose serve --port 4000` | `EXECUTE /serve`; `model` is `{ port: 4000 }`, while `models` also contains `"/": { verbose: true }` |
-| `simulacrum inspect --json`              | `EXECUTE /inspect`; `model` is `{ json: true }` and the root model has `{ verbose: false }`          |
-| `simulacrum serve --help`                | `HELP /serve`; no root or command model is validated                                                 |
+The parser remains synchronous and performs no I/O. The caller loads the file
+and resumes with a `Result`; loader failures enter the ordinary issue path.
+Unconsumed CLI input survives the pause, so a later `--port 5000` can override
+the value loaded from the file.
 
-Route tokens select the deepest matching route; they are not positional
-arguments. Options on each segment bind only to the model owned by that route.
-The root definition's name identifies the executable but is not repeated in
-route IDs: the root is `/`, not `/simulacrum`.
-
-For a deeper route such as `/database/clean`, the same rule applies:
-`result.model` is the clean command's model, while `result.models` has exact
-entries for `/`, `/database`, and `/database/clean`. Sibling models are absent
-at runtime and from the TypeScript type.
+The same phase mechanism can add options or routes from runtime data. Parsing
+then continues against the expanded route graph, and the continuation type
+describes the entry points that can appear next.
