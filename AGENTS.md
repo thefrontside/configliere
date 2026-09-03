@@ -9,6 +9,13 @@ established yet. Design from the bottom up with small API sketches, exact type
 expectations, and tests before implementation. Do not carry architectural
 assumptions forward from pre-rebuild history.
 
+## Design references
+
+- Read [`docs/insights.md`](docs/insights.md) before changing the architecture;
+  it records the current design invariants and open questions.
+- Read [`docs/binding.md`](docs/binding.md) before changing tokenization, route
+  segmentation, phase binding, source precedence, Values, or Env handling.
+
 ## Conventions
 
 ### File layout
