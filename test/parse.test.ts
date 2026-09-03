@@ -340,6 +340,36 @@ describe("parse()", () => {
       ).toHaveModels({ "/": { dryRun: false } });
     });
 
+    it("does not let declaration order change option adjacency", () => {
+      let portFirst = command(
+        name("simulacrum"),
+        option(name("port"), schema(type("number"))),
+        toggle(name("verbose")),
+      );
+      let verboseFirst = command(
+        name("simulacrum"),
+        toggle(name("verbose")),
+        option(name("port"), schema(type("number"))),
+      );
+      let expected = {
+        ok: false,
+        code: "unprocessable-content",
+        route: "/",
+        issues: [
+          { message: 'unexpected "9000"' },
+          { message: "--port requires a value" },
+        ],
+      };
+
+      expect(parse(portFirst, {
+        argv: ["--port", "--verbose", "9000"],
+      })).toMatchObject(expected);
+
+      expect(parse(verboseFirst, {
+        argv: ["--port", "--verbose", "9000"],
+      })).toMatchObject(expected);
+    });
+
     it("reports several surplus arguments as a binding error", () => {
       let result = exec("simulacrum databaes clean");
 

@@ -112,8 +112,8 @@ function resume(
 
     // Bind only this phase, within this segment's token view.
     //
-    // For an open dynamic segment, a binding may consume the cursor but may
-    // not leap over it. For a committed segment, `end` is the hard boundary.
+    // For an open dynamic segment, binding may consume the horizon but may not
+    // look beyond it. For a committed segment, `end` is the hard boundary.
     let binding = bindPhase({
       phase,
       segment: {
@@ -121,7 +121,7 @@ function resume(
           start: segment.start,
           end: segment.end,
         },
-        cursor: segment.cursor,
+        path: segment.path,
       },
       rest: state.rest,
     });
@@ -136,7 +136,6 @@ function resume(
         ...segment.issues,
         ...binding.issues,
       ],
-      cursor: binding.cursor,
     };
 
     state = {
@@ -268,7 +267,6 @@ interface Segment {
   tokens: Symbol[];
   start: number;
   end?: number;
-  cursor?: number;
   model: Record<string, unknown>;
   issues: Issue[];
   history: AnyPhase[];
@@ -289,11 +287,6 @@ function search(state: ParserState): ParserState {
     });
 
     if (!selector) {
-      let cursor = segment.tokens.find((token) => {
-        return remaining.has(token.index) && token.type === "word";
-      })?.index;
-
-      segments[index] = { ...segment, cursor };
       return { ...state, segments, rest };
     }
 
@@ -306,7 +299,6 @@ function search(state: ParserState): ParserState {
       ...segment,
       tokens: before,
       end: selector.index,
-      cursor: undefined,
     };
     segments.push({
       id: `/${path.join("/")}`,

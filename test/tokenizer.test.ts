@@ -79,6 +79,20 @@ describe("Tokenizer", () => {
     expect(tested).toEqual([1, 2]);
   });
 
+  it("does not pair tokens across an existing claim", () => {
+    let tokenizer = new Tokenizer(tokenize([
+      "--port",
+      "--verbose",
+      "9000",
+    ]));
+    let rest = tokenizer.claimOne((token) => token.index === 1).rest;
+    let pair = rest.claimPair((name, value) => {
+      return name.text === "--port" && value.text === "9000";
+    });
+
+    expect(pair.tokens).toEqual([]);
+  });
+
   describe("view()", () => {
     it("shows only tokens in its range through its inclusive horizon", () => {
       let tokenizer = new Tokenizer(tokenize([

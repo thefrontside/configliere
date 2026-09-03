@@ -1,145 +1,180 @@
+import type { Maybe } from "./maybe.ts";
 import type { Param } from "./param.ts";
 import type { Symbol } from "./read.ts";
 import type { Rest } from "./rest.ts";
 import type { Result } from "./result.ts";
-import type { Flag, Setter, Word } from "./tokenize.ts";
+import type { Word } from "./tokenize.ts";
 import type { TokenInput, Tokenizer, TokenRange } from "./tokenizer.ts";
-import type { AnyPhase, Issue } from "./types.ts";
+import type { AnyPhase, Issue, Path } from "./types.ts";
 
 export interface Binding<T> {
-  rest: Rest;
-  result: Result<T>;
+  readonly rest: Rest;
+  readonly result: Result<T>;
 }
 
 export interface PhaseBinding {
-  rest: Rest;
-  model: Record<string, unknown>;
-  issues: Issue[];
-  valid: boolean;
-  cursor?: number;
+  readonly rest: Rest;
+  readonly model: Record<string, unknown>;
+  readonly issues: Issue[];
+  readonly valid: boolean;
 }
 
 export interface PhaseSegment {
   readonly range: TokenRange;
-  readonly cursor?: number;
+  readonly path: Path;
 }
 
-export function bind<T, P extends Param<string, T>>(options: {
-  param: P;
-  view: TokenInput<Flag | Setter | Word>;
-  rest: Rest;
-}): Binding<T> {
+export function fromCLI<const K extends string, T>(options: {
+  readonly param: Param<K, T>;
+  readonly view: TokenInput<Symbol>;
+  readonly rest: Rest;
+}): Maybe<Binding<T>> {
   let { param, view, rest } = options;
   let path = [param.name];
-  let cli = param.cli(view);
-  let next = {
-    ...rest,
-    tokens: cli.claim.rest,
-  };
+  let read = param.cli(view);
 
-  if (cli.result.ok) {
-    let read = cli.result.value;
-    let value: unknown = read.exists ? read.value : undefined;
-
-    let candidates = typeof value === "string" ? param.decode(value) : [value];
-
-    if (candidates.length === 0) {
-      return {
-        rest: next,
-        result: {
-          ok: false,
-          issues: [{
-            message: `unable to decode ${JSON.stringify(value)}`,
-            path,
-          }],
-        },
-      };
-    }
-
-    let issues: readonly Issue[] | undefined = undefined;
-    for (let candidate of candidates) {
-      let result = validate<T, P>(param, candidate, path);
-      if (result.ok) {
-        return {
-          rest: next,
-          result,
-        };
-      } else {
-        issues = issues ?? result.issues;
-      }
-    }
-
+  if (!read.result.ok) {
     return {
-      rest: next,
-      result: {
-        ok: false,
-        issues: issues ?? [],
+      exists: true,
+      value: {
+        rest: {
+          ...rest,
+          tokens: read.claim.rest,
+        },
+        result: read.result,
       },
     };
   }
 
+  if (!read.result.value.exists) {
+    return { exists: false };
+  }
+
+  let value = read.result.value.value;
+  let candidates = typeof value === "string" ? param.decode(value) : [value];
+  let result = merge(
+    decode(param, value, candidates, path),
+    read.result.issues,
+  );
+
   return {
-    rest: next,
-    result: {
-      ok: false,
-      issues: cli.result.issues,
+    exists: true,
+    value: {
+      rest: {
+        ...rest,
+        tokens: read.claim.rest,
+      },
+      result,
+    },
+  };
+}
+
+export function fromValues<const K extends string, T>(options: {
+  readonly param: Param<K, T>;
+  readonly route: Path;
+  readonly rest: Rest;
+}): Maybe<Binding<T>> {
+  let { param, route, rest } = options;
+  let claim = rest.values.claim({
+    route,
+    address: [param.name],
+  });
+
+  if (!claim.result.exists) {
+    return { exists: false };
+  }
+
+  return {
+    exists: true,
+    value: {
+      rest: {
+        ...rest,
+        values: claim.rest,
+      },
+      result: validate(param, claim.result.value.value, [param.name]),
     },
   };
 }
 
 export function bindPhase(options: {
-  phase: AnyPhase;
-  segment: PhaseSegment;
-  rest: Rest;
+  readonly phase: AnyPhase;
+  readonly segment: PhaseSegment;
+  readonly rest: Rest;
 }): PhaseBinding {
   let { phase, segment } = options;
   let rest = options.rest;
   let params = Object.values(phase.params) as Param<string, unknown>[];
-  let cursor = segment.cursor;
+  let pending = new Map(params.map((param) => [param.name, param]));
   let results = new Map<string, Result<unknown>>();
-  let settled = new Set<string>();
 
+  function accept(
+    param: Param<string, unknown>,
+    attempt: Maybe<Binding<unknown>>,
+  ): void {
+    if (!attempt.exists) {
+      return;
+    }
+
+    rest = attempt.value.rest;
+    results.set(param.name, attempt.value.result);
+    pending.delete(param.name);
+  }
+
+  // CLI visibility grows whenever a parameter consumes the current horizon.
+  // Keep retrying provisional misses until a complete sweep leaves the first
+  // remaining word unchanged.
   while (true) {
-    for (let param of params) {
-      if (settled.has(param.name)) {
-        continue;
-      }
+    let before = first(rest.tokens, segment.range);
 
-      let tokens = rest.tokens;
-      let binding = bind({
+    for (let param of pending.values()) {
+      let attempt = fromCLI({
         param,
-        view: tokens.view({
+        view: rest.tokens.view({
           range: segment.range,
-          through: cursor,
+          through: before?.index,
         }),
         rest,
       });
 
-      results.set(param.name, binding.result);
-      rest = binding.rest;
-
-      if (rest.tokens !== tokens) {
-        settled.add(param.name);
-      }
+      accept(param, attempt);
     }
 
-    if (cursor === undefined || has(rest.tokens, segment.range, cursor)) {
+    let after = first(rest.tokens, segment.range);
+    if (after?.index === before?.index) {
       break;
     }
+  }
 
-    cursor = next(rest.tokens, segment.range, cursor);
+  // Address sources have stable visibility once the route is known. They are
+  // tried only after CLI has reached its fixed point so a provisional CLI miss
+  // cannot let a lower-priority source settle the parameter too early.
+  for (let source of [fromValues]) {
+    for (let param of pending.values()) {
+      accept(
+        param,
+        source({
+          param,
+          route: segment.path,
+          rest,
+        }),
+      );
+    }
+  }
+
+  // Only total absence reaches the schema as undefined. This is where required,
+  // optional, and defaulting parameters diverge.
+  for (let param of pending.values()) {
+    results.set(param.name, validate(param, undefined, [param.name]));
   }
 
   let model: Record<string, unknown> = {};
   let issues: Issue[] = [];
   let valid = true;
 
+  // Collect in declaration order, independent of the source or sweep that
+  // settled each parameter.
   for (let param of params) {
-    let result = results.get(param.name);
-    if (!result) {
-      continue;
-    }
-
+    let result = results.get(param.name)!;
     issues.push(...result.issues ?? []);
 
     if (result.ok) {
@@ -149,11 +184,43 @@ export function bindPhase(options: {
     }
   }
 
-  return { rest, model, issues, valid, cursor };
+  return { rest, model, issues, valid };
 }
 
-function validate<T, P extends Param<string, T>>(
-  param: P,
+function decode<T>(
+  param: Param<string, T>,
+  value: unknown,
+  candidates: unknown[],
+  path: string[],
+): Result<T> {
+  if (candidates.length === 0) {
+    return {
+      ok: false,
+      issues: [{
+        message: `unable to decode ${JSON.stringify(value)}`,
+        path,
+      }],
+    };
+  }
+
+  let issues: readonly Issue[] | undefined;
+
+  for (let candidate of candidates) {
+    let result = validate(param, candidate, path);
+    if (result.ok) {
+      return result;
+    }
+    issues = issues ?? result.issues;
+  }
+
+  return {
+    ok: false,
+    issues: issues ?? [],
+  };
+}
+
+function validate<T>(
+  param: Param<string, T>,
   value: unknown,
   path: string[],
 ): Result<T> {
@@ -177,36 +244,33 @@ function validate<T, P extends Param<string, T>>(
         path,
       })),
     };
-  } else {
-    return {
-      ok: true,
-      issues: [],
-      value: validated.value,
-    };
   }
+
+  return {
+    ok: true,
+    issues: [],
+    value: validated.value,
+  };
 }
 
-function has(
-  tokens: Tokenizer<Symbol>,
-  range: TokenRange,
-  index: number,
-): boolean {
-  for (let token of tokens.view({ range })) {
-    if (token.index === index) {
-      return true;
-    }
+function merge<T>(
+  result: Result<T>,
+  issues: readonly Issue[] | undefined,
+): Result<T> {
+  if (!issues || issues.length === 0) {
+    return result;
   }
-  return false;
+
+  return {
+    ...result,
+    issues: [...issues, ...(result.issues ?? [])],
+  };
 }
 
-function next(
-  tokens: Tokenizer<Symbol>,
-  range: TokenRange,
-  index: number,
-): number | undefined {
+function first(tokens: Tokenizer<Symbol>, range: TokenRange): Word | undefined {
   for (let token of tokens.view({ range })) {
-    if (token.index > index && token.type === "word") {
-      return token.index;
+    if (token.type === "word") {
+      return token;
     }
   }
 }

@@ -50,6 +50,7 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 - Tokenization describes syntax only; bindings assign semantic meaning.
 - Input is immutable.
 - Tokens retain stable global indices and original order.
+- Claims never make originally non-adjacent tokens adjacent.
 - Parents establish scope; children claim only within that scope.
 - Available input flows down; claims, issues, and models flow up.
 - Claims plus remainder conserve the original input: nothing disappears or is

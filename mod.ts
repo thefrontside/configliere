@@ -2,6 +2,8 @@ export { extend } from "./lib/extend.ts";
 export { command } from "./lib/command.ts";
 export type { CommandZero } from "./lib/command.ts";
 
+export { checkpoint } from "./lib/checkpoint.ts";
+
 export { description, name } from "./lib/definition.ts";
 
 export { option } from "./lib/option.ts";
