@@ -1,7 +1,7 @@
 import { type Param, param, schema } from "./param.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
-import type { AnyRoute, Definition, Method, Route, Schema } from "./types.ts";
+import type { AddParamToLast, AnyPhases, AnyRoute, Definition, Method, Route, Schema } from "./types.ts";
 
 export function toggle<const N extends string>(
   named: Definition<N>,
@@ -118,13 +118,22 @@ export function toggle(
     param(named, binding(named.name), schema(bool)),
   ) as Param<string, unknown>;
 
-  return (route: AnyRoute) => ({
-    ...route,
-    params: {
-      ...route.params,
-      [added.name]: added,
-    },
-  });
+  return (route: AnyRoute) => {
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+    phases.push({
+      ...phase,
+      params: {
+        ...phase.params,
+        [added.name]: added,
+      },
+    });
+
+    return {
+      ...route,
+      phases,
+    };
+  };
 }
 
 type Toggle<K extends string, V> = <
@@ -132,8 +141,9 @@ type Toggle<K extends string, V> = <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
+  const P extends AnyPhases
 >(
-  route: Route<N, M, T, C>,
+  route: Route<N, M, T, C, P>,
 ) => Route<
   N,
   M,
@@ -142,7 +152,8 @@ type Toggle<K extends string, V> = <
       { [Q in K]: V } & T
     )[P];
   },
-  C
+  C,
+  AddParamToLast<P, K, V>
 >;
 
 function binding(

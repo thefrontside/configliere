@@ -1,7 +1,7 @@
-// deno-lint-ignore-file ban-types
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Literal } from "./tokenize.ts";
 import type { Param } from "./param.ts";
+import type { Result } from "./result.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
@@ -16,25 +16,111 @@ export interface Route<
   M extends Method,
   T extends object,
   C extends readonly AnyRoute[],
+  P extends AnyPhases,
 > extends Definition<N> {
   readonly methods: readonly M[];
   readonly version?: string;
-  readonly params: {
-    [K in keyof T]: K extends string ? Param<K, T[K]> : never;
-  };
-  readonly children: C;
+  readonly phases: P;
+  readonly model?: T;
+  readonly children?: C;
 }
 
-export type ModelOf<R extends AnyRoute> = R extends
-  Route<string, Method, infer T, readonly AnyRoute[]> ? T
+export type Parse<R extends AnyRoute> = Outcome<ParseAt<R, "/", {}>>;
+
+export type Phase<
+  Model extends object,
+  Routes extends readonly AnyRoute[],
+  Requirement = never,
+> = [Requirement] extends [never] ? Done<Model, Routes>
+  : Next<Model, Routes, Requirement>;
+
+export type Next<
+  Model extends object,
+  Routes extends readonly AnyRoute[],
+  T,
+> = {
+  readonly params: Params<Model>;
+  readonly routes: Routes;
+  readonly resolver: (
+    requirement: T,
+  ) => (input: AnyRoute) => AnyRoute;
+};
+
+export type Done<
+  Model extends object,
+  Routes extends readonly AnyRoute[],
+> = {
+  readonly params: Params<Model>;
+  readonly routes: Routes;
+};
+
+export type Params<Model extends object> = {
+  [K in keyof Model]: K extends string ? Param<K, Model[K]> : never;
+};
+
+export interface ParseIncrement<
+  R extends AnyRoute,
+  P extends RoutePath = "/",
+  Models extends ModelsByRoute = {},
+> {
+  readonly ok: true;
+  readonly route: P;
+  readonly model: IncrementModelOf<R>;
+
+  resume(
+    result: Result<RequirementOf<R>>,
+  ): Outcome<ParseAt<ContinuationOf<R>, P, Models>>;
+}
+
+export type ContinuationOf<R extends AnyRoute> = R extends Route<
+  string,
+  Method,
+  object,
+  readonly AnyRoute[],
+  readonly [
+    AnyPhase,
+    infer Next extends AnyPhase,
+    ...infer Tail extends AnyPhase[],
+  ]
+> ? Route<
+    R["name"],
+    R["methods"][number],
+    ModelOf<R>,
+    ChildrenOf<R>,
+    readonly [Next, ...Tail]
+  >
   : never;
+
+export type ModelOf<R extends AnyRoute> = R extends Route<
+  string,
+  Method,
+  infer T,
+  readonly AnyRoute[],
+  readonly [AnyPhase, ...readonly AnyPhase[]]
+> ? T
+  : never;
+
+export type ChildrenOf<R extends AnyRoute> = R extends
+  Route<string, Method, object, infer Children, AnyPhases> ? Children
+  : never;
+
+export type RequirementsOf<R extends AnyRoute> = RequirementsIn<R["phases"]>;
+
+export type RequirementOf<R extends AnyRoute> = RequirementIn<R["phases"][0]>;
 
 export interface AnyRoute extends Definition<string> {
   readonly methods: readonly Method[];
   readonly version?: string;
-  readonly params: Readonly<Record<string, Param<string, unknown>>>;
-  readonly children: readonly AnyRoute[];
+  readonly phases: AnyPhases;
 }
+
+export interface AnyPhase {
+  readonly params: Params<object>;
+  readonly routes: readonly AnyRoute[];
+  readonly resolver?: (requirement: never) => (route: never) => AnyRoute;
+}
+
+export type AnyPhases = readonly [AnyPhase, ...AnyPhase[]];
 
 export type Method = "help" | "version" | "execute";
 export type MethodsOf<R extends AnyRoute> = R["methods"][number];
@@ -136,6 +222,54 @@ export interface UnprocessableContent extends Failure<"unprocessable-content"> {
   readonly issues: Issue[];
 }
 
+type RequirementIn<P extends AnyPhase> = P extends {
+  readonly resolver: (
+    requirement: infer Requirement,
+  ) => (route: AnyRoute) => AnyRoute;
+} ? Requirement
+  : never;
+
+type IncrementModelOf<R extends AnyRoute> = R["phases"][0] extends Next<
+  infer Model,
+  readonly AnyRoute[],
+  infer Requirement
+> ? Model
+  : never;
+
+type ParseAt<
+  R extends AnyRoute,
+  P extends RoutePath,
+  Models extends ModelsByRoute,
+> = [RequirementOf<R>] extends [never] ? (
+    | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
+    | ParseChildren<
+      ChildrenOf<R>,
+      P,
+      AddModel<Models, P, ModelOf<R>>
+    >
+  )
+  : ParseIncrement<R, P, Models>;
+
+type ParseChildren<
+  C extends readonly AnyRoute[],
+  P extends RoutePath,
+  Models extends ModelsByRoute,
+> = C extends readonly [
+  infer Head extends AnyRoute,
+  ...infer Tail extends readonly AnyRoute[],
+] ? (
+    | ParseAt<Head, Append<P, Head["name"]>, Models>
+    | ParseChildren<Tail, P, Models>
+  )
+  : never;
+
+type RequirementsIn<P extends readonly AnyPhase[]> = P extends readonly [
+  infer Head extends AnyPhase,
+  ...infer Tail extends AnyPhase[],
+] ? [RequirementIn<Head>] extends [never] ? readonly []
+  : readonly [RequirementIn<Head>, ...RequirementsIn<Tail>]
+  : readonly [];
+
 type AddModel<
   M extends ModelsByRoute,
   P extends RoutePath,
@@ -155,13 +289,98 @@ type Append<
 > = A extends "/" ? `/${N}`
   : `${A}/${N}`;
 
+type AddParam<
+  P extends AnyPhase,
+  K extends string,
+  V,
+> = P extends Next<
+  infer Model,
+  infer Routes,
+  infer Requirement
+> ? Next<
+    {
+      [Key in keyof ({ [Added in K]: V } & Model)]: (
+        { [Added in K]: V } & Model
+      )[Key];
+    },
+    Routes,
+    Requirement
+  >
+  : P extends Done<infer Model, infer Routes> ? Done<
+      {
+        [Key in keyof ({ [Added in K]: V } & Model)]: (
+          { [Added in K]: V } & Model
+        )[Key];
+      },
+      Routes
+    >
+  : never;
+
+export type AddParamToLast<
+  P extends AnyPhases,
+  K extends string,
+  V,
+> = ReplaceLast<
+  P,
+  AddParam<LastOf<P>, K, V>
+>;
+
+export type AddRoutesToLast<
+  P extends AnyPhases,
+  C extends readonly AnyRoute[],
+> = ReplaceLast<
+  P,
+  AddRoutes<LastOf<P>, C>
+>;
+
+type LastOf<P extends AnyPhases> = P extends readonly [
+  ...AnyPhase[],
+  infer Last extends AnyPhase,
+] ? Last
+  : never;
+
+type ReplaceLast<
+  P extends AnyPhases,
+  Last extends AnyPhase,
+> = P extends readonly [AnyPhase] ? readonly [Last]
+  : P extends readonly [
+    infer First extends AnyPhase,
+    ...infer Middle extends AnyPhase[],
+    AnyPhase,
+  ] ? readonly [First, ...Middle, Last]
+  : never;
+
+type AddRoutes<
+  Phase extends AnyPhase,
+  Added extends readonly AnyRoute[],
+> = Phase extends Next<
+  infer Model,
+  infer Routes,
+  infer Requirement
+> ? Next<
+    Model,
+    readonly [...Routes, ...Added],
+    Requirement
+  >
+  : Phase extends Done<infer Model, infer Routes> ? Done<
+      Model,
+      readonly [...Routes, ...Added]
+    >
+  : never;
+
+export type AddField<T extends object, K extends string, V> = {
+  [P in keyof ({ [Q in K]: V } & T)]: (
+    { [Q in K]: V } & T
+  )[P];
+};
+
 type IntentsAt<
   R extends AnyRoute,
   P extends RoutePath,
   Models extends ModelsByRoute,
 > =
   | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
-  | ChildIntents<R["children"], P, AddModel<Models, P, ModelOf<R>>>;
+  | ChildIntents<ChildrenOf<R>, P, AddModel<Models, P, ModelOf<R>>>;
 
 type RouteIntents<
   R extends AnyRoute,

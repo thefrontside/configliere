@@ -1,14 +1,25 @@
 // deno-lint-ignore-file ban-types
+import { extend } from "./extend.ts";
 import type {
+AddRoutesToLast,
+AnyPhases,
   AnyRoute,
+  ChildrenOf,
   Definition,
+  Done,
   Method,
   MethodsOf,
   ModelOf,
   Route,
 } from "./types.ts";
 
-export type RouteZero<N extends string = string> = Route<N, "help", {}, []>;
+export type RouteZero<N extends string = string> = Route<
+  N,
+  "help",
+  {},
+  [],
+  [Done<{}, []>]
+>;
 
 export function route<const Name extends string>(
   start: Definition<Name>,
@@ -1098,14 +1109,12 @@ export function route(
   let zero: RouteZero = {
     ...start,
     methods: ["help"],
-    params: {},
-    children: [],
+    phases: [{
+      params: {},
+      routes: [],
+    }],
   };
-
-  return elements.reduce<unknown>(
-    (value, element) => element(value as never),
-    zero,
-  );
+  return extend(elements)(zero);
 }
 
 export function version(
@@ -1115,7 +1124,8 @@ export function version(
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
->(route: Route<N, M, T, C>) => Route<N, M | "version", T, C> {
+  const P extends AnyPhases
+>(route: Route<N, M, T, C, P>) => Route<N, M | "version", T, C, P> {
   return (route) => ({
     ...route,
     methods: [...route.methods, "version"] as const,
@@ -1128,7 +1138,8 @@ export function executable(): <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
->(route: Route<N, M, T, C>) => Route<N, M | "execute", T, C> {
+  const P extends AnyPhases
+>(route: Route<N, M, T, C, P>) => Route<N, M | "execute", T, C, P> {
   return (route) => ({
     ...route,
     methods: [...route.methods, "execute"] as const,
@@ -1143,23 +1154,26 @@ export function routes<const C extends readonly AnyRoute[]>(
   R["name"],
   MethodsOf<R>,
   ModelOf<R>,
-  readonly [...R["children"], ...C]
+  readonly [...ChildrenOf<R>, ...C],
+  AddRoutesToLast<R["phases"], C>
 > {
   return <R extends AnyRoute>(route: R) => {
     type Output = Route<
       R["name"],
       MethodsOf<R>,
       ModelOf<R>,
-      readonly [...R["children"], ...C]
+      readonly [...ChildrenOf<R>, ...C],
+      AddRoutesToLast<R["phases"], C>
     >;
-
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+    phases.push({
+      ...phase,
+      routes: [...phase.routes, ...children],
+    });
     return {
       ...route,
-      children: [
-        ...route.children,
-        ...children,
-      ] as unknown as Output["children"],
-      params: route.params as Output["params"],
+      phases: phases as unknown as Output["phases"],
     };
   };
 }

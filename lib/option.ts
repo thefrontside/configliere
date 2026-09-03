@@ -1,6 +1,7 @@
+import { extend } from "./extend.ts";
 import { type Param, param } from "./param.ts";
 import { cli } from "./read.ts";
-import type { AnyRoute, Definition, Method, Route } from "./types.ts";
+import type { AddParamToLast, AnyPhases, AnyRoute, Definition, Method, Route } from "./types.ts";
 
 export function option<const N extends string>(
   named: Definition<N>,
@@ -112,18 +113,25 @@ export function option(
   named: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
-  const added = elements.reduce<unknown>(
-    (value, element) => element(value as never),
+  const added = extend(elements)(
     param(named, cli([`--${named.name}`])),
   ) as Param<string, unknown>;
 
-  return (route: AnyRoute) => ({
-    ...route,
-    params: {
-      ...route.params,
-      [added.name]: added,
-    },
-  });
+  return (route: AnyRoute) => {
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+    phases.push({
+      ...phase,
+      params: {
+        ...phase.params,
+        [added.name]: added,
+      },
+    });
+    return {
+      ...route,
+      phases: phases,
+    };
+  };
 }
 
 type Option<K extends string, V> = <
@@ -131,8 +139,9 @@ type Option<K extends string, V> = <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
+  const P extends AnyPhases
 >(
-  route: Route<N, M, T, C>,
+  route: Route<N, M, T, C, P>,
 ) => Route<
   N,
   M,
@@ -141,5 +150,6 @@ type Option<K extends string, V> = <
       { [Q in K]: V } & T
     )[P];
   },
-  C
+  C,
+  AddParamToLast<P, K, V>
 >;
