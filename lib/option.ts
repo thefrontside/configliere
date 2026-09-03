@@ -1,7 +1,14 @@
 import { extend } from "./extend.ts";
 import { type Param, param } from "./param.ts";
 import { cli } from "./read.ts";
-import type { AddParamToLast, AnyPhases, AnyRoute, Definition, Method, Route } from "./types.ts";
+import type {
+  AddParamToLast,
+  AnyPhases,
+  AnyRoute,
+  Definition,
+  Method,
+  Route,
+} from "./types.ts";
 
 export function option<const N extends string>(
   named: Definition<N>,
@@ -139,7 +146,7 @@ type Option<K extends string, V> = <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
-  const P extends AnyPhases
+  const P extends AnyPhases,
 >(
   route: Route<N, M, T, C, P>,
 ) => Route<

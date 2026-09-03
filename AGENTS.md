@@ -32,13 +32,14 @@ Strongly prefer one-word variable and function names (e.g. `dir` not `tmpDir`,
 
 - Framework: `@std/testing/bdd` (`describe`/`it`) with `@std/expect`
 - Tests live in `test/` and mirror the source layout.
-- Runtime parser tests assert only observable parse outcomes, such as increments,
-  intents, models, routes, and issues. Do not inspect definition internals such
-  as phases, parameters, or children, even when publicly accessible.
+- Runtime parser tests assert only observable parse outcomes, such as
+  increments, intents, models, routes, and issues. Do not inspect definition
+  internals such as phases, parameters, or children, even when publicly
+  accessible.
 - Do not test implementation mechanics such as resolver call counts, timing, or
   traversal order.
-- When replacing an internal assertion, preserve its behavioral contract with
-  an outcome-based test rather than dropping the coverage.
+- When replacing an internal assertion, preserve its behavioral contract with an
+  outcome-based test rather than dropping the coverage.
 
 ### Runtime and tooling
 
