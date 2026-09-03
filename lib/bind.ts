@@ -2,7 +2,7 @@ import type { Param } from "./param.ts";
 import type { Symbol } from "./read.ts";
 import type { Result } from "./result.ts";
 import type { Flag, Setter, Word } from "./tokenize.ts";
-import { Tokenizer } from "./tokenizer.ts";
+import { type TokenInput, Tokenizer } from "./tokenizer.ts";
 import type { AnyPhase, Issue } from "./types.ts";
 
 export interface Binding<T> {
@@ -25,7 +25,7 @@ export interface PhaseSegment {
 
 export function bind<T, P extends Param<string, T>>(options: {
   param: P;
-  tokens: Tokenizer<Flag | Setter | Word>;
+  tokens: TokenInput<Flag | Setter | Word>;
 }): Binding<T> {
   let { param, tokens } = options;
   let path = [param.name];

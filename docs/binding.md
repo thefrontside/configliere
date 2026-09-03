@@ -70,7 +70,7 @@ Source adapters share the attempt shape while retaining their own capture
 mechanics:
 
 ```ts
-fromCLI({ param, window, rest }): Attempt<unknown>;
+fromCLI({ param, view, rest }): Attempt<unknown>;
 fromValues({ param, route, rest }): Attempt<unknown>;
 fromEnv({ param, route, rest }): Attempt<unknown>;
 ```
@@ -102,7 +102,7 @@ index:    0       1        2       3       4
 argv:    -c   app.json   auth0  --port   9001
                   ^
                horizon
-window:  [--------------] |----- hidden -----|
+view:    [--------------] |----- hidden -----|
 ```
 
 The current phase may inspect indices 0 and 1. Its `config` parameter claims
@@ -114,7 +114,7 @@ index:    0       1        2       3       4
 argv:    -c   app.json   auth0  --port   9001
                            ^
                         horizon
-window:                  [---] |--- hidden ---|
+view:                    [---] |--- hidden ---|
 ```
 
 Nothing in the current phase claims `auth0`, so the horizon remains unchanged
@@ -172,7 +172,7 @@ There is one global tokenizer and one global claim ledger for a parse. A
 binding phase needs borrowed, bounded views into that tokenizer rather than
 temporary tokenizers whose claims later have to be reconstructed.
 
-The central addition is a first-class window:
+The central addition is a first-class view:
 
 ```ts
 interface TokenInput<T> extends Iterable<T> {
@@ -182,15 +182,15 @@ interface TokenInput<T> extends Iterable<T> {
 }
 
 class Tokenizer<T> implements TokenInput<T> {
-  window(options: {
+  view(options: {
     range: TokenRange;
     through?: number;
   }): TokenInput<T>;
 }
 ```
 
-A window changes visibility only. It never owns claims. Every claim made
-through a window returns a remainder rooted in the global tokenizer. As a
+A view changes visibility only. It never owns claims. Every claim made
+through a view returns a remainder rooted in the global tokenizer. As a
 result, `bindPhase()` can propagate the returned tokenizer directly and never
 needs to:
 
@@ -256,12 +256,12 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
     let before = firstWord(rest.tokens, segment.range);
 
     for (let param of pending.values()) {
-      let window = rest.tokens.window({
+      let view = rest.tokens.view({
         range: segment.range,
         through: before?.index,
       });
 
-      accept(param, fromCLI({ param, window, rest }));
+      accept(param, fromCLI({ param, view, rest }));
     }
 
     let after = firstWord(rest.tokens, segment.range);
@@ -345,7 +345,7 @@ binding loop.
 
 The design should be established with observable tests for these cases:
 
-- A claim through a token window updates the global tokenizer while preserving
+- A claim through a token view updates the global tokenizer while preserving
   hidden tokens.
 - Consuming the horizon exposes the next word and retries previously absent
   parameters.
