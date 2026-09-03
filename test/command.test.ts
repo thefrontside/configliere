@@ -3,6 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { command, type CommandZero } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
+import { withRoute } from "../lib/elements.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
 import { route, routes, version } from "../lib/route.ts";
@@ -18,16 +19,19 @@ describe("command()", () => {
   });
 
   it("materializes a CommandZero before applying the first element", () => {
-    let result = command(name("simulacrum"), (zero) => {
-      expectType<Equal<typeof zero, CommandZero<"simulacrum">>>(true);
-      expect(zero).toEqual({
-        name: "simulacrum",
-        methods: ["help", "execute"],
-        params: {},
-        children: [],
-      });
-      return zero;
-    });
+    let result = command(
+      name("simulacrum"),
+      withRoute((zero) => {
+        expectRoute(zero);
+        expect(zero).toEqual({
+          name: "simulacrum",
+          methods: ["help", "execute"],
+          params: {},
+          children: [],
+        });
+        return zero;
+      }),
+    );
 
     expectType<Equal<typeof result, CommandZero<"simulacrum">>>(true);
   });
@@ -147,3 +151,10 @@ type Methods<R extends AnyRoute> = R["methods"][number];
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
 }
+
+// Asserts the route a wrapped transformer receives: the formal's fully
+// generic shape. The concrete accumulated type only exists at command()'s
+// inference site, after the lambda is already checked.
+function expectRoute<N extends string, SM extends Method, SP extends object, SC extends readonly AnyRoute[]>(
+  _route: Route<N, SM, SP, SC>,
+): void {}
