@@ -7,7 +7,7 @@ export type ValueSource = {
 };
 
 export function withValues(
-  values: ValueSource[],
+  values: readonly ValueSource[],
 ): <R extends AnyRoute>(route: R) => R {
   return (route) => {
     let phases = [...route.phases];
@@ -15,7 +15,7 @@ export function withValues(
     phases.push({
       ...phase,
       values: phase.values.concat(values),
-    })
+    });
     return {
       ...route,
       phases,
@@ -26,7 +26,7 @@ export function withValues(
 export type ValueClaim = {
   result: Maybe<{
     source: string;
-    address: string[];
+    address: readonly string[];
     value: unknown;
   }>;
   rest: Values;
@@ -36,12 +36,15 @@ export class Values {
   mounts: Map<RoutePath, ValueSource[]>;
   claims: Set<ClaimId>;
 
-  constructor(mounts: Map<RoutePath, ValueSource[]> = new Map(), claims: Set<ClaimId> = new Set()) {
+  constructor(
+    mounts: Map<RoutePath, ValueSource[]> = new Map(),
+    claims: Set<ClaimId> = new Set(),
+  ) {
     this.mounts = mounts;
     this.claims = claims;
   }
 
-  mount(path: string[], sources: ValueSource[]): Values {
+  mount(path: readonly string[], sources: readonly ValueSource[]): Values {
     if (sources.length === 0) {
       return this;
     }
@@ -89,21 +92,21 @@ export class Values {
 }
 
 export interface ClaimOptions {
-  route: string[];
-  address: string[];
+  route: readonly string[];
+  address: readonly string[];
 }
 
 type ClaimId = string;
 
-function routeId(address: string[]): RoutePath {
+function routeId(address: readonly string[]): RoutePath {
   return `/${address.join("/")}`;
 }
 
-function claimId(address: string[]): ClaimId {
+function claimId(address: readonly string[]): ClaimId {
   return JSON.stringify(address);
 }
 
-function find(value: unknown, path: string[]): Maybe<unknown> {
+function find(value: unknown, path: readonly string[]): Maybe<unknown> {
   let current: unknown = value;
 
   for (let key of path) {

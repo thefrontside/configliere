@@ -1,17 +1,18 @@
 import type { Param } from "./param.ts";
 import type { Symbol } from "./read.ts";
+import type { Rest } from "./rest.ts";
 import type { Result } from "./result.ts";
 import type { Flag, Setter, Word } from "./tokenize.ts";
-import { type TokenInput, Tokenizer } from "./tokenizer.ts";
+import type { TokenInput, Tokenizer, TokenRange } from "./tokenizer.ts";
 import type { AnyPhase, Issue } from "./types.ts";
 
 export interface Binding<T> {
-  rest: Tokenizer<Symbol>;
+  rest: Rest;
   result: Result<T>;
 }
 
 export interface PhaseBinding {
-  rest: Tokenizer<Symbol>;
+  rest: Rest;
   model: Record<string, unknown>;
   issues: Issue[];
   valid: boolean;
@@ -19,17 +20,22 @@ export interface PhaseBinding {
 }
 
 export interface PhaseSegment {
-  readonly tokens: Iterable<Symbol>;
+  readonly range: TokenRange;
   readonly cursor?: number;
 }
 
 export function bind<T, P extends Param<string, T>>(options: {
   param: P;
-  tokens: TokenInput<Flag | Setter | Word>;
+  view: TokenInput<Flag | Setter | Word>;
+  rest: Rest;
 }): Binding<T> {
-  let { param, tokens } = options;
+  let { param, view, rest } = options;
   let path = [param.name];
-  let cli = param.cli(tokens);
+  let cli = param.cli(view);
+  let next = {
+    ...rest,
+    tokens: cli.claim.rest,
+  };
 
   if (cli.result.ok) {
     let read = cli.result.value;
@@ -39,7 +45,7 @@ export function bind<T, P extends Param<string, T>>(options: {
 
     if (candidates.length === 0) {
       return {
-        rest: cli.claim.rest,
+        rest: next,
         result: {
           ok: false,
           issues: [{
@@ -55,7 +61,7 @@ export function bind<T, P extends Param<string, T>>(options: {
       let result = validate<T, P>(param, candidate, path);
       if (result.ok) {
         return {
-          rest: cli.claim.rest,
+          rest: next,
           result,
         };
       } else {
@@ -64,7 +70,7 @@ export function bind<T, P extends Param<string, T>>(options: {
     }
 
     return {
-      rest: cli.claim.rest,
+      rest: next,
       result: {
         ok: false,
         issues: issues ?? [],
@@ -73,7 +79,7 @@ export function bind<T, P extends Param<string, T>>(options: {
   }
 
   return {
-    rest: cli.claim.rest,
+    rest: next,
     result: {
       ok: false,
       issues: cli.result.issues,
@@ -84,12 +90,11 @@ export function bind<T, P extends Param<string, T>>(options: {
 export function bindPhase(options: {
   phase: AnyPhase;
   segment: PhaseSegment;
-  tokens: Tokenizer<Symbol>;
+  rest: Rest;
 }): PhaseBinding {
   let { phase, segment } = options;
-  let tokens = options.tokens;
+  let rest = options.rest;
   let params = Object.values(phase.params) as Param<string, unknown>[];
-  let members = new Set(Array.from(segment.tokens, (token) => token.index));
   let cursor = segment.cursor;
   let results = new Map<string, Result<unknown>>();
   let settled = new Set<string>();
@@ -100,36 +105,29 @@ export function bindPhase(options: {
         continue;
       }
 
-      let visible = Array.from(tokens).filter((token) => {
-        return members.has(token.index) &&
-          (cursor === undefined || token.index <= cursor);
-      });
+      let tokens = rest.tokens;
       let binding = bind({
         param,
-        tokens: new Tokenizer(visible),
+        view: tokens.view({
+          range: segment.range,
+          through: cursor,
+        }),
+        rest,
       });
-      let remaining = new Set(
-        Array.from(binding.rest, (token) => token.index),
-      );
-      let claimed = new Set(
-        visible
-          .filter((token) => !remaining.has(token.index))
-          .map((token) => token.index),
-      );
 
       results.set(param.name, binding.result);
+      rest = binding.rest;
 
-      if (claimed.size > 0) {
-        tokens = tokens.claimAll((token) => claimed.has(token.index)).rest;
+      if (rest.tokens !== tokens) {
         settled.add(param.name);
       }
     }
 
-    if (cursor === undefined || has(tokens, members, cursor)) {
+    if (cursor === undefined || has(rest.tokens, segment.range, cursor)) {
       break;
     }
 
-    cursor = next(tokens, members, cursor);
+    cursor = next(rest.tokens, segment.range, cursor);
   }
 
   let model: Record<string, unknown> = {};
@@ -151,7 +149,7 @@ export function bindPhase(options: {
     }
   }
 
-  return { rest: tokens, model, issues, valid, cursor };
+  return { rest, model, issues, valid, cursor };
 }
 
 function validate<T, P extends Param<string, T>>(
@@ -190,11 +188,11 @@ function validate<T, P extends Param<string, T>>(
 
 function has(
   tokens: Tokenizer<Symbol>,
-  members: Set<number>,
+  range: TokenRange,
   index: number,
 ): boolean {
-  for (let token of tokens) {
-    if (members.has(token.index) && token.index === index) {
+  for (let token of tokens.view({ range })) {
+    if (token.index === index) {
       return true;
     }
   }
@@ -203,13 +201,11 @@ function has(
 
 function next(
   tokens: Tokenizer<Symbol>,
-  members: Set<number>,
+  range: TokenRange,
   index: number,
 ): number | undefined {
-  for (let token of tokens) {
-    if (
-      members.has(token.index) && token.index > index && token.type === "word"
-    ) {
+  for (let token of tokens.view({ range })) {
+    if (token.index > index && token.type === "word") {
       return token.index;
     }
   }
