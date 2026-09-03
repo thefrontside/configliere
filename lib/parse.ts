@@ -1,8 +1,10 @@
 import { bindPhase } from "./bind.ts";
 import type { Symbol } from "./read.ts";
+import type { Rest } from "./rest.ts";
 import type { Result } from "./result.ts";
 import { type AnyToken, type Literal, tokenize } from "./tokenize.ts";
 import { Tokenizer } from "./tokenizer.ts";
+import { Values } from "./values.ts";
 import type {
   AnyIntent,
   AnyPhase,
@@ -42,14 +44,17 @@ export function parse(
     method = "version";
   }
 
-  let rest = literals.rest as Tokenizer<Symbol>;
+  let rest: Rest = {
+    tokens: literals.rest as Tokenizer<Symbol>,
+    values: new Values().mount([], input.values ?? []),
+  };
 
   return resume({
     segments: [{
       id: "/",
       route,
       phases: route.phases,
-      tokens: Array.from(rest),
+      tokens: Array.from(rest.tokens),
       path: [],
       start: -1,
       model: {},
@@ -75,6 +80,14 @@ function resume(
     let segment = state.segments[index];
     let [phase] = segment.phases;
 
+    state = {
+      ...state,
+      rest: {
+        ...state.rest,
+        values: state.rest.values.mount(segment.path, phase.values),
+      },
+    };
+
     // Controls are free of ordinary configuration validation. A dynamic phase
     // is the exception: its model is needed by the caller before the remaining
     // route graph (and therefore the final control target) can be known.
@@ -97,14 +110,20 @@ function resume(
       return resolve({ ...state, models }, segment);
     }
 
-    // Bind only this phase, within this segment's token window.
+    // Bind only this phase, within this segment's token view.
     //
     // For an open dynamic segment, a binding may consume the cursor but may
     // not leap over it. For a committed segment, `end` is the hard boundary.
     let binding = bindPhase({
       phase,
-      segment,
-      tokens: state.rest,
+      segment: {
+        range: {
+          start: segment.start,
+          end: segment.end,
+        },
+        cursor: segment.cursor,
+      },
+      rest: state.rest,
     });
 
     segment = {
@@ -228,7 +247,7 @@ function resume(
 interface ParserState {
   segments: [Segment, ...Segment[]];
   active: number;
-  rest: Tokenizer<Symbol>;
+  rest: Rest;
   models: ModelsByRoute;
   method: Method;
   literals: Literal[];
@@ -263,7 +282,7 @@ function search(state: ParserState): ParserState {
     let index = segments.length - 1;
     let segment = segments[index];
     let [phase] = segment.phases;
-    let remaining = new Set(Array.from(rest, (token) => token.index));
+    let remaining = new Set(Array.from(rest.tokens, (token) => token.index));
     let selector = segment.tokens.find((token) => {
       return remaining.has(token.index) && token.type === "word" &&
         phase.routes.some((route) => route.name === token.text);
@@ -301,7 +320,11 @@ function search(state: ParserState): ParserState {
       history: [],
     });
 
-    rest = rest.claimOne((token) => token.index === selector.index).rest;
+    rest = {
+      ...rest,
+      tokens: rest.tokens.claimOne((token) => token.index === selector.index)
+        .rest,
+    };
   }
 }
 
@@ -331,6 +354,10 @@ function stitch(
     routes: [
       ...phase.routes,
       ...next.routes,
+    ],
+    values: [
+      ...phase.values,
+      ...next.values,
     ],
   });
   phases.push(...rest);
@@ -395,6 +422,7 @@ function seed(route: AnyRoute): AnyRoute {
     phases: [{
       params: {},
       routes: [],
+      values: [],
     }],
   };
 }
@@ -431,7 +459,7 @@ function unexpected(
     segment.tokens.map((token) => token.index),
   );
 
-  return Array.from(state.rest)
+  return Array.from(state.rest.tokens)
     .filter((token) => members.has(token.index))
     .map((token) => ({
       message: `unexpected ${JSON.stringify(token.text)}`,
