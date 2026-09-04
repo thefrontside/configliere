@@ -1,4 +1,5 @@
 import type { Maybe } from "./maybe.ts";
+import { brand, type IdentityElement } from "./pipeline.ts";
 import type { AnyRoute, RoutePath } from "./types.ts";
 
 export type ValueSource = {
@@ -8,19 +9,21 @@ export type ValueSource = {
 
 export function withValues(
   values: readonly ValueSource[],
-): <R extends AnyRoute>(route: R) => R {
-  return (route) => {
-    let phases = [...route.phases];
-    let phase = phases.pop()!;
-    phases.push({
-      ...phase,
-      values: phase.values.concat(values),
-    });
-    return {
-      ...route,
-      phases,
-    };
-  };
+): IdentityElement<AnyRoute> {
+  return brand<IdentityElement<AnyRoute>>(
+    (route: AnyRoute) => {
+      let phases = [...route.phases];
+      let phase = phases.pop()!;
+      phases.push({
+        ...phase,
+        values: phase.values.concat(values),
+      });
+      return {
+        ...route,
+        phases,
+      };
+    },
+  );
 }
 
 export type ValueClaim = {
