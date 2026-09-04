@@ -6,6 +6,9 @@ export { checkpoint } from "./lib/checkpoint.ts";
 
 export { description, name } from "./lib/definition.ts";
 
+export { env, withEnvs } from "./lib/env.ts";
+export type { Environment, EnvSource } from "./lib/env.ts";
+
 export { option } from "./lib/option.ts";
 
 export { param, schema } from "./lib/param.ts";

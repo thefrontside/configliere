@@ -1,7 +1,16 @@
+import { boolean as decode } from "./decode.ts";
 import { type Param, param, schema } from "./param.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
-import type { AddParamToLast, AnyPhases, AnyRoute, Definition, Method, Route, Schema } from "./types.ts";
+import type {
+  AddParamToLast,
+  AnyPhases,
+  AnyRoute,
+  Definition,
+  Method,
+  Route,
+  Schema,
+} from "./types.ts";
 
 export function toggle<const N extends string>(
   named: Definition<N>,
@@ -115,7 +124,10 @@ export function toggle(
 ): unknown {
   const added = elements.reduce<unknown>(
     (value, element) => element(value as never),
-    param(named, binding(named.name), schema(bool)),
+    {
+      ...param(named, binding(named.name), schema(bool)),
+      decode,
+    },
   ) as Param<string, unknown>;
 
   return (route: AnyRoute) => {
@@ -141,7 +153,7 @@ type Toggle<K extends string, V> = <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
-  const P extends AnyPhases
+  const P extends AnyPhases,
 >(
   route: Route<N, M, T, C, P>,
 ) => Route<

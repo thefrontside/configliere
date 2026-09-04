@@ -3,19 +3,19 @@
 `bindPhase()` is a source scheduler, not a source interpreter.
 
 CLI, Values, and Env all attempt to supply values for parameters, but they do
-not traverse their inputs in the same way. CLI is positional: its safely
-visible input can grow as options and arguments consume words. Values and Env
-are address sources: once the route and parameter address are known, their
+not traverse their inputs in the same way. CLI is positional: its safely visible
+input can grow as options and arguments consume words. Values and Env are
+address sources: once the route and parameter address are known, their
 visibility is stable.
 
-The binding algorithm should preserve that distinction while giving every
-source the same attempt protocol. The intended precedence is visible directly
-in its structure:
+The binding algorithm should preserve that distinction while giving every source
+the same attempt protocol. The intended precedence is visible directly in its
+structure:
 
 ```text
 CLI fixed point
-Values
 Env
+Values
 undefined
 ```
 
@@ -55,8 +55,8 @@ The outcomes mean:
   are blocked.
 
 A malformed CLI option is therefore an existing, failed attempt because it
-claimed input. A decoding or schema error from a higher-priority source must
-not disappear by silently selecting a lower-priority value.
+claimed input. A decoding or schema error from a higher-priority source must not
+disappear by silently selecting a lower-priority value.
 
 Explicit `undefined` from a JavaScript value source is also present. It must be
 distinguished from an absent property, must shadow lower-priority sources, and
@@ -88,10 +88,10 @@ The **horizon** is the first remaining word in the current route segment. It is
 the inclusive boundary of safe lookahead. This is not a cursor: it does not
 identify the current consumption position.
 
-The horizon itself must be visible so an option or positional argument can
-prove that the word is data by claiming it. The entire suffix after it remains
-hidden because, if the horizon becomes a child selector, every following
-option belongs to that child.
+The horizon itself must be visible so an option or positional argument can prove
+that the word is data by claiming it. The entire suffix after it remains hidden
+because, if the horizon becomes a child selector, every following option belongs
+to that child.
 
 ### Dynamic route discovery
 
@@ -118,8 +118,8 @@ view:                    [---] |--- hidden ---|
 ```
 
 Nothing in the current phase claims `auth0`, so the horizon remains unchanged
-after a complete parameter sweep. CLI binding has reached a fixed point and
-must stop.
+after a complete parameter sweep. CLI binding has reached a fixed point and must
+stop.
 
 If `resume()` introduces an `auth0` route, route search can now claim index 2 as
 its selector. The child receives `--port 9001`. Without the horizon, a parent
@@ -157,8 +157,8 @@ moves to `auth0`:
                                horizon
 ```
 
-No parameter claims it, so the horizon is stable and CLI binding stops. This
-is a fixed-point calculation rather than an ordinary left-to-right cursor.
+No parameter claims it, so the horizon is stable and CLI binding stops. This is
+a fixed-point calculation rather than an ordinary left-to-right cursor.
 
 Route search always runs before phase binding. A currently discoverable route
 therefore beats an option value. A route introduced only after the current
@@ -168,9 +168,9 @@ the unambiguous escape hatch.
 
 ## Tokenizer support
 
-There is one global tokenizer and one global claim ledger for a parse. A
-binding phase needs borrowed, bounded views into that tokenizer rather than
-temporary tokenizers whose claims later have to be reconstructed.
+There is one global tokenizer and one global claim ledger for a parse. A binding
+phase needs borrowed, bounded views into that tokenizer rather than temporary
+tokenizers whose claims later have to be reconstructed.
 
 The central addition is a first-class view:
 
@@ -189,19 +189,18 @@ class Tokenizer<T> implements TokenInput<T> {
 }
 ```
 
-A view changes visibility only. It never owns claims. Every claim made
-through a view returns a remainder rooted in the global tokenizer. As a
-result, `bindPhase()` can propagate the returned tokenizer directly and never
-needs to:
+A view changes visibility only. It never owns claims. Every claim made through a
+view returns a remainder rooted in the global tokenizer. As a result,
+`bindPhase()` can propagate the returned tokenizer directly and never needs to:
 
 1. Materialize the visible tokens.
 2. Compare them with a temporary remainder.
 3. Recover the claimed indices.
 4. Replay those claims against the global tokenizer.
 
-The tokenizer should materialize one stable token array and carry one
-cumulative immutable set of claimed indices. Claims should not create an
-ever-deepening stack of tokenizer iterators.
+The tokenizer should materialize one stable token array and carry one cumulative
+immutable set of claimed indices. Claims should not create an ever-deepening
+stack of tokenizer iterators.
 
 The remaining invariants are:
 
@@ -218,7 +217,7 @@ existing segment start and end can therefore become a real range:
 ```ts
 interface TokenRange {
   readonly start: number; // exclusive
-  readonly end?: number;  // exclusive
+  readonly end?: number; // exclusive
 }
 ```
 
@@ -272,13 +271,16 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
   }
 
   // Stable address sources: array order is precedence.
-  for (let source of [fromValues, fromEnv]) {
+  for (let source of [fromEnv, fromValues]) {
     for (let param of pending.values()) {
-      accept(param, source({
+      accept(
         param,
-        route: segment.path,
-        rest,
-      }));
+        source({
+          param,
+          route: segment.path,
+          rest,
+        }),
+      );
     }
   }
 
@@ -305,8 +307,8 @@ no remaining words before or after it, the next comparison terminates.
 
 ## Parser integration
 
-A phase owns the introduction of its value and environment sources; parser
-state owns their lifetime after introduction.
+A phase owns the introduction of its value and environment sources; parser state
+owns their lifetime after introduction.
 
 When a phase becomes active, mount its newly declared sources at the current
 route path:
@@ -319,10 +321,10 @@ rest = {
 };
 ```
 
-Those sources remain available to every downstream phase. Input-level Values
-and Env sources are mounted at `/` before the first phase. Sources introduced
-on a child route are mounted at that child's route path. Sources introduced by
-a dynamic continuation become visible only after that continuation is resumed.
+Those sources remain available to every downstream phase. Input-level Values and
+Env sources are mounted at `/` before the first phase. Sources introduced on a
+child route are mounted at that child's route path. Sources introduced by a
+dynamic continuation become visible only after that continuation is resumed.
 
 Parser state should carry `rest` as one value and replace it wholesale with the
 phase result:
@@ -352,9 +354,9 @@ The design should be established with observable tests for these cases:
   parameters.
 - A stable horizon leaves the entire suffix untouched.
 - CLI overrides Values even when its option is not visible until a later sweep.
-- Values override Env when that is the declared source order.
-- Invalid CLI blocks valid Values and Env.
-- Invalid Values block valid Env.
+- Env overrides Values when that is the declared source order.
+- Invalid CLI blocks valid Env and Values.
+- Invalid Env blocks valid Values.
 - Only total absence invokes required, optional, or defaulting schema behavior.
 - A dynamically introduced child receives every token after its selector.
 - Sources introduced by a phase become available at that phase and persist
