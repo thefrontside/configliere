@@ -49,7 +49,16 @@ type ElementOf<N extends string, P> = P extends Param<N, unknown>
   : never;
 
 function positional<P extends Param<string, unknown>>(param: P): P {
-  return { ...param, cli: read };
+  return {
+    ...param,
+    cli: {
+      read,
+      syntax: {
+        type: "argument",
+        label: `<${param.name.toUpperCase()}>`,
+      },
+    },
+  };
 }
 
 const read: ReadCLI = (tokens): CLIRead => {

@@ -11,7 +11,7 @@ describe("CLI reader", () => {
     let read = param(
       name("port"),
       cli(["--port"]),
-    ).cli(symbols(["--port", "--verbose"]));
+    ).cli.read(symbols(["--port", "--verbose"]));
 
     expect(read.result).toMatchObject({
       ok: false,

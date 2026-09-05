@@ -30,7 +30,7 @@ export function fromCLI<const K extends string, T>(options: {
   readonly rest: Rest;
 }): Maybe<Binding<T>> {
   let { param, view, rest } = options;
-  return fromRead(param, param.cli(view), rest);
+  return fromRead(param, param.cli.read(view), rest);
 }
 
 export function fromValues<const K extends string, T>(options: {
@@ -138,7 +138,7 @@ export function bindPhase(options: {
         range: segment.range,
         through: horizon?.index,
       });
-      let read = param.cli(view);
+      let read = param.cli.read(view);
 
       if (read.result.ok && !read.result.value.exists) {
         continue;
