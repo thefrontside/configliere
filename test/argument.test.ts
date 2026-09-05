@@ -87,7 +87,7 @@ describe("argument()", () => {
       });
     });
 
-    it.skip("does not let a positional reader steal an option value", () => {
+    it("does not let a positional reader steal an option value", () => {
       let app = command(
         name("app"),
         argument(name("input"), schema(type("string"))),
@@ -101,6 +101,43 @@ describe("argument()", () => {
         ok: true,
         method: "execute",
         model: { input: "input.txt", port: 9000 },
+      });
+    });
+
+    it("keeps an invalid option value attached to its option", () => {
+      let app = command(
+        name("app"),
+        argument(name("input"), schema(type("string"))),
+        option(name("port"), schema(type("number"))),
+      );
+      let result = parse(app, {
+        argv: ["--port", "nope", "input.txt"],
+      });
+
+      assertUnprocessable(result);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]).toMatchObject({ path: ["port"] });
+    });
+
+    it("preserves positional order around an option", () => {
+      let app = command(
+        name("copy"),
+        argument(name("source"), schema(type("string"))),
+        option(name("port"), schema(type("number"))),
+        argument(name("destination"), schema(type("string"))),
+      );
+      let result = parse(app, {
+        argv: ["input.txt", "--port", "9000", "output.txt"],
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        method: "execute",
+        model: {
+          source: "input.txt",
+          port: 9000,
+          destination: "output.txt",
+        },
       });
     });
 
@@ -257,6 +294,19 @@ describe("argument()", () => {
         issues: [{ message: 'unexpected "extra.txt"' }],
       });
     });
+
+    it("does not reserve an argument for an unknown flag", () => {
+      let app = command(
+        name("app"),
+        argument(name("input"), schema(type("string"))),
+      );
+      let result = parse(app, {
+        argv: ["--floop", "input.txt"],
+      });
+
+      assertUnprocessable(result);
+      expect(result.issues).toEqual([{ message: 'unexpected "--floop"' }]);
+    });
   });
 
   describe("phases", () => {
@@ -335,4 +385,16 @@ function assertIncrement(
   expect(
     typeof (result as { readonly resume?: unknown }).resume,
   ).toBe("function");
+}
+
+function assertUnprocessable(
+  result: unknown,
+): asserts result is {
+  readonly issues: readonly unknown[];
+} {
+  expect(result).toMatchObject({
+    ok: false,
+    code: "unprocessable-content",
+    route: "/",
+  });
 }
