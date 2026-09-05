@@ -125,20 +125,23 @@ describe("binding", () => {
       cli(["--port"]),
       schema(z.number()),
     );
-    let read = base.cli;
+    let read = base.cli.read;
     let port = {
       ...base,
-      cli(tokens: Parameters<typeof read>[0]) {
-        let capture = read(tokens);
-        return capture.result.ok
-          ? {
-            ...capture,
-            result: {
-              ...capture.result,
-              issues: [{ message: "--port is deprecated" }],
-            },
-          }
-          : capture;
+      cli: {
+        ...base.cli,
+        read(tokens: Parameters<typeof read>[0]) {
+          let capture = read(tokens);
+          return capture.result.ok
+            ? {
+              ...capture,
+              result: {
+                ...capture.result,
+                issues: [{ message: "--port is deprecated" }],
+              },
+            }
+            : capture;
+        },
       },
     };
     let result = bindPhase({

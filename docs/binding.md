@@ -284,7 +284,7 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
         range: segment.range,
         through: horizon?.index,
       });
-      let read = param.cli(view);
+      let read = param.cli.read(view);
 
       if (read.result.ok && !read.result.value.exists) {
         continue;

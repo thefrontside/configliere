@@ -56,8 +56,20 @@ type ElementOf<N extends string, P> = P extends Param<N, unknown>
 function binding(
   name: string,
 ): <P extends Param<string, unknown>>(param: P) => P {
-  const cli = reader(name);
-  return (param) => ({ ...param, cli });
+  const stem = dasherize(name);
+  const yes = `--${stem}`;
+  const no = `--no-${stem}`;
+
+  return (param) => ({
+    ...param,
+    cli: {
+      read: reader(name),
+      syntax: {
+        type: "option",
+        label: `${yes}, ${no}`,
+      },
+    },
+  });
 }
 
 function reader(name: string): ReadCLI {
