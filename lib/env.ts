@@ -28,8 +28,10 @@ export interface EnvClaimOptions {
 
 export function env(
   key: string,
-): <P extends Param<string, unknown>>(param: P) => P {
-  return (param) => ({ ...param, env: key });
+): IdentityElement<Param<string, unknown>> {
+  return brand<IdentityElement<Param<string, unknown>>>(
+    (param: Param<string, unknown>) => ({ ...param, env: key }),
+  );
 }
 
 export function withEnvs(
