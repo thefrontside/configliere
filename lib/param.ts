@@ -1,5 +1,4 @@
 import { type Decoder, scalar } from "./decode.ts";
-import { extend } from "./extend.ts";
 import type { ReadCLI } from "./read.ts";
 import type { AnyToken } from "./tokenize.ts";
 import type { TokenInput } from "./tokenizer.ts";
@@ -147,7 +146,10 @@ export function param(
     }),
     decode: scalar,
   };
-  return extend(elements)(zero);
+  return elements.reduce<unknown>(
+    (value, element) => element(value as never),
+    zero,
+  );
 }
 
 export function schema<T>(

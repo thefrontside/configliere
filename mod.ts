@@ -16,6 +16,9 @@ export type { Param } from "./lib/param.ts";
 
 export { parse } from "./lib/parse.ts";
 
+export { mark } from "./lib/pipeline.ts";
+export type { Transform, TransformElement } from "./lib/pipeline.ts";
+
 export { printErrors, printHelp, printVersion } from "./lib/print.ts";
 
 export type { Rest } from "./lib/rest.ts";
