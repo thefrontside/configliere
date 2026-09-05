@@ -7,12 +7,12 @@ import {
   type TransformElement,
   type Unary,
 } from "./pipeline.ts";
-import type { ReadCLI } from "./read.ts";
+import type { CLIBinding } from "./read.ts";
 import type { Definition, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
   schema: Schema<T>;
-  cli: ReadCLI;
+  cli: CLIBinding;
   decode: Decoder;
   env?: string;
 }
@@ -27,16 +27,18 @@ export function param<
   let zero: Param<K, unknown> = {
     ...start,
     schema: unknown,
-    cli: (tokens) => {
-      let claim = tokens.claimAll(() => false);
-      return {
-        result: {
-          ok: true,
-          value: { exists: false },
-          issues: [],
-        },
-        claim,
-      };
+    cli: {
+      read(tokens) {
+        let claim = tokens.claimAll(() => false);
+        return {
+          result: {
+            ok: true,
+            value: { exists: false },
+            issues: [],
+          },
+          claim,
+        };
+      },
     },
     decode: scalar,
   };
