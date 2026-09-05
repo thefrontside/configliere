@@ -1,5 +1,6 @@
 import type { Maybe } from "./maybe.ts";
 import type { Param } from "./param.ts";
+import { brand, type IdentityElement } from "./pipeline.ts";
 import type { Result } from "./result.ts";
 import type { Flag, Setter, Word } from "./tokenize.ts";
 import type { Claim, TokenInput } from "./tokenizer.ts";
@@ -9,6 +10,15 @@ export type Symbol = Flag | Setter | Word;
 export type ReadCLI = (
   tokens: TokenInput<Symbol>,
 ) => CLIRead;
+
+export interface CLIBinding {
+  readonly read: ReadCLI;
+  readonly syntax?: CLISyntax;
+}
+
+export type CLISyntax =
+  | { readonly type: "argument"; readonly label: string }
+  | { readonly type: "option"; readonly label: string };
 
 export interface CLIRead {
   result: Result<Maybe<string | boolean>>;
@@ -20,9 +30,9 @@ export interface CLIOptions {
 }
 
 export function cli(
-  names: string[],
+  names: readonly string[],
   options: CLIOptions = {},
-): <P extends Param<string, unknown>>(param: P) => P {
+): IdentityElement<Param<string, unknown>> {
   const read: ReadCLI = (tokens) => {
     if (options.switch) {
       let s = tokens.claimOne((t): t is Flag => {
@@ -93,10 +103,20 @@ export function cli(
     return nothing(tokens);
   };
 
-  return (param) => ({
-    ...param,
-    cli: read,
-  });
+  return brand<IdentityElement<Param<string, unknown>>>(
+    (param: Param<string, unknown>) => ({
+      ...param,
+      cli: {
+        read,
+        syntax: {
+          type: "option",
+          label: options.switch
+            ? names.join(", ")
+            : `${names.join(", ")} <VALUE>`,
+        },
+      },
+    }),
+  );
 }
 
 function nothing(tokenizer: TokenInput<Symbol>): CLIRead {

@@ -1,120 +1,23 @@
 import { boolean as decode } from "./decode.ts";
 import { type Param, param, schema } from "./param.ts";
-import { brand, type ParamElement } from "./pipeline.ts";
+import {
+  brand,
+  type Check,
+  type Fold,
+  type ParamElement,
+  type Unary,
+} from "./pipeline.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
 import type { AnyRoute, Definition, Schema } from "./types.ts";
 
-export function toggle<const N extends string>(
-  named: Definition<N>,
-): ParamElement<N, boolean>;
-
-export function toggle<const N extends string, T>(
-  named: Definition<N>,
-  nt: (value: Param<N, boolean>) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  at: (value: A) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, B, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bt: (value: B) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, B, C, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  ct: (value: C) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  dt: (value: D) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, E, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  et: (value: E) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<const N extends string, A, B, C, D, E, F, T>(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  ft: (value: F) => Param<N, T>,
-): ParamElement<N, T>;
-
 export function toggle<
   const N extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  T,
+  const E extends readonly Unary[],
 >(
   named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gt: (value: G) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle<
-  const N extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  H,
-  T,
->(
-  named: Definition<N>,
-  na: (value: Param<N, boolean>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gh: (value: G) => H,
-  ht: (value: H) => Param<N, T>,
-): ParamElement<N, T>;
-
-export function toggle(
-  named: Definition<string>,
-  ...elements: readonly ((value: never) => unknown)[]
-): unknown {
+  ...elements: E & Check<Param<N, boolean>, E>
+): ElementOf<N, Fold<Param<N, boolean>, E>> {
   const added = elements.reduce<unknown>(
     (value, element) => element(value as never),
     {
@@ -123,29 +26,49 @@ export function toggle(
     },
   ) as Param<string, unknown>;
 
-  return brand<ParamElement<string, unknown>>((route: AnyRoute) => {
-    let phases = [...route.phases];
-    let phase = phases.pop()!;
-    phases.push({
-      ...phase,
-      params: {
-        ...phase.params,
-        [added.name]: added,
-      },
-    });
+  return brand<ElementOf<N, Fold<Param<N, boolean>, E>>>(
+    (route: AnyRoute) => {
+      let phases = [...route.phases];
+      let phase = phases.pop()!;
+      phases.push({
+        ...phase,
+        params: {
+          ...phase.params,
+          [added.name]: added,
+        },
+      });
 
-    return {
-      ...route,
-      phases,
-    };
-  });
+      return {
+        ...route,
+        phases,
+      };
+    },
+  );
 }
+
+type ValueOf<P> = P extends Param<string, infer T> ? T : never;
+
+type ElementOf<N extends string, P> = P extends Param<N, unknown>
+  ? ParamElement<N, ValueOf<P>>
+  : never;
 
 function binding(
   name: string,
 ): <P extends Param<string, unknown>>(param: P) => P {
-  const cli = reader(name);
-  return (param) => ({ ...param, cli });
+  const stem = dash(name);
+  const yes = `--${stem}`;
+  const no = `--no-${stem}`;
+
+  return (param) => ({
+    ...param,
+    cli: {
+      read: reader(name),
+      syntax: {
+        type: "option",
+        label: `${yes}, ${no}`,
+      },
+    },
+  });
 }
 
 function reader(name: string): ReadCLI {
