@@ -396,6 +396,29 @@ describe("pipeline fold", () => {
     expectType<Equal<typeof extended, 11>>(true);
   });
 
+  it("folds parameter modifiers without an arity limit", () => {
+    let app = command(
+      name("app"),
+      option(
+        name("port"),
+        description("one"),
+        description("two"),
+        description("three"),
+        description("four"),
+        description("five"),
+        description("six"),
+        description("seven"),
+        description("eight"),
+        description("nine"),
+        description("ten"),
+        description("eleven"),
+        schema(type("number")),
+      ),
+    );
+
+    expectType<Equal<ModelOf<typeof app>, { port: number }>>(true);
+  });
+
   it("composes an identity macro between built-ins", () => {
     let identity = extend();
     let app = route(

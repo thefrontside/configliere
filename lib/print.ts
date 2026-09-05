@@ -16,7 +16,7 @@ import type {
 } from "./types.ts";
 
 export function printHelp<
-  const H extends Help<AnyRoute, RoutePath>,
+  const H extends Help<RoutePath>,
 >(intent: H): string {
   let route = intent.definition;
   let subject = title(intent);
@@ -59,7 +59,7 @@ export function printHelp<
 }
 
 export function printVersion<
-  const V extends Version<AnyRoute, RoutePath>,
+  const V extends Version<RoutePath>,
 >(intent: V): string {
   let version = intent.definition.version;
   if (!version) {

@@ -161,53 +161,49 @@ export type PathOf<R extends RoutePath> = R extends "/" ? []
   : never;
 
 export type AnyIntent =
-  | Help<AnyRoute, RoutePath>
-  | Version<AnyRoute, RoutePath>
-  | Execute<AnyRoute, RoutePath, ModelsByRoute>;
+  | Help<RoutePath>
+  | Version<RoutePath>
+  | Execute<RoutePath, ModelsByRoute>;
 
 export type ChildIntents<
   C extends readonly AnyRoute[],
   P extends RoutePath,
-  T extends ModelsByRoute,
+  Models extends ModelsByRoute,
 > = C extends readonly [
   infer Head extends AnyRoute,
   ...infer Tail extends readonly AnyRoute[],
 ] ? (
-    | IntentsAt<Head, Append<P, Head["name"]>, T>
-    | ChildIntents<Tail, P, T>
+    | IntentsAt<Head, Append<P, Head["name"]>, Models>
+    | ChildIntents<Tail, P, Models>
   )
   : never;
 
 export interface Intent<
   M extends Method,
-  R extends AnyRoute,
   P extends RoutePath,
 > {
   readonly ok: true;
   readonly method: M;
   readonly route: P;
-  readonly definition: R;
+  readonly definition: AnyRoute;
   readonly path: PathOf<P>;
   readonly literals: Iterable<Literal>;
 }
 
-export type Help<R extends AnyRoute, P extends RoutePath> = Intent<
+export type Help<P extends RoutePath> = Intent<
   "help",
-  R,
   P
 >;
 
-export type Version<R extends AnyRoute, P extends RoutePath> = Intent<
+export type Version<P extends RoutePath> = Intent<
   "version",
-  R,
   P
 >;
 
 export interface Execute<
-  R extends AnyRoute,
   P extends RoutePath,
   Models extends ModelsByRoute,
-> extends Intent<"execute", R, P> {
+> extends Intent<"execute", P> {
   readonly issues: readonly Issue[];
   readonly model: Models[P];
   readonly models: Models;
@@ -251,14 +247,30 @@ type ParseAt<
   P extends RoutePath,
   Models extends ModelsByRoute,
 > = [RequirementOf<R>] extends [never] ? (
-    | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
+    | Help<P>
+    | (
+      "version" extends MethodsOf<R> ? Version<P>
+        : never
+    )
+    | (
+      "execute" extends MethodsOf<R> ? AddModel<
+          Models,
+          P,
+          ModelOf<R>
+        > extends infer Bound extends ModelsByRoute ? Execute<
+            P,
+            { [K in keyof Bound]: Bound[K] }
+          >
+        : never
+        : never
+    )
     | ParseChildren<
       ChildrenOf<R>,
       P,
       AddModel<Models, P, ModelOf<R>>
     >
   )
-  : ParseIncrement<R, P, Models>;
+  : ParseIncrement<R, P, { [K in keyof Models]: Models[K] }>;
 
 type ParseChildren<
   C extends readonly AnyRoute[],
@@ -281,11 +293,13 @@ type RequirementsIn<P extends readonly AnyPhase[]> = P extends readonly [
   : readonly [];
 
 type AddModel<
-  M extends ModelsByRoute,
+  Models extends ModelsByRoute,
   P extends RoutePath,
   T extends object,
 > = {
-  [K in keyof M | P]: K extends P ? T : K extends keyof M ? M[K] : never;
+  [K in keyof Models | P]: K extends P ? T
+    : K extends keyof Models ? Models[K]
+    : never;
 };
 
 type Split<S extends string> = string extends S ? Path
@@ -381,20 +395,25 @@ type IntentsAt<
   P extends RoutePath,
   Models extends ModelsByRoute,
 > =
-  | RouteIntents<R, P, AddModel<Models, P, ModelOf<R>>>
-  | ChildIntents<ChildrenOf<R>, P, AddModel<Models, P, ModelOf<R>>>;
-
-type RouteIntents<
-  R extends AnyRoute,
-  P extends RoutePath,
-  T extends ModelsByRoute,
-> =
-  | Help<R, P>
+  | Help<P>
   | (
-    "version" extends MethodsOf<R> ? Version<R, P>
+    "version" extends MethodsOf<R> ? Version<P>
       : never
   )
   | (
-    "execute" extends MethodsOf<R> ? Execute<R, P, T>
+    "execute" extends MethodsOf<R> ? AddModel<
+        Models,
+        P,
+        ModelOf<R>
+      > extends infer Bound extends ModelsByRoute ? Execute<
+          P,
+          { [K in keyof Bound]: Bound[K] }
+        >
       : never
-  );
+      : never
+  )
+  | ChildIntents<
+    ChildrenOf<R>,
+    P,
+    AddModel<Models, P, ModelOf<R>>
+  >;
