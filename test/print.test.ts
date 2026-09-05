@@ -5,6 +5,7 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { argument } from "../lib/argument.ts";
 import { command } from "../lib/command.ts";
 import { description, name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
@@ -79,6 +80,47 @@ Options:
   --verbose, --no-verbose  Show detailed startup and request diagnostics.
   -h, --help               Print help
   -v, --version            Print version`);
+  });
+
+  it("prints positional arguments in usage and their own section", () => {
+    let copy = command(
+      name("copy"),
+      description("Copy one file."),
+      argument(
+        name("source"),
+        description("File to copy."),
+        schema(type("string")),
+      ),
+      option(
+        name("format"),
+        description("Output format."),
+      ),
+      argument(
+        name("destination"),
+        description("Destination path."),
+        schema(type("string")),
+      ),
+    );
+    let result = parse(copy, { argv: ["--help"] });
+
+    expect(result).toMatchObject({ ok: true, method: "help" });
+    if (!result.ok || result.method !== "help") {
+      throw new Error("expected help");
+    }
+
+    expect(printHelp(result)).toBe(`copy
+Copy one file.
+
+Usage:
+  copy [OPTIONS] <SOURCE> <DESTINATION>
+
+Arguments:
+  <SOURCE>       File to copy.
+  <DESTINATION>  Destination path.
+
+Options:
+  --format <VALUE>  Output format.
+  -h, --help        Print help`);
   });
 
   it("prints help relative to a deeply nested route", () => {
