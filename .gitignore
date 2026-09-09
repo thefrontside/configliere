@@ -1,2 +1,6 @@
 /build/
 /.agent-shell/
+/diagnostics/node-ts5/node_modules/
+/diagnostics/node-ts5/package-lock.json
+/diagnostics/node-ts5/.diagnostic.tsconfig.json
+/diagnostics/node-ts5/fixtures/generated/

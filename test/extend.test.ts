@@ -39,6 +39,16 @@ describe("extend() types", () => {
     >(true);
   });
 
+  it("composes ordinary functions", () => {
+    let stringify = extend(
+      (value: number) => value + 1,
+      (value: number) => String(value),
+    );
+    let result = stringify(1);
+
+    expectType<Equal<typeof result, string>>(true);
+  });
+
   it("can apply the same extension to different route states", () => {
     let address = extend(
       option(name("domain"), schema(type("string"))),
@@ -73,10 +83,11 @@ describe("extend() types", () => {
   it("rejects adjacent elements whose types do not align", () => {
     let count = (value: { label: string }): number => value.label.length;
     let label = (value: string): string => value.toUpperCase();
+    let invalid = extend(count, label);
 
     check(() => {
-      // @ts-expect-error label cannot consume the number returned by count.
-      extend(count, label);
+      // @ts-expect-error the invalid composition cannot consume its input.
+      invalid({ label: "hello" });
     });
   });
 

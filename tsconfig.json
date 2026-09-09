@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "noErrorTruncation": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@standard-schema/spec": [
+        "diagnostics/node-ts5/node_modules/@standard-schema/spec/dist/index.d.ts"
+      ],
+      "zod": ["diagnostics/node-ts5/node_modules/zod/index.d.ts"]
+    }
+  },
+  "files": [
+    "examples/options.ts",
+    "examples/checkpoint-options.ts",
+    "examples/routes.ts",
+    "examples/routes-checkpoint.ts"
+  ]
+}
