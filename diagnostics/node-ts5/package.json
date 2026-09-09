@@ -1,0 +1,17 @@
+{
+  "name": "configliere-node-ts5-diagnostics",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit --project tsconfig.json",
+    "generate": "node generate.ts",
+    "diagnostics": "node diagnose.ts",
+    "diagnostics:all": "npm run generate && npm run diagnostics"
+  },
+  "devDependencies": {
+    "@standard-schema/spec": "1.1.0",
+    "@types/node": "^26.5.0",
+    "typescript": "5.5.4",
+    "zod": "4.4.3"
+  }
+}

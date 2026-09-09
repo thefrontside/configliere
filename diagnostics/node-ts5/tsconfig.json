@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "files": [
+    "../../examples/options.ts",
+    "../../examples/checkpoint-options.ts",
+    "../../examples/routes.ts",
+    "../../examples/routes-checkpoint.ts",
+    "diagnose.ts",
+    "generate.ts"
+  ]
+}

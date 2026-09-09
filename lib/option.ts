@@ -1,37 +1,30 @@
-import { extend } from "./extend.ts";
 import { type Param, param } from "./param.ts";
 import { dasherize } from "./dasherize.ts";
+import { brand, type ParamElement } from "./pipeline.ts";
 import { cli } from "./read.ts";
-import type {
-  AddParamToLast,
-  AnyPhases,
-  AnyRoute,
-  Definition,
-  Method,
-  Route,
-} from "./types.ts";
+import type { AnyRoute, Definition } from "./types.ts";
 
 export function option<const N extends string>(
   named: Definition<N>,
-): Option<N, unknown>;
+): ParamElement<N, unknown>;
 
 export function option<const N extends string, T>(
   named: Definition<N>,
   nt: (value: Param<N, unknown>) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, T>(
   named: Definition<N>,
   na: (value: Param<N, unknown>) => A,
   at: (value: A) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, B, T>(
   named: Definition<N>,
   na: (value: Param<N, unknown>) => A,
   ab: (value: A) => B,
   bt: (value: B) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, B, C, T>(
   named: Definition<N>,
@@ -39,7 +32,7 @@ export function option<const N extends string, A, B, C, T>(
   ab: (value: A) => B,
   bc: (value: B) => C,
   ct: (value: C) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, B, C, D, T>(
   named: Definition<N>,
@@ -48,7 +41,7 @@ export function option<const N extends string, A, B, C, D, T>(
   bc: (value: B) => C,
   cd: (value: C) => D,
   dt: (value: D) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, B, C, D, E, T>(
   named: Definition<N>,
@@ -58,7 +51,7 @@ export function option<const N extends string, A, B, C, D, E, T>(
   cd: (value: C) => D,
   de: (value: D) => E,
   et: (value: E) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<const N extends string, A, B, C, D, E, F, T>(
   named: Definition<N>,
@@ -69,7 +62,7 @@ export function option<const N extends string, A, B, C, D, E, F, T>(
   de: (value: D) => E,
   ef: (value: E) => F,
   ft: (value: F) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<
   const N extends string,
@@ -91,7 +84,7 @@ export function option<
   ef: (value: E) => F,
   fg: (value: F) => G,
   gt: (value: G) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option<
   const N extends string,
@@ -115,17 +108,18 @@ export function option<
   fg: (value: F) => G,
   gh: (value: G) => H,
   ht: (value: H) => Param<N, T>,
-): Option<N, T>;
+): ParamElement<N, T>;
 
 export function option(
   named: Definition<string>,
   ...elements: readonly ((value: never) => unknown)[]
 ): unknown {
-  const added = extend(elements)(
+  const added = elements.reduce<unknown>(
+    (value, element) => element(value as never),
     param(named, cli([`--${dasherize(named.name)}`])),
   ) as Param<string, unknown>;
 
-  return (route: AnyRoute) => {
+  return brand<ParamElement<string, unknown>>((route: AnyRoute) => {
     let phases = [...route.phases];
     let phase = phases.pop()!;
     phases.push({
@@ -139,25 +133,5 @@ export function option(
       ...route,
       phases: phases,
     };
-  };
+  });
 }
-
-type Option<K extends string, V> = <
-  const N extends string,
-  const M extends Method,
-  const T extends object,
-  const C extends readonly AnyRoute[],
-  const P extends AnyPhases,
->(
-  route: Route<N, M, T, C, P>,
-) => Route<
-  N,
-  M,
-  {
-    [P in keyof ({ [Q in K]: V } & T)]: (
-      { [Q in K]: V } & T
-    )[P];
-  },
-  C,
-  AddParamToLast<P, K, V>
->;
