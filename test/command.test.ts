@@ -155,6 +155,11 @@ function expectType<T extends true>(_value: T): void {
 // Asserts the route a wrapped transformer receives: the formal's fully
 // generic shape. The concrete accumulated type only exists at command()'s
 // inference site, after the lambda is already checked.
-function expectRoute<N extends string, SM extends Method, SP extends object, SC extends readonly AnyRoute[]>(
+function expectRoute<
+  N extends string,
+  SM extends Method,
+  SP extends object,
+  SC extends readonly AnyRoute[],
+>(
   _route: Route<N, SM, SP, SC>,
 ): void {}
