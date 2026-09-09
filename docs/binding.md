@@ -117,9 +117,8 @@ argv:    -c   app.json   auth0  --port   9001
 view:                    [---] |--- hidden ---|
 ```
 
-Nothing in the current phase claims `auth0`, so the horizon remains unchanged
-after a complete parameter sweep. CLI binding has reached a fixed point and must
-stop.
+Nothing in the current phase offers a claim for `auth0`. CLI binding has reached
+a fixed point and must stop.
 
 If `resume()` introduces an `auth0` route, route search can now claim index 2 as
 its selector. The child receives `--port 9001`. Without the horizon, a parent
@@ -157,8 +156,32 @@ moves to `auth0`:
                                horizon
 ```
 
-No parameter claims it, so the horizon is stable and CLI binding stops. This is
-a fixed-point calculation rather than an ordinary left-to-right cursor.
+No parameter offers a claim for it, so CLI binding stops. This is a fixed-point
+calculation rather than an ordinary left-to-right cursor.
+
+### Competing claims
+
+Every pending reader inspects the same immutable view before any claim is
+committed. If several readers offer claims, the claim beginning earliest in the
+original argv wins. Exact ties preserve parameter declaration order.
+
+For example:
+
+```text
+argv:       --port  9000  input.txt
+option:     [-----------]
+argument:           [--]
+```
+
+The option wins because its claim begins at `--port`; the positional reader
+cannot steal `9000`. On the next step, the argument claims `input.txt`. Two
+positional readers instead offer the same word, so their declaration order
+decides which one receives it.
+
+This arbitration comes entirely from proposed claims. Readers carry no
+option-versus-argument tag, and custom readers participate in exactly the same
+protocol. Failed reads compete normally, ensuring an invalid option still owns
+the tokens it captured.
 
 Route search always runs before phase binding. A currently discoverable route
 therefore beats an option value. A route introduced only after the current
@@ -251,23 +274,33 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
     pending.delete(param.name);
   }
 
-  // Positional source: expand safe lookahead to a fixed point.
+  // Positional source: arbitrate claims until no reader can make progress.
   while (true) {
-    let before = firstWord(rest.tokens, segment.range);
+    let horizon = firstWord(rest.tokens, segment.range);
+    let offer;
 
     for (let param of pending.values()) {
       let view = rest.tokens.view({
         range: segment.range,
-        through: before?.index,
+        through: horizon?.index,
       });
+      let read = param.cli.read(view);
 
-      accept(param, fromCLI({ param, view, rest }));
+      if (read.result.ok && !read.result.value.exists) {
+        continue;
+      }
+
+      let index = earliest(read.claim.tokens);
+      if (!offer || index < offer.index) {
+        offer = { param, read, index };
+      }
     }
 
-    let after = firstWord(rest.tokens, segment.range);
-    if (after?.index === before?.index) {
+    if (!offer) {
       break;
     }
+
+    accept(offer.param, fromRead(offer.param, offer.read, rest));
   }
 
   // Stable address sources: array order is precedence.
@@ -298,12 +331,12 @@ function bindPhase(options: BindPhaseOptions): PhaseBinding {
 
 The source-outer address loop makes precedence explicit. Deleting a parameter
 from `pending` on every existing attempt prevents fallback after invalid input.
-Comparing the first remaining word before and after a sweep expresses the fixed
-point directly and removes `has()` and `next()` cursor bookkeeping.
+Recomputing proposals after each committed claim advances the horizon without
+letting one reader observe another reader's speculative remainder.
 
-When the final word is consumed, the changed before/after comparison causes one
-additional unbounded sweep. That sweep exposes trailing flags or setters. With
-no remaining words before or after it, the next comparison terminates.
+When the final word is consumed, the absent horizon creates an unbounded view,
+which exposes trailing flags or setters. The loop terminates when no reader
+offers another claim.
 
 ## Parser integration
 
@@ -353,6 +386,9 @@ The design should be established with observable tests for these cases:
 - Consuming the horizon exposes the next word and retries previously absent
   parameters.
 - A stable horizon leaves the entire suffix untouched.
+- A named option claim outranks an overlapping positional claim without reader
+  metadata.
+- Positional readers retain declaration order when they offer the same word.
 - CLI overrides Values even when its option is not visible until a later sweep.
 - Env overrides Values when that is the declared source order.
 - Invalid CLI blocks valid Env and Values.

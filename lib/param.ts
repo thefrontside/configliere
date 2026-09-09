@@ -1,164 +1,67 @@
 import { type Decoder, scalar } from "./decode.ts";
-import type { ReadCLI } from "./read.ts";
-import type { AnyToken } from "./tokenize.ts";
-import type { TokenInput } from "./tokenizer.ts";
+import {
+  type Check,
+  type Fold,
+  mark,
+  type Transform,
+  type TransformElement,
+  type Unary,
+} from "./pipeline.ts";
+import type { CLIBinding } from "./read.ts";
 import type { Definition, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
   schema: Schema<T>;
-  cli: ReadCLI;
+  cli: CLIBinding;
   decode: Decoder;
   env?: string;
 }
 
-export function param<const K extends string>(
-  start: Definition<K>,
-): Param<K, unknown>;
-
-export function param<const K extends string, A>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-): A;
-
-export function param<const K extends string, A, B>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-): B;
-
-export function param<const K extends string, A, B, C>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-): C;
-
-export function param<const K extends string, A, B, C, D>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-): D;
-
-export function param<const K extends string, A, B, C, D, E>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-): E;
-
-export function param<const K extends string, A, B, C, D, E, F>(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-): F;
-
 export function param<
   const K extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
+  const E extends readonly Unary[],
 >(
   start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-): G;
-
-export function param<
-  const K extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  H,
->(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gh: (value: G) => H,
-): H;
-
-export function param<
-  const K extends string,
-  A,
-  B,
-  C,
-  D,
-  E,
-  F,
-  G,
-  H,
-  I,
->(
-  start: Definition<K>,
-  ka: (value: Param<K, unknown>) => A,
-  ab: (value: A) => B,
-  bc: (value: B) => C,
-  cd: (value: C) => D,
-  de: (value: D) => E,
-  ef: (value: E) => F,
-  fg: (value: F) => G,
-  gh: (value: G) => H,
-  hi: (value: H) => I,
-): I;
-
-export function param(
-  start: Definition<string>,
-  ...elements: readonly ((value: never) => unknown)[]
-): unknown {
-  let zero = {
+  ...elements: E & Check<Param<K, unknown>, E>
+): Fold<Param<K, unknown>, E> {
+  let zero: Param<K, unknown> = {
     ...start,
     schema: unknown,
-    cli: (tokens: TokenInput<AnyToken>) => ({
-      result: {
-        ok: true,
-        value: { exists: false },
-        issues: [],
+    cli: {
+      read(tokens) {
+        let claim = tokens.claimAll(() => false);
+        return {
+          result: {
+            ok: true,
+            value: { exists: false },
+            issues: [],
+          },
+          claim,
+        };
       },
-      claim: {
-        tokens: [],
-        rest: tokens,
-      },
-    }),
+    },
     decode: scalar,
   };
+
   return elements.reduce<unknown>(
     (value, element) => element(value as never),
     zero,
-  );
+  ) as Fold<Param<K, unknown>, E>;
 }
 
 export function schema<T>(
   schema: Schema<T>,
-): <const P extends Param<string, unknown>>(param: P) => Param<P["name"], T> {
-  return (param) => ({
+): TransformElement<SchemaTransform<T>> {
+  return mark<SchemaTransform<T>>((param: Param<string, unknown>) => ({
     ...param,
     schema,
-  });
+  }));
+}
+
+interface SchemaTransform<T> extends Transform {
+  readonly input: Param<string, unknown>;
+  readonly output: this["input"] extends Param<infer N, unknown> ? Param<N, T>
+    : never;
 }
 
 const unknown: Schema<unknown> = {
