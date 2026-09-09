@@ -1,0 +1,4 @@
+{
+  "typescript.tsdk": "diagnostics/node-ts5/node_modules/typescript/lib",
+  "js/ts.tsdk.path": "diagnostics/node-ts5/node_modules/typescript/lib"
+}

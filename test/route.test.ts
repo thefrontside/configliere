@@ -4,9 +4,10 @@ import { type } from "arktype";
 import { description, name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { schema } from "../lib/param.ts";
+import { mark, type Transform } from "../lib/pipeline.ts";
 import { route, routes, type RouteZero, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import type { ChildrenOf, Done, ModelOf } from "../lib/types.ts";
+import type { AnyRoute, ChildrenOf, Done, ModelOf } from "../lib/types.ts";
 
 describe("route() types", () => {
   it("preserves the literal route name through each element", () => {
@@ -140,16 +141,24 @@ describe("route() types", () => {
   });
 
   it("allows an explicit final element to transform a Route into another type", () => {
+    interface Bloop extends Transform {
+      readonly input: AnyRoute;
+      readonly output: BloopValue<this["input"]>;
+    }
+
     let result = route(
       name("simulacrum"),
-      (value) => ({ type: "bloop" as const, route: value }),
+      mark<Bloop>((value: AnyRoute) => ({
+        type: "bloop" as const,
+        route: value,
+      })),
     );
 
     expectType<Equal<typeof result.type, "bloop">>(true);
     expectType<Equal<typeof result.route.name, "simulacrum">>(true);
   });
 
-  it("preserves inference through the longest supported pipeline", () => {
+  it("preserves inference across thirty route elements", () => {
     let result = route(
       name("simulacrum"),
       option(name("one"), schema(type("string"))),
@@ -239,4 +248,9 @@ function expectType<T extends true>(_value: T): void {
 
 function check(_body: () => void): void {
   // Compile the callback without executing it.
+}
+
+interface BloopValue<R> {
+  readonly type: "bloop";
+  readonly route: R;
 }
