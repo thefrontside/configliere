@@ -1,14 +1,22 @@
 import { expect as base, type Expected } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { checkpoint } from "../lib/checkpoint.ts";
 import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
-import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
+import { schema, transformModel } from "../mod.ts";
+import type {
+  AnyRoute,
+  Done,
+  IntentsOf,
+  ModelOf,
+  ModelSchema,
+  Route,
+} from "../lib/types.ts";
 
 let app = route(
   name("simulacrum"),
@@ -55,6 +63,64 @@ let options = command(
   option(name("dryRun"), schema(type("string | undefined"))),
 );
 
+type TransformedModel = { port: number; secure: boolean };
+
+let transformed = command(
+  name("transformed"),
+  checkpoint(),
+  option(name("port"), schema(type("number"))),
+  transformModel(
+    {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate(value: unknown) {
+          let model = value as { port: number };
+          return { value: { port: model.port, secure: true as boolean } };
+        },
+      },
+    } satisfies ModelSchema<TransformedModel>,
+  ),
+);
+
+expectType<Equal<ModelOf<typeof transformed>, TransformedModel>>(true);
+
+type FunctionModel = { port: number; secure: boolean };
+
+let transformedByFunction = command(
+  name("function-transformed"),
+  option(name("port"), schema(type("number"))),
+  transformModel((model: { port: number }): FunctionModel => ({
+    ...model,
+    secure: true,
+  })),
+);
+
+expectType<Equal<ModelOf<typeof transformedByFunction>, FunctionModel>>(true);
+
+let mutated = command(
+  name("mutated"),
+  option(name("port"), schema(type("number"))),
+  transformModel((model: { port: number }) => {
+    Object.assign(model, { secure: true });
+  }),
+);
+
+expectType<Equal<ModelOf<typeof mutated>, { port: number }>>(true);
+
+const portSchema = type("number");
+
+let inspected = command(
+  name("inspected"),
+  option(name("port"), schema(portSchema)),
+  transformModel((model: { port: number }, params) => {
+    if (params.port.schema !== portSchema) {
+      throw new Error("port schema was not exposed");
+    }
+    return model;
+  }),
+);
+
 let segments = command(
   name("simulacrum"),
   option(name("host"), schema(type("string"))),
@@ -67,6 +133,58 @@ let segments = command(
 );
 
 describe("parse()", () => {
+  it("applies a standard schema after checkpoint resolution", () => {
+    let step = parse(transformed, { argv: ["--port", "4100"] });
+    expectOk(step);
+
+    let result = step.resume({ ok: true, value: [] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100, secure: true } });
+  });
+
+  it("allows a transform to mutate the current model", () => {
+    let result = parse(mutated, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100, secure: true } });
+  });
+
+  it("exposes active phase parameters to a transform", () => {
+    let result = parse(inspected, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100 } });
+  });
+
+  it("applies model transforms in phase order", () => {
+    let app = command(
+      name("phased"),
+      option(name("before"), schema(type("number"))),
+      transformModel((model: { before: number }) => ({
+        ...model,
+        first: true,
+      })),
+      checkpoint(),
+      option(name("after"), schema(type("string"))),
+      transformModel(
+        (
+          model: { before: number; first: boolean; after: string },
+        ) => ({
+          ...model,
+          value: `${model.before}:${model.after}`,
+        }),
+      ),
+    );
+
+    let first = parse(app, { argv: ["--before", "4100", "--after", "ok"] });
+    expectOk(first);
+    expect(first).toMatchObject({ model: { before: 4100, first: true } });
+
+    let result = first.resume({ ok: true, value: [] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { before: 4100, first: true, after: "ok", value: "4100:ok" },
+    });
+  });
+
   describe("help", () => {
     it("resolves either help flag against the root route", () => {
       expect(

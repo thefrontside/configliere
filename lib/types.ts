@@ -7,6 +7,11 @@ import type { ValueSource } from "./values.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
+export type ModelSchema<T extends object> = StandardSchemaV1<unknown, T>;
+export type ModelParams = Params<Record<string, unknown>>;
+export type ModelOperation =
+  | ModelSchema<object>
+  | ((model: Record<string, unknown>, params: ModelParams) => object | void);
 
 export interface Definition<N extends string> {
   readonly name: N;
@@ -45,6 +50,7 @@ export type Next<
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
+  readonly transforms?: readonly ModelOperation[];
   readonly resolver: (
     requirement: T,
   ) => (input: AnyRoute) => AnyRoute;
@@ -58,6 +64,7 @@ export type Done<
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
+  readonly transforms?: readonly ModelOperation[];
 };
 
 export type Params<Model extends object> = {
@@ -121,10 +128,11 @@ export interface AnyRoute extends Definition<string> {
 }
 
 export interface AnyPhase {
-  readonly params: Params<object>;
+  readonly params: ModelParams;
   readonly routes: readonly AnyRoute[];
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
+  readonly transforms?: readonly ModelOperation[];
   readonly resolver?: (requirement: never) => (route: never) => AnyRoute;
 }
 

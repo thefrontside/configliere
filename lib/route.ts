@@ -6,9 +6,18 @@ import {
   type Materialize,
   type MethodElement,
   type RoutesElement,
+  type TransformModelElement,
   type Unary,
 } from "./pipeline.ts";
-import type { AnyRoute, Definition, Done, Route } from "./types.ts";
+import type {
+  AnyRoute,
+  Definition,
+  Done,
+  ModelOperation,
+  ModelParams,
+  ModelSchema,
+  Route,
+} from "./types.ts";
 
 export type RouteZero<N extends string = string> = Route<
   N,
@@ -66,6 +75,31 @@ export function routes<const C extends readonly AnyRoute[]>(
     phases.push({
       ...phase,
       routes: [...phase.routes, ...children],
+    });
+
+    return {
+      ...route,
+      phases,
+    };
+  });
+}
+
+export function transformModel<const T extends object>(
+  schema: ModelSchema<T>,
+): TransformModelElement<ModelSchema<T>>;
+export function transformModel<
+  const F extends (model: never, params: ModelParams) => object | void,
+>(transform: F): TransformModelElement<F>;
+export function transformModel(transform: unknown): unknown {
+  return brand<TransformModelElement<unknown>>((route: AnyRoute) => {
+    let phases = [...route.phases];
+    let phase = phases.pop()!;
+    phases.push({
+      ...phase,
+      transforms: [
+        ...(phase.transforms ?? []),
+        transform as ModelOperation,
+      ],
     });
 
     return {

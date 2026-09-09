@@ -187,6 +187,40 @@ Source precedence is explicit:
 CLI → environment → JavaScript values → schema default
 ```
 
+`transformModel()` can be included in a command pipeline. It accepts either a
+Standard Schema or a function, and runs against the model and active phase
+parameters:
+
+```ts
+const app = command(
+  name("server"),
+  option(name("port"), schema(z.number())),
+  transformModel(
+    z.object({ port: z.number() }).transform(({ port }) => ({
+      address: `localhost:${port}`,
+    })),
+  ),
+);
+```
+
+The second argument to a function transform exposes the declared parameters,
+including their schemas:
+
+```ts
+const app = command(
+  name("server"),
+  option(name("port"), schema(z.number())),
+  transformModel((model, params) => {
+    // the same schema passed to option()
+    // where you can optionally build up schema for various use cases
+    return z.object({ port: params.port.schema, domain: z.url() })
+      .transform((d) => {
+        return { ...d, domain: `http://localhost:${d.port}` };
+      }).parse(model);
+  }),
+);
+```
+
 ## Pause without surrendering the type system
 
 Sometimes the route cannot be fully configured, or even fully discovered, until

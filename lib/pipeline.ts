@@ -10,6 +10,7 @@ import type {
   Method,
   MethodsOf,
   ModelOf,
+  ModelSchema,
   Next,
   Phase,
   Route,
@@ -93,6 +94,31 @@ export interface RoutesElement<Added extends readonly AnyRoute[]> {
     AddRoutesToLast<P, Added>
   >;
 }
+
+export interface TransformModelElement<F> {
+  readonly [operation]: AddModelTransform<F>;
+
+  <
+    const N extends string,
+    const M extends Method,
+    const T extends object,
+    const C extends readonly AnyRoute[],
+    const P extends AnyPhases,
+  >(route: Route<N, M, T, C, P>): Route<
+    N,
+    M,
+    ModelTransformOutput<F, T>,
+    C,
+    TransformModelInLast<P, ModelTransformOutput<F, T>>
+  >;
+}
+
+type ModelTransformOutput<F, T extends object> = F extends ModelSchema<
+  infer Output
+> ? Output
+  : F extends (model: infer Input) => infer Output
+    ? T extends Input ? Output extends object ? Output : T : never
+  : never;
 
 export type Extension<E extends readonly Unary[]> =
   & Element<Batch<E>>
@@ -207,6 +233,7 @@ type Delta =
   | AddMethod<Method>
   | AddParam<string, unknown>
   | AddRoutes<readonly AnyRoute[]>
+  | AddModelTransform<unknown>
   | Batch<readonly Unary[]>
   | Dynamic<unknown, AnyElement>
   | Custom<Transform>;
@@ -236,6 +263,11 @@ interface AddParam<K extends string, V> {
 interface AddRoutes<C extends readonly AnyRoute[]> {
   readonly type: "routes";
   readonly children: C;
+}
+
+interface AddModelTransform<F> {
+  readonly type: "model-transform";
+  readonly transform: F;
 }
 
 interface Batch<E extends readonly Unary[]> {
@@ -273,6 +305,17 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
         ModelOf<S>,
         readonly [...ChildrenOf<S>, ...C],
         AddRoutesToLast<S["phases"], C>
+      >
+    : never
+  : D extends AddModelTransform<infer F> ? S extends AnyRoute ? Route<
+        S["name"],
+        MethodsOf<S>,
+        ModelTransformOutput<F, ModelOf<S>>,
+        ChildrenOf<S>,
+        TransformModelInLast<
+          S["phases"],
+          ModelTransformOutput<F, ModelOf<S>>
+        >
       >
     : never
   : D extends Batch<infer E> ? Fold<S, E>
@@ -336,6 +379,7 @@ type InputOfDelta<D extends Delta> = D extends Identity<infer Input> ? Input
     | AddRoutes<
       readonly AnyRoute[]
     >
+    | AddModelTransform<unknown>
     | Dynamic<unknown, AnyElement> ? AnyRoute
   : D extends Batch<infer E> ? InputOfPipeline<E>
   : D extends Custom<infer F> ? F["input"]
@@ -444,6 +488,29 @@ type AddFieldsToLast<
     ...infer Middle extends AnyPhase[],
     AnyPhase,
   ] ? readonly [First, ...Middle, AddFields<Last<P>, Fields>]
+  : never;
+
+type TransformModelInLast<
+  P extends AnyPhases,
+  Output extends object,
+> = P extends readonly [AnyPhase] ? readonly [
+    TransformModelPhase<P[0], Output>,
+  ]
+  : P extends readonly [
+    infer First extends AnyPhase,
+    ...infer Middle extends AnyPhase[],
+    AnyPhase,
+  ] ? readonly [
+      First,
+      ...Middle,
+      TransformModelPhase<Last<P>, Output>,
+    ]
+  : never;
+
+type TransformModelPhase<P extends AnyPhase, Output extends object> = P extends
+  Next<infer _Model, infer Routes, infer Requirement>
+  ? Next<Output, Routes, Requirement>
+  : P extends Done<infer _Model, infer Routes> ? Done<Output, Routes>
   : never;
 
 type AddFields<P extends AnyPhase, Fields extends object> = P extends Next<

@@ -158,6 +158,16 @@ function resume(
       );
     }
 
+    let modeled = applyTransforms(segment);
+    if (!modeled.ok) {
+      return unprocessableContent(segment, modeled.issues);
+    }
+
+    segment = {
+      ...segment,
+      model: modeled.value,
+    };
+
     if (phase.resolver) {
       // Binding the phase succeeded, but the requirement is still needed.
       let suspended = state;
@@ -165,7 +175,7 @@ function resume(
       return {
         ok: true,
         route: segment.id,
-        model: binding.model,
+        model: phase.transforms?.length ? modeled.value : binding.model,
 
         resume(result) {
           if (!result.ok) {
@@ -413,6 +423,47 @@ function resolve(
         issues: state.segments.flatMap((segment) => segment.issues),
       };
   }
+}
+
+function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
+  let transforms = segment.phases[0].transforms ?? [];
+  let model = segment.model;
+
+  for (let transform of transforms) {
+    if (typeof transform === "function") {
+      let result = transform(
+        model,
+        segment.phases[0].params,
+      );
+      if (result !== undefined) {
+        model = result as Record<string, unknown>;
+      }
+      continue;
+    }
+
+    let result = transform["~standard"].validate(model);
+    if (result instanceof Promise) {
+      return {
+        ok: false,
+        issues: [{ message: "async schemas are not allowed" }],
+      };
+    }
+
+    if (result.issues) {
+      return {
+        ok: false,
+        issues: result.issues,
+      };
+    }
+
+    model = result.value as Record<string, unknown>;
+  }
+
+  if (transforms.length === 0) {
+    return { ok: true, value: segment.model };
+  }
+
+  return { ok: true, value: model };
 }
 
 function seed(route: AnyRoute): AnyRoute {

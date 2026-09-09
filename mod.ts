@@ -19,7 +19,11 @@ export type { Param } from "./lib/param.ts";
 export { parse } from "./lib/parse.ts";
 
 export { mark } from "./lib/pipeline.ts";
-export type { Transform, TransformElement } from "./lib/pipeline.ts";
+export type {
+  Transform,
+  TransformElement,
+  TransformModelElement,
+} from "./lib/pipeline.ts";
 
 export { printErrors, printHelp, printVersion } from "./lib/print.ts";
 
@@ -33,7 +37,13 @@ export type {
   Symbol as CLISymbol,
 } from "./lib/read.ts";
 
-export { executable, route, routes, version } from "./lib/route.ts";
+export {
+  executable,
+  route,
+  routes,
+  transformModel,
+  version,
+} from "./lib/route.ts";
 export type { RouteZero } from "./lib/route.ts";
 
 export { toggle } from "./lib/toggle.ts";
@@ -58,7 +68,9 @@ export type {
   MethodNotAllowed,
   MethodsOf,
   ModelOf,
+  ModelParams,
   ModelsByRoute,
+  ModelSchema,
   Outcome,
   Path,
   PathOf,
