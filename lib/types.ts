@@ -308,20 +308,12 @@ type AddParam<
   infer Routes,
   infer Requirement
 > ? Next<
-    {
-      [Key in keyof ({ [Added in K]: V } & Model)]: (
-        { [Added in K]: V } & Model
-      )[Key];
-    },
+    AddField<Model, K, V>,
     Routes,
     Requirement
   >
   : P extends Done<infer Model, infer Routes> ? Done<
-      {
-        [Key in keyof ({ [Added in K]: V } & Model)]: (
-          { [Added in K]: V } & Model
-        )[Key];
-      },
+      AddField<Model, K, V>,
       Routes
     >
   : never;
@@ -378,11 +370,11 @@ type AddRoutes<
     >
   : never;
 
-export type AddField<T extends object, K extends string, V> = {
-  [P in keyof ({ [Q in K]: V } & T)]: (
-    { [Q in K]: V } & T
-  )[P];
-};
+export type AddField<T extends object, K extends string, V> = Simplify<
+  Omit<T, K> & { [P in K]: V }
+>;
+
+type Simplify<T> = { [P in keyof T]: T[P] };
 
 type IntentsAt<
   R extends AnyRoute,

@@ -1,5 +1,6 @@
 import type { Maybe } from "./maybe.ts";
 import type { Param } from "./param.ts";
+import { brand, type IdentityElement } from "./pipeline.ts";
 import type { AnyRoute, RoutePath } from "./types.ts";
 
 export interface EnvSource {
@@ -33,19 +34,21 @@ export function env(
 
 export function withEnvs(
   envs: readonly EnvSource[],
-): <R extends AnyRoute>(route: R) => R {
-  return (route) => {
-    let phases = [...route.phases];
-    let phase = phases.pop()!;
-    phases.push({
-      ...phase,
-      envs: phase.envs.concat(envs),
-    });
-    return {
-      ...route,
-      phases,
-    };
-  };
+): IdentityElement<AnyRoute> {
+  return brand<IdentityElement<AnyRoute>>(
+    (route: AnyRoute) => {
+      let phases = [...route.phases];
+      let phase = phases.pop()!;
+      phases.push({
+        ...phase,
+        envs: phase.envs.concat(envs),
+      });
+      return {
+        ...route,
+        phases,
+      };
+    },
+  );
 }
 
 export class Envs {

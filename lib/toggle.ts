@@ -1,39 +1,32 @@
 import { boolean as decode } from "./decode.ts";
 import { dasherize } from "./dasherize.ts";
 import { type Param, param, schema } from "./param.ts";
+import { brand, type ParamElement } from "./pipeline.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
-import type {
-  AddParamToLast,
-  AnyPhases,
-  AnyRoute,
-  Definition,
-  Method,
-  Route,
-  Schema,
-} from "./types.ts";
+import type { AnyRoute, Definition, Schema } from "./types.ts";
 
 export function toggle<const N extends string>(
   named: Definition<N>,
-): Toggle<N, boolean>;
+): ParamElement<N, boolean>;
 
 export function toggle<const N extends string, T>(
   named: Definition<N>,
   nt: (value: Param<N, boolean>) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, T>(
   named: Definition<N>,
   na: (value: Param<N, boolean>) => A,
   at: (value: A) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, B, T>(
   named: Definition<N>,
   na: (value: Param<N, boolean>) => A,
   ab: (value: A) => B,
   bt: (value: B) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, B, C, T>(
   named: Definition<N>,
@@ -41,7 +34,7 @@ export function toggle<const N extends string, A, B, C, T>(
   ab: (value: A) => B,
   bc: (value: B) => C,
   ct: (value: C) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, B, C, D, T>(
   named: Definition<N>,
@@ -50,7 +43,7 @@ export function toggle<const N extends string, A, B, C, D, T>(
   bc: (value: B) => C,
   cd: (value: C) => D,
   dt: (value: D) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, B, C, D, E, T>(
   named: Definition<N>,
@@ -60,7 +53,7 @@ export function toggle<const N extends string, A, B, C, D, E, T>(
   cd: (value: C) => D,
   de: (value: D) => E,
   et: (value: E) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<const N extends string, A, B, C, D, E, F, T>(
   named: Definition<N>,
@@ -71,7 +64,7 @@ export function toggle<const N extends string, A, B, C, D, E, F, T>(
   de: (value: D) => E,
   ef: (value: E) => F,
   ft: (value: F) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<
   const N extends string,
@@ -93,7 +86,7 @@ export function toggle<
   ef: (value: E) => F,
   fg: (value: F) => G,
   gt: (value: G) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle<
   const N extends string,
@@ -117,7 +110,7 @@ export function toggle<
   fg: (value: F) => G,
   gh: (value: G) => H,
   ht: (value: H) => Param<N, T>,
-): Toggle<N, T>;
+): ParamElement<N, T>;
 
 export function toggle(
   named: Definition<string>,
@@ -131,7 +124,7 @@ export function toggle(
     },
   ) as Param<string, unknown>;
 
-  return (route: AnyRoute) => {
+  return brand<ParamElement<string, unknown>>((route: AnyRoute) => {
     let phases = [...route.phases];
     let phase = phases.pop()!;
     phases.push({
@@ -146,28 +139,8 @@ export function toggle(
       ...route,
       phases,
     };
-  };
+  });
 }
-
-type Toggle<K extends string, V> = <
-  const N extends string,
-  const M extends Method,
-  const T extends object,
-  const C extends readonly AnyRoute[],
-  const P extends AnyPhases,
->(
-  route: Route<N, M, T, C, P>,
-) => Route<
-  N,
-  M,
-  {
-    [P in keyof ({ [Q in K]: V } & T)]: (
-      { [Q in K]: V } & T
-    )[P];
-  },
-  C,
-  AddParamToLast<P, K, V>
->;
 
 function binding(
   name: string,
