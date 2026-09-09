@@ -1,8 +1,8 @@
 // deno-lint-ignore-file ban-types
 import { extend } from "./extend.ts";
 import type {
-AddRoutesToLast,
-AnyPhases,
+  AddRoutesToLast,
+  AnyPhases,
   AnyRoute,
   ChildrenOf,
   Definition,
@@ -1124,7 +1124,7 @@ export function version(
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
-  const P extends AnyPhases
+  const P extends AnyPhases,
 >(route: Route<N, M, T, C, P>) => Route<N, M | "version", T, C, P> {
   return (route) => ({
     ...route,
@@ -1138,7 +1138,7 @@ export function executable(): <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
-  const P extends AnyPhases
+  const P extends AnyPhases,
 >(route: Route<N, M, T, C, P>) => Route<N, M | "execute", T, C, P> {
   return (route) => ({
     ...route,
