@@ -2,7 +2,7 @@
   "name": "@frontside/configliere",
   "exports": "./mod.ts",
   "license": "MIT",
-  "publish": { "include": ["mod.ts", "README.md", "LICENSE.md"] },
+  "publish": { "include": ["lib", "mod.ts", "README.md", "LICENSE.md"] },
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.19",
     "@std/testing/bdd": "jsr:@std/testing@^1.0.19/bdd",
