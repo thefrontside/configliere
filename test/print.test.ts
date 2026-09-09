@@ -4,11 +4,13 @@
 
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
+import { type } from "arktype";
 import { command } from "../lib/command.ts";
 import { description, name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
+import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
-import { printHelp, printVersion } from "../lib/print.ts";
+import { printErrors, printHelp, printVersion } from "../lib/print.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
 
@@ -53,6 +55,11 @@ let app = route(
       ),
     ),
   ),
+);
+
+let required = command(
+  name("serve"),
+  option(name("port"), schema(type("number"))),
 );
 
 describe("printHelp()", () => {
@@ -110,6 +117,60 @@ describe("printVersion()", () => {
 
   it("prints a deeply nested route and its own version", () => {
     expect(release(["database", "clean"])).toBe("database clean 2.0.0");
+  });
+});
+
+describe("printErrors()", () => {
+  it("prints an unsupported method with the methods available on its route", () => {
+    let result = parse(app, { argv: ["serve", "--version"] });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "method-not-allowed",
+    });
+    if (result.ok) {
+      throw new Error("expected method not allowed");
+    }
+
+    expect(printErrors(result)).toBe(`serve does not support VERSION
+
+Available methods:
+  HELP
+  EXECUTE`);
+  });
+
+  it("prints validation issues with their parameter addresses", () => {
+    let result = parse(required, { argv: [] });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "unprocessable-content",
+    });
+    if (result.ok) {
+      throw new Error("expected unprocessable content");
+    }
+
+    expect(printErrors(result)).toBe(
+      `port: must be a number (was undefined)`,
+    );
+  });
+
+  it("prints nested and pathless issues together", () => {
+    expect(printErrors({
+      ok: false,
+      code: "unprocessable-content",
+      route: "/database/clean",
+      definition: command(name("clean")),
+      path: ["database", "clean"],
+      issues: [
+        {
+          message: "must be 32 characters long",
+          path: ["scope", 0, { key: "clientID" }],
+        },
+        { message: 'unexpected "--floop"' },
+      ],
+    })).toBe(`scope[0].clientID: must be 32 characters long
+unexpected: \`--floop\``);
   });
 });
 

@@ -1,3 +1,4 @@
+export { extend } from "./lib/extend.ts";
 export { command } from "./lib/command.ts";
 export type { CommandZero } from "./lib/command.ts";
 
@@ -10,7 +11,7 @@ export type { Param } from "./lib/param.ts";
 
 export { parse } from "./lib/parse.ts";
 
-export { printHelp, printVersion } from "./lib/print.ts";
+export { printErrors, printHelp, printVersion } from "./lib/print.ts";
 
 export { cli } from "./lib/read.ts";
 export type {
@@ -26,6 +27,7 @@ export type { RouteZero } from "./lib/route.ts";
 export { toggle } from "./lib/toggle.ts";
 
 export type { Literal } from "./lib/tokenize.ts";
+export type { Result } from "./lib/result.ts";
 
 export type {
   AnyIntent,

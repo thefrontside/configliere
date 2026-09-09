@@ -2,12 +2,25 @@ import type { Param } from "./param.ts";
 import type { Symbol } from "./read.ts";
 import type { Result } from "./result.ts";
 import type { Flag, Setter, Word } from "./tokenize.ts";
-import type { Tokenizer } from "./tokenizer.ts";
-import type { Issue } from "./types.ts";
+import { Tokenizer } from "./tokenizer.ts";
+import type { AnyPhase, Issue } from "./types.ts";
 
 export interface Binding<T> {
   rest: Tokenizer<Symbol>;
   result: Result<T>;
+}
+
+export interface PhaseBinding {
+  rest: Tokenizer<Symbol>;
+  model: Record<string, unknown>;
+  issues: Issue[];
+  valid: boolean;
+  cursor?: number;
+}
+
+export interface PhaseSegment {
+  readonly tokens: Iterable<Symbol>;
+  readonly cursor?: number;
 }
 
 export function bind<T, P extends Param<string, T>>(options: {
@@ -68,6 +81,79 @@ export function bind<T, P extends Param<string, T>>(options: {
   };
 }
 
+export function bindPhase(options: {
+  phase: AnyPhase;
+  segment: PhaseSegment;
+  tokens: Tokenizer<Symbol>;
+}): PhaseBinding {
+  let { phase, segment } = options;
+  let tokens = options.tokens;
+  let params = Object.values(phase.params) as Param<string, unknown>[];
+  let members = new Set(Array.from(segment.tokens, (token) => token.index));
+  let cursor = segment.cursor;
+  let results = new Map<string, Result<unknown>>();
+  let settled = new Set<string>();
+
+  while (true) {
+    for (let param of params) {
+      if (settled.has(param.name)) {
+        continue;
+      }
+
+      let visible = Array.from(tokens).filter((token) => {
+        return members.has(token.index) &&
+          (cursor === undefined || token.index <= cursor);
+      });
+      let binding = bind({
+        param,
+        tokens: new Tokenizer(visible),
+      });
+      let remaining = new Set(
+        Array.from(binding.rest, (token) => token.index),
+      );
+      let claimed = new Set(
+        visible
+          .filter((token) => !remaining.has(token.index))
+          .map((token) => token.index),
+      );
+
+      results.set(param.name, binding.result);
+
+      if (claimed.size > 0) {
+        tokens = tokens.claimAll((token) => claimed.has(token.index)).rest;
+        settled.add(param.name);
+      }
+    }
+
+    if (cursor === undefined || has(tokens, members, cursor)) {
+      break;
+    }
+
+    cursor = next(tokens, members, cursor);
+  }
+
+  let model: Record<string, unknown> = {};
+  let issues: Issue[] = [];
+  let valid = true;
+
+  for (let param of params) {
+    let result = results.get(param.name);
+    if (!result) {
+      continue;
+    }
+
+    issues.push(...result.issues ?? []);
+
+    if (result.ok) {
+      model[param.name] = result.value;
+    } else {
+      valid = false;
+    }
+  }
+
+  return { rest: tokens, model, issues, valid, cursor };
+}
+
 function validate<T, P extends Param<string, T>>(
   param: P,
   value: unknown,
@@ -87,7 +173,11 @@ function validate<T, P extends Param<string, T>>(
   if (validated.issues) {
     return {
       ok: false,
-      issues: validated.issues.map((i) => ({ ...i, path })),
+      issues: validated.issues.map((issue) => ({
+        ...issue,
+        message: issue.message,
+        path,
+      })),
     };
   } else {
     return {
@@ -95,5 +185,32 @@ function validate<T, P extends Param<string, T>>(
       issues: [],
       value: validated.value,
     };
+  }
+}
+
+function has(
+  tokens: Tokenizer<Symbol>,
+  members: Set<number>,
+  index: number,
+): boolean {
+  for (let token of tokens) {
+    if (members.has(token.index) && token.index === index) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function next(
+  tokens: Tokenizer<Symbol>,
+  members: Set<number>,
+  index: number,
+): number | undefined {
+  for (let token of tokens) {
+    if (
+      members.has(token.index) && token.index > index && token.type === "word"
+    ) {
+      return token.index;
+    }
   }
 }
