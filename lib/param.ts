@@ -9,6 +9,7 @@ export interface Param<K extends string, T> extends Definition<K> {
   schema: Schema<T>;
   cli: ReadCLI;
   decode: Decoder;
+  env?: string;
 }
 
 export function param<const K extends string>(
