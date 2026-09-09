@@ -2,7 +2,15 @@ import { dasherize } from "./dasherize.ts";
 import { type Param, param, schema } from "./param.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
 import type { Flag } from "./tokenize.ts";
-import type { AddParamToLast, AnyPhases, AnyRoute, Definition, Method, Route, Schema } from "./types.ts";
+import type {
+  AddParamToLast,
+  AnyPhases,
+  AnyRoute,
+  Definition,
+  Method,
+  Route,
+  Schema,
+} from "./types.ts";
 
 export function toggle<const N extends string>(
   named: Definition<N>,
@@ -142,7 +150,7 @@ type Toggle<K extends string, V> = <
   const M extends Method,
   const T extends object,
   const C extends readonly AnyRoute[],
-  const P extends AnyPhases
+  const P extends AnyPhases,
 >(
   route: Route<N, M, T, C, P>,
 ) => Route<
