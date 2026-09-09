@@ -2,12 +2,12 @@ import type { Maybe } from "./maybe.ts";
 import type { Param } from "./param.ts";
 import type { Result } from "./result.ts";
 import type { Flag, Setter, Word } from "./tokenize.ts";
-import type { Claim, Tokenizer } from "./tokenizer.ts";
+import type { Claim, TokenInput } from "./tokenizer.ts";
 
 export type Symbol = Flag | Setter | Word;
 
 export type ReadCLI = (
-  tokens: Tokenizer<Symbol>,
+  tokens: TokenInput<Symbol>,
 ) => CLIRead;
 
 export interface CLIRead {
@@ -99,12 +99,11 @@ export function cli(
   });
 }
 
-function nothing(tokenizer: Tokenizer<Symbol>): CLIRead {
+function nothing(tokenizer: TokenInput<Symbol>): CLIRead {
+  let claim = tokenizer.claimAll(() => false);
+
   return {
-    claim: {
-      tokens: [],
-      rest: tokenizer,
-    },
+    claim,
     result: {
       ok: true,
       value: { exists: false },

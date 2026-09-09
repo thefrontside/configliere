@@ -2,6 +2,8 @@ export { extend } from "./lib/extend.ts";
 export { command } from "./lib/command.ts";
 export type { CommandZero } from "./lib/command.ts";
 
+export { checkpoint } from "./lib/checkpoint.ts";
+
 export { description, name } from "./lib/definition.ts";
 
 export { option } from "./lib/option.ts";
@@ -12,6 +14,8 @@ export type { Param } from "./lib/param.ts";
 export { parse } from "./lib/parse.ts";
 
 export { printErrors, printHelp, printVersion } from "./lib/print.ts";
+
+export type { Rest } from "./lib/rest.ts";
 
 export { cli } from "./lib/read.ts";
 export type {
@@ -25,6 +29,9 @@ export { executable, route, routes, version } from "./lib/route.ts";
 export type { RouteZero } from "./lib/route.ts";
 
 export { toggle } from "./lib/toggle.ts";
+
+export { withValues } from "./lib/values.ts";
+export type { ValueSource } from "./lib/values.ts";
 
 export type { Literal } from "./lib/tokenize.ts";
 export type { Result } from "./lib/result.ts";

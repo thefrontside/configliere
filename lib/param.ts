@@ -2,7 +2,7 @@ import { type Decoder, scalar } from "./decode.ts";
 import { extend } from "./extend.ts";
 import type { ReadCLI } from "./read.ts";
 import type { AnyToken } from "./tokenize.ts";
-import type { Tokenizer } from "./tokenizer.ts";
+import type { TokenInput } from "./tokenizer.ts";
 import type { Definition, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
@@ -133,7 +133,7 @@ export function param(
   let zero = {
     ...start,
     schema: unknown,
-    cli: (tokens: Tokenizer<AnyToken>) => ({
+    cli: (tokens: TokenInput<AnyToken>) => ({
       result: {
         ok: true,
         value: { exists: false },
