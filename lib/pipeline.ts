@@ -10,7 +10,6 @@ import type {
   Method,
   MethodsOf,
   ModelOf,
-  ModelSchema,
   Next,
   Phase,
   Route,
@@ -95,8 +94,11 @@ export interface RoutesElement<Added extends readonly AnyRoute[]> {
   >;
 }
 
-export interface TransformModelElement<F> {
-  readonly [operation]: AddModelTransform<F>;
+export interface ModelTransformElement<
+  F,
+  E extends readonly Unary[],
+> {
+  readonly [operation]: AddModelTransform<F, E>;
 
   <
     const N extends string,
@@ -104,20 +106,16 @@ export interface TransformModelElement<F> {
     const T extends object,
     const C extends readonly AnyRoute[],
     const P extends AnyPhases,
-  >(route: Route<N, M, T, C, P>): Route<
-    N,
-    M,
-    ModelTransformOutput<F, T>,
-    C,
-    TransformModelInLast<P, ModelTransformOutput<F, T>>
+  >(route: Route<N, M, T, C, P>): Apply<
+    Route<N, M, T, C, P>,
+    AddModelTransform<F, E>
   >;
 }
 
-type ModelTransformOutput<F, T extends object> = F extends ModelSchema<
-  infer Output
-> ? Output
-  : F extends (model: infer Input) => infer Output
-    ? T extends Input ? Output extends object ? Output : T : never
+type ModelTransformOutput<F, T extends object> = F extends
+  (options: never, model: infer Input, phase: never) => infer Output
+  ? T extends Input ? (Output extends object ? Output : T)
+  : never
   : never;
 
 export type Extension<E extends readonly Unary[]> =
@@ -233,7 +231,7 @@ type Delta =
   | AddMethod<Method>
   | AddParam<string, unknown>
   | AddRoutes<readonly AnyRoute[]>
-  | AddModelTransform<unknown>
+  | AddModelTransform<unknown, readonly Unary[]>
   | Batch<readonly Unary[]>
   | Dynamic<unknown, AnyElement>
   | Custom<Transform>;
@@ -265,9 +263,13 @@ interface AddRoutes<C extends readonly AnyRoute[]> {
   readonly children: C;
 }
 
-interface AddModelTransform<F> {
+interface AddModelTransform<
+  F,
+  E extends readonly Unary[],
+> {
   readonly type: "model-transform";
   readonly transform: F;
+  readonly elements: E;
 }
 
 interface Batch<E extends readonly Unary[]> {
@@ -307,16 +309,19 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
         AddRoutesToLast<S["phases"], C>
       >
     : never
-  : D extends AddModelTransform<infer F> ? S extends AnyRoute ? Route<
-        S["name"],
-        MethodsOf<S>,
-        ModelTransformOutput<F, ModelOf<S>>,
-        ChildrenOf<S>,
-        TransformModelInLast<
-          S["phases"],
-          ModelTransformOutput<F, ModelOf<S>>
+  : D extends AddModelTransform<infer F, infer E>
+    ? S extends AnyRoute
+      ? Fold<S, E> extends infer After extends AnyRoute ? Route<
+          After["name"],
+          MethodsOf<After>,
+          ModelTransformOutput<F, ModelOf<After>>,
+          ChildrenOf<After>,
+          TransformModelInLast<
+            After["phases"],
+            ModelTransformOutput<F, ModelOf<After>>
+          >
         >
-      >
+      : never
     : never
   : D extends Batch<infer E> ? Fold<S, E>
   : D extends Dynamic<infer Requirement, infer E>
@@ -379,7 +384,7 @@ type InputOfDelta<D extends Delta> = D extends Identity<infer Input> ? Input
     | AddRoutes<
       readonly AnyRoute[]
     >
-    | AddModelTransform<unknown>
+    | AddModelTransform<unknown, readonly Unary[]>
     | Dynamic<unknown, AnyElement> ? AnyRoute
   : D extends Batch<infer E> ? InputOfPipeline<E>
   : D extends Custom<infer F> ? F["input"]

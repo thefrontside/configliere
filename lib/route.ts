@@ -5,8 +5,8 @@ import {
   type Fold,
   type Materialize,
   type MethodElement,
+  type ModelTransformElement,
   type RoutesElement,
-  type TransformModelElement,
   type Unary,
 } from "./pipeline.ts";
 import type {
@@ -15,7 +15,6 @@ import type {
   Done,
   ModelOperation,
   ModelParams,
-  ModelSchema,
   Route,
 } from "./types.ts";
 
@@ -84,27 +83,43 @@ export function routes<const C extends readonly AnyRoute[]>(
   });
 }
 
-export function transformModel<const T extends object>(
-  schema: ModelSchema<T>,
-): TransformModelElement<ModelSchema<T>>;
-export function transformModel<
-  const F extends (model: never, params: ModelParams) => object | void,
->(transform: F): TransformModelElement<F>;
-export function transformModel(transform: unknown): unknown {
-  return brand<TransformModelElement<unknown>>((route: AnyRoute) => {
-    let phases = [...route.phases];
+export function transform<
+  const F extends (
+    options: never,
+    model: never,
+    phase: ModelParams,
+  ) => object | void,
+  const E extends readonly Unary[],
+>(
+  transform: F,
+  ...elements: E & Check<RouteZero, E>
+): ModelTransformElement<F, E> {
+  return brand<ModelTransformElement<F, E>>((route: AnyRoute) => {
+    let before = keys(route);
+    let next = elements.reduce<unknown>(
+      (value, element) => element(value as never),
+      route,
+    ) as AnyRoute;
+    let added = keys(next).filter((key) => !before.includes(key));
+
+    let phases = [...next.phases];
     let phase = phases.pop()!;
     phases.push({
       ...phase,
       transforms: [
         ...(phase.transforms ?? []),
-        transform as ModelOperation,
+        { transform, keys: added } as unknown as ModelOperation,
       ],
     });
 
     return {
-      ...route,
+      ...next,
       phases,
     };
   });
+}
+
+function keys(route: AnyRoute): string[] {
+  let params = route.phases[route.phases.length - 1].params;
+  return Object.keys(params);
 }

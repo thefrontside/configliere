@@ -426,44 +426,38 @@ function resolve(
 }
 
 function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
-  let transforms = segment.phases[0].transforms ?? [];
+  let operations = segment.phases[0].transforms ?? [];
   let model = segment.model;
 
-  for (let transform of transforms) {
-    if (typeof transform === "function") {
-      let result = transform(
-        model,
-        segment.phases[0].params,
-      );
-      if (result !== undefined) {
-        model = result as Record<string, unknown>;
-      }
-      continue;
+  for (let op of operations) {
+    let result = op.transform(
+      pick(model, op.keys),
+      model,
+      segment.phases[0].params,
+    );
+    if (result !== undefined) {
+      model = result as Record<string, unknown>;
     }
-
-    let result = transform["~standard"].validate(model);
-    if (result instanceof Promise) {
-      return {
-        ok: false,
-        issues: [{ message: "async schemas are not allowed" }],
-      };
-    }
-
-    if (result.issues) {
-      return {
-        ok: false,
-        issues: result.issues,
-      };
-    }
-
-    model = result.value as Record<string, unknown>;
   }
 
-  if (transforms.length === 0) {
+  if (operations.length === 0) {
     return { ok: true, value: segment.model };
   }
 
   return { ok: true, value: model };
+}
+
+function pick(
+  model: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  let options: Record<string, unknown> = {};
+  for (let key of keys) {
+    if (key in model) {
+      options[key] = model[key];
+    }
+  }
+  return options;
 }
 
 function seed(route: AnyRoute): AnyRoute {

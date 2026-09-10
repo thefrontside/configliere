@@ -8,13 +8,12 @@ import { option } from "../lib/option.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import { schema, transformModel } from "../mod.ts";
+import { schema, transform } from "../mod.ts";
 import type {
   AnyRoute,
   Done,
   IntentsOf,
   ModelOf,
-  ModelSchema,
   Route,
 } from "../lib/types.ts";
 
@@ -68,18 +67,12 @@ type TransformedModel = { port: number; secure: boolean };
 let transformed = command(
   name("transformed"),
   checkpoint(),
-  option(name("port"), schema(type("number"))),
-  transformModel(
-    {
-      "~standard": {
-        version: 1,
-        vendor: "test",
-        validate(value: unknown) {
-          let model = value as { port: number };
-          return { value: { port: model.port, secure: true as boolean } };
-        },
-      },
-    } satisfies ModelSchema<TransformedModel>,
+  transform(
+    (_options: { port: number }, model: { port: number }, _phase) => ({
+      port: model.port,
+      secure: true as boolean,
+    }),
+    option(name("port"), schema(type("number"))),
   ),
 );
 
@@ -89,21 +82,29 @@ type FunctionModel = { port: number; secure: boolean };
 
 let transformedByFunction = command(
   name("function-transformed"),
-  option(name("port"), schema(type("number"))),
-  transformModel((model: { port: number }): FunctionModel => ({
-    ...model,
-    secure: true,
-  })),
+  transform(
+    (
+      _options: { port: number },
+      model: { port: number },
+      _phase,
+    ): FunctionModel => ({
+      ...model,
+      secure: true,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
 );
 
 expectType<Equal<ModelOf<typeof transformedByFunction>, FunctionModel>>(true);
 
 let mutated = command(
   name("mutated"),
-  option(name("port"), schema(type("number"))),
-  transformModel((model: { port: number }) => {
-    Object.assign(model, { secure: true });
-  }),
+  transform(
+    (_options: { port: number }, model: { port: number }, _phase) => {
+      Object.assign(model, { secure: true });
+    },
+    option(name("port"), schema(type("number"))),
+  ),
 );
 
 expectType<Equal<ModelOf<typeof mutated>, { port: number }>>(true);
@@ -112,13 +113,15 @@ const portSchema = type("number");
 
 let inspected = command(
   name("inspected"),
-  option(name("port"), schema(portSchema)),
-  transformModel((model: { port: number }, params) => {
-    if (params.port.schema !== portSchema) {
-      throw new Error("port schema was not exposed");
-    }
-    return model;
-  }),
+  transform(
+    (_options: { port: number }, model: { port: number }, phase) => {
+      if (phase.port.schema !== portSchema) {
+        throw new Error("port schema was not exposed");
+      }
+      return model;
+    },
+    option(name("port"), schema(portSchema)),
+  ),
 );
 
 let segments = command(
@@ -133,7 +136,7 @@ let segments = command(
 );
 
 describe("parse()", () => {
-  it("applies a standard schema after checkpoint resolution", () => {
+  it("applies a transform after checkpoint resolution", () => {
     let step = parse(transformed, { argv: ["--port", "4100"] });
     expectOk(step);
 
@@ -157,20 +160,24 @@ describe("parse()", () => {
   it("applies model transforms in phase order", () => {
     let app = command(
       name("phased"),
-      option(name("before"), schema(type("number"))),
-      transformModel((model: { before: number }) => ({
-        ...model,
-        first: true,
-      })),
+      transform(
+        (_options: { before: number }, model: { before: number }, _phase) => ({
+          ...model,
+          first: true,
+        }),
+        option(name("before"), schema(type("number"))),
+      ),
       checkpoint(),
-      option(name("after"), schema(type("string"))),
-      transformModel(
+      transform(
         (
+          _options: { after: string },
           model: { before: number; first: boolean; after: string },
+          _phase,
         ) => ({
           ...model,
           value: `${model.before}:${model.after}`,
         }),
+        option(name("after"), schema(type("string"))),
       ),
     );
 
