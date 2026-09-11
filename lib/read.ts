@@ -9,6 +9,7 @@ export type Symbol = Flag | Setter | Word;
 
 export type ReadCLI = (
   tokens: TokenInput<Symbol>,
+  multiple?: boolean,
 ) => CLIRead;
 
 export interface CLIBinding {
@@ -21,7 +22,7 @@ export type CLISyntax =
   | { readonly type: "option"; readonly label: string };
 
 export interface CLIRead {
-  result: Result<Maybe<string | boolean>>;
+  result: Result<Maybe<string | boolean | unknown[]>>;
   claim: Claim<Symbol>;
 }
 
@@ -33,7 +34,7 @@ export function cli(
   names: readonly string[],
   options: CLIOptions = {},
 ): IdentityElement<Param<string, unknown>> {
-  const read: ReadCLI = (tokens) => {
+  const readOne: ReadCLI = (tokens) => {
     if (options.switch) {
       let s = tokens.claimOne((t): t is Flag => {
         return t.type === "flag" && names.includes(t.text);
@@ -101,6 +102,59 @@ export function cli(
       };
     }
     return nothing(tokens);
+  };
+
+  const readMany: ReadCLI = (tokens) => {
+    let claimed = new Set<number>();
+    let values: unknown[] = [];
+    let issues = [];
+    let visible = Array.from(tokens);
+
+    for (let index = 0; index < visible.length; index++) {
+      let token = visible[index];
+
+      if (
+        !options.switch && token.type === "setter" &&
+        names.includes(`--${token.nameText}`)
+      ) {
+        claimed.add(token.index);
+        values.push(token.valueText);
+        continue;
+      }
+
+      if (token.type !== "flag" || !names.includes(token.text)) {
+        continue;
+      }
+
+      let value = visible[index + 1];
+      if (value?.type === "word" && value.index === token.index + 1) {
+        claimed.add(token.index);
+        claimed.add(value.index);
+        values.push(value.text);
+        index++;
+      } else if (options.switch) {
+        claimed.add(token.index);
+        values.push(true);
+      } else {
+        claimed.add(token.index);
+        issues.push({ message: `${token.text} requires a value` });
+      }
+    }
+
+    if (claimed.size === 0) {
+      return nothing(tokens);
+    }
+
+    return {
+      claim: tokens.claimAll((token) => claimed.has(token.index)),
+      result: issues.length > 0
+        ? { ok: false, issues }
+        : { ok: true, value: { exists: true, value: values }, issues: [] },
+    };
+  };
+
+  const read: ReadCLI = (tokens, multiple = false) => {
+    return multiple ? readMany(tokens) : readOne(tokens);
   };
 
   return brand<IdentityElement<Param<string, unknown>>>(

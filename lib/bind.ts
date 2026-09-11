@@ -136,9 +136,11 @@ export function bindPhase(options: {
     for (let param of pending.values()) {
       let view = rest.tokens.view({
         range: segment.range,
-        through: horizon?.index,
+        // Repeated options must see every occurrence in the phase, not only
+        // the first option/value pair before the binding horizon.
+        through: param.multiple ? undefined : horizon?.index,
       });
-      let read = param.cli.read(view);
+      let read = param.cli.read(view, param.multiple);
 
       if (read.result.ok && !read.result.value.exists) {
         continue;
