@@ -7,13 +7,18 @@ import type { ValueSource } from "./values.ts";
 
 export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
+export type ModelSchema<T extends object> = StandardSchemaV1<unknown, T>;
 export type ModelParams = Params<Record<string, unknown>>;
+export type ModelTransformFunction = (
+  options: Record<string, unknown>,
+  model: Record<string, unknown>,
+  phase: ModelParams,
+) => Record<string, unknown> | void;
+export type ModelTransform =
+  | ModelSchema<object>
+  | ModelTransformFunction;
 export interface ModelOperation {
-  readonly transform: (
-    options: Record<string, unknown>,
-    model: Record<string, unknown>,
-    phase: ModelParams,
-  ) => object | void;
+  readonly transform: ModelTransform;
   readonly keys: readonly string[];
 }
 

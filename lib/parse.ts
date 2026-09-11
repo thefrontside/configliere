@@ -430,14 +430,35 @@ function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
   let model = segment.model;
 
   for (let op of operations) {
-    let result = op.transform(
-      pick(model, op.keys),
-      model,
-      segment.phases[0].params,
-    );
-    if (result !== undefined) {
-      model = result as Record<string, unknown>;
+    if (typeof op.transform === "function") {
+      let result = op.transform(
+        pick(model, op.keys),
+        model,
+        segment.phases[0].params,
+      );
+      if (result !== undefined) {
+        if (!record(result)) {
+          return invalidTransformResult();
+        }
+        model = result;
+      }
+      continue;
     }
+
+    let result = op.transform["~standard"].validate(model);
+    if (result instanceof Promise) {
+      return {
+        ok: false,
+        issues: [{ message: "async schemas are not allowed" }],
+      };
+    }
+    if (result.issues) {
+      return { ok: false, issues: result.issues };
+    }
+    if (!record(result.value)) {
+      return invalidTransformResult();
+    }
+    model = result.value;
   }
 
   if (operations.length === 0) {
@@ -445,6 +466,17 @@ function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
   }
 
   return { ok: true, value: model };
+}
+
+function invalidTransformResult(): Result<Record<string, unknown>> {
+  return {
+    ok: false,
+    issues: [{ message: "model transforms must return records" }],
+  };
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function pick(

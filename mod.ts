@@ -64,6 +64,7 @@ export type {
   ModelOf,
   ModelParams,
   ModelsByRoute,
+  ModelSchema,
   Outcome,
   Path,
   PathOf,

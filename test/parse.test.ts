@@ -8,7 +8,7 @@ import { option } from "../lib/option.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import { schema, transform } from "../mod.ts";
+import { type ModelSchema, schema, transform } from "../mod.ts";
 import type {
   AnyRoute,
   Done,
@@ -124,6 +124,115 @@ let inspected = command(
   ),
 );
 
+const modelSchema: ModelSchema<{
+  port: number;
+  secure: boolean;
+}> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate(value) {
+      let model = value as { port: number };
+      return { value: { ...model, secure: true } };
+    },
+  },
+};
+
+const invalidModelSchema: ModelSchema<object> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate() {
+      return { value: [] };
+    },
+  },
+};
+
+let transformedBySchema = command(
+  name("schema-transformed"),
+  transform(
+    modelSchema,
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+let invalidSchemaTransform = command(
+  name("invalid-schema-transform"),
+  transform(invalidModelSchema),
+);
+
+expectType<
+  Equal<ModelOf<typeof transformedBySchema>, {
+    port: number;
+    secure: boolean;
+  }>
+>(true);
+
+let inferredOptions = command(
+  name("inferred-options"),
+  transform(
+    (options, model: { port: number }) => ({
+      ...model,
+      secure: options.port > 0,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+expectType<
+  Equal<ModelOf<typeof inferredOptions>, {
+    port: number;
+    secure: boolean;
+  }>
+>(true);
+
+transform(
+  // @ts-expect-error undeclared transform options must not be accepted
+  (_options: { port: number; missing: string }, model: { port: number }) =>
+    model,
+  option(name("port"), schema(type("number"))),
+);
+
+// @ts-expect-error transform outputs must be records
+transform((_options, _model) => []);
+
+let optionalOption = command(
+  name("optional-option"),
+  transform(
+    (options, model: { host?: string }) => ({
+      ...model,
+      host: options.host ?? "localhost",
+    }),
+    option(name("host"), schema(type("string | undefined"))),
+  ),
+);
+
+let duplicateOption = command(
+  name("duplicate-option"),
+  option(name("port"), schema(type("number"))),
+  transform(
+    (options, model: { port: number }) => ({
+      ...model,
+      copiedPort: options.port,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+let nestedApplications = 0;
+let countedElement = (route: AnyRoute): AnyRoute => {
+  nestedApplications += 1;
+  return route;
+};
+
+let countedTransform = command(
+  name("counted-transform"),
+  transform(
+    (_options, model: Record<string, unknown>) => model,
+    countedElement,
+  ),
+);
+
 let segments = command(
   name("simulacrum"),
   option(name("host"), schema(type("string"))),
@@ -155,6 +264,41 @@ describe("parse()", () => {
     let result = parse(inspected, { argv: ["--port", "4100"] });
     expectOk(result);
     expect(result).toMatchObject({ model: { port: 4100 } });
+  });
+
+  it("applies a Standard Schema transform", () => {
+    let result = parse(transformedBySchema, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { port: 4100, secure: true },
+    });
+  });
+
+  it("rejects non-record model transform results", () => {
+    let result = parse(invalidSchemaTransform, { argv: [] });
+    expectUnprocessable(result);
+    expect(result.issues).toMatchObject([{
+      message: "model transforms must return records",
+    }]);
+  });
+
+  it("allows an omitted optional transform option", () => {
+    let result = parse(optionalOption, { argv: [] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { host: "localhost" } });
+  });
+
+  it("passes duplicate option names to a transform", () => {
+    let result = parse(duplicateOption, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { port: 4100, copiedPort: 4100 },
+    });
+  });
+
+  it("applies nested transform elements once", () => {
+    expect(nestedApplications).toBe(1);
+    expect(parse(countedTransform, { argv: [] })).toMatchObject({ ok: true });
   });
 
   it("applies model transforms in phase order", () => {

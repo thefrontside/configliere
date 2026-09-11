@@ -10,6 +10,7 @@ import type {
   Method,
   MethodsOf,
   ModelOf,
+  ModelSchema,
   Next,
   Phase,
   Route,
@@ -113,9 +114,11 @@ export interface ModelTransformElement<
 }
 
 type ModelTransformOutput<F, T extends object> = F extends
-  (options: never, model: infer Input, phase: never) => infer Output
-  ? T extends Input ? (Output extends object ? Output : T)
-  : never
+  ModelSchema<infer Output>
+  ? Output extends Record<string, unknown> ? Output : T
+  : F extends (options: never, model: infer Input, phase: never) => infer Output
+    ? T extends Input ? (Output extends Record<string, unknown> ? Output : T)
+    : never
   : never;
 
 export type Extension<E extends readonly Unary[]> =
