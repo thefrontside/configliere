@@ -7,7 +7,7 @@ import { option } from "../lib/option.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import { schema } from "../mod.ts";
+import { multiple, schema } from "../mod.ts";
 import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
 
 let app = route(
@@ -50,6 +50,12 @@ let fields = command(
   option(name("port"), schema(type("number"))),
 );
 
+let multipleOptions = command(
+  name("simulacrum"),
+  option(name("config"), multiple(), schema(type("string[]"))),
+  option(name("port"), schema(type("number"))),
+);
+
 let options = command(
   name("simulacrum"),
   option(name("dryRun"), schema(type("string | undefined"))),
@@ -67,6 +73,16 @@ let segments = command(
 );
 
 describe("parse()", () => {
+  it("collects repeated options in argv order", () => {
+    let result = parse(multipleOptions, {
+      argv: ["--config", "one", "--port", "4100", "--config=two"],
+    });
+
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { config: ["one", "two"], port: 4100 },
+    });
+  });
   describe("help", () => {
     it("resolves either help flag against the root route", () => {
       expect(

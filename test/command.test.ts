@@ -4,7 +4,7 @@ import { type } from "arktype";
 import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
-import { schema } from "../lib/param.ts";
+import { multiple, schema } from "../lib/param.ts";
 import { version } from "../lib/route.ts";
 import type { Done, ModelOf } from "../lib/types.ts";
 
@@ -37,6 +37,29 @@ describe("command()", () => {
         readonly [Done<{ port: number; domain: string }, []>]
       >
     >(true);
+  });
+
+  it("infers an array model for multiple options", () => {
+    let result = command(
+      name("simulacrum"),
+      option(name("config"), multiple(), schema(type("string[]"))),
+    );
+
+    expectType<Equal<ModelOf<typeof result>, { config: string[] }>>(true);
+  });
+
+  it("requires an array schema for multiple options", () => {
+    command(
+      name("simulacrum"),
+      // @ts-expect-error multiple options must validate arrays
+      option(name("config"), multiple(), schema(type("string"))),
+    );
+
+    command(
+      name("simulacrum"),
+      // @ts-expect-error multiple options must validate arrays
+      option(name("config"), schema(type("string")), multiple()),
+    );
   });
 
   it("infers the exact model across thirty route elements", () => {
