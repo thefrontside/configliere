@@ -226,11 +226,13 @@ function fromRead<T>(
   }
 
   let value = read.result.value.value;
-  let candidates = typeof value === "string" ? param.decode(value) : [value];
-  let result = merge(
-    decode(param, value, candidates, path),
-    read.result.issues,
+  let result = Array.isArray(value) ? decodeMany(param, value, path) : decode(
+    param,
+    value,
+    typeof value === "string" ? param.decode(value) : [value],
+    path,
   );
+  result = merge(result, read.result.issues);
 
   return {
     exists: true,
@@ -242,6 +244,23 @@ function fromRead<T>(
       result,
     },
   };
+}
+
+function decodeMany<T>(
+  param: Param<string, T>,
+  values: unknown[],
+  path: string[],
+): Result<T> {
+  let candidates: unknown[][] = [[]];
+
+  for (let value of values) {
+    let decoded = typeof value === "string" ? param.decode(value) : [value];
+    candidates = candidates.flatMap((prefix) =>
+      decoded.map((candidate) => [...prefix, candidate])
+    );
+  }
+
+  return decode(param, values, candidates, path);
 }
 
 function decode<T>(

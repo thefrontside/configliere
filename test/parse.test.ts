@@ -63,6 +63,11 @@ let multipleOptions = command(
   option(name("port"), schema(type("number"))),
 );
 
+let multipleNumbers = command(
+  name("simulacrum"),
+  option(name("port"), multiple(), schema(type("number[]"))),
+);
+
 let options = command(
   name("simulacrum"),
   option(name("dryRun"), schema(type("string | undefined"))),
@@ -268,6 +273,17 @@ describe("parse()", () => {
     expectOk(result);
     expect(result).toMatchObject({
       model: { config: ["one", "two"], port: 4100 },
+    });
+  });
+
+  it("decodes each repeated option value before validating the array", () => {
+    let result = parse(multipleNumbers, {
+      argv: ["--port", "4100", "--port", "4101"],
+    });
+
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { port: [4100, 4101] },
     });
   });
 
