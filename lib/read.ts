@@ -35,80 +35,38 @@ export function cli(
   options: CLIOptions = {},
 ): IdentityElement<Param<string, unknown>> {
   const readOne: ReadCLI = (tokens) => {
-    if (options.switch) {
-      let s = tokens.claimOne((t): t is Flag => {
-        return t.type === "flag" && names.includes(t.text);
-      });
-      let [flag] = s.tokens;
-      return flag
-        ? {
-          result: {
-            ok: true,
-            value: { exists: true, value: true },
-            issues: [],
-          },
-          claim: s,
-        }
-        : nothing(tokens);
-    }
-    let setter = tokens.claimOne((token): token is Setter => {
-      return (token.type === "setter" && names.includes(`--${token.nameText}`));
-    });
-    let [token] = setter.tokens;
-    if (token) {
-      return {
-        claim: setter,
-        result: {
-          ok: true,
-          value: {
-            exists: true,
-            value: token.valueText,
-          },
-          issues: [],
-        },
-      };
-    }
-    let pair = tokens.claimPair((name, value) => {
-      return name.type === "flag" && names.includes(name.text) &&
-        value.type === "word";
-    });
-    let [, value] = pair.tokens;
-    if (value) {
-      return {
-        claim: pair,
-        result: {
-          ok: true,
-          value: {
-            exists: true,
-            value: value.text,
-          },
-          issues: [],
-        },
-      };
-    }
-    let bare = tokens.claimOne((t): t is Flag => {
-      return t.type === "flag" && names.includes(t.text);
-    });
-    let [incomplete] = bare.tokens;
-    if (incomplete) {
-      return {
-        claim: bare,
-        result: {
-          ok: false,
-          issues: [{
-            message: `${incomplete.text} requires a value`,
-          }],
-        },
-      };
-    }
-    return nothing(tokens);
+    let [match] = matches(tokens);
+    return match ? result(tokens, match) : nothing(tokens);
   };
 
   const readMany: ReadCLI = (tokens) => {
-    let claimed = new Set<number>();
-    let values: unknown[] = [];
-    let issues = [];
+    let found = matches(tokens);
+    if (found.length === 0) {
+      return nothing(tokens);
+    }
+
+    let claimed = new Set(found.flatMap((match) => match.indices));
+    let issues = found.flatMap((match) =>
+      "issue" in match ? [match.issue] : []
+    );
+    return {
+      claim: tokens.claimAll((token) => claimed.has(token.index)),
+      result: issues.length > 0 ? { ok: false, issues } : {
+        ok: true,
+        value: {
+          exists: true,
+          value: found.map((match) =>
+            "value" in match ? match.value : undefined
+          ),
+        },
+        issues: [],
+      },
+    };
+  };
+
+  function matches(tokens: TokenInput<Symbol>): OptionMatch[] {
     let visible = Array.from(tokens);
+    let found: OptionMatch[] = [];
 
     for (let index = 0; index < visible.length; index++) {
       let token = visible[index];
@@ -117,8 +75,7 @@ export function cli(
         !options.switch && token.type === "setter" &&
         names.includes(`--${token.nameText}`)
       ) {
-        claimed.add(token.index);
-        values.push(token.valueText);
+        found.push({ indices: [token.index], value: token.valueText });
         continue;
       }
 
@@ -126,32 +83,28 @@ export function cli(
         continue;
       }
 
+      if (options.switch) {
+        found.push({ indices: [token.index], value: true });
+        continue;
+      }
+
       let value = visible[index + 1];
       if (value?.type === "word" && value.index === token.index + 1) {
-        claimed.add(token.index);
-        claimed.add(value.index);
-        values.push(value.text);
+        found.push({
+          indices: [token.index, value.index],
+          value: value.text,
+        });
         index++;
-      } else if (options.switch) {
-        claimed.add(token.index);
-        values.push(true);
       } else {
-        claimed.add(token.index);
-        issues.push({ message: `${token.text} requires a value` });
+        found.push({
+          indices: [token.index],
+          issue: { message: `${token.text} requires a value` },
+        });
       }
     }
 
-    if (claimed.size === 0) {
-      return nothing(tokens);
-    }
-
-    return {
-      claim: tokens.claimAll((token) => claimed.has(token.index)),
-      result: issues.length > 0
-        ? { ok: false, issues }
-        : { ok: true, value: { exists: true, value: values }, issues: [] },
-    };
-  };
+    return found;
+  }
 
   const read: ReadCLI = (tokens, multiple = false) => {
     return multiple ? readMany(tokens) : readOne(tokens);
@@ -171,6 +124,33 @@ export function cli(
       },
     }),
   );
+}
+
+type OptionMatch = {
+  indices: number[];
+  value: string | boolean;
+} | {
+  indices: number[];
+  issue: { message: string };
+};
+
+function result(
+  tokens: TokenInput<Symbol>,
+  match: OptionMatch,
+): CLIRead {
+  let claim = tokens.claimAll((token) => match.indices.includes(token.index));
+  if ("issue" in match) {
+    return { claim, result: { ok: false, issues: [match.issue] } };
+  }
+
+  return {
+    claim,
+    result: {
+      ok: true,
+      value: { exists: true, value: match.value },
+      issues: [],
+    },
+  };
 }
 
 function nothing(tokenizer: TokenInput<Symbol>): CLIRead {
