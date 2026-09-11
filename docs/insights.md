@@ -91,6 +91,11 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 - The resolved route has a directly typed `model`.
 - The result also carries path-addressed `models` for every matched route.
 - Route identity and result projection are separate concerns.
+- A model transform is a batch operation: a transform function followed by the
+  options it scopes. It receives `(options, model, phase)`; `options` is scoped
+  to exactly the options declared inside the batch, `model` is the model so far,
+  and `phase` exposes the active phase parameters. The function returns the next
+  model or mutates the current one in place.
 - Namespacing is a mounting/address operation, not something plugin authors
   repeat locally.
 - Exact route and method values discriminate the result union.
@@ -151,7 +156,6 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 These have not been promoted to invariants:
 
 - Exact shadowed-source warning policy.
-- Holistic model transforms.
 - Final alias syntax.
 - Recursive-dynamic implementation details.
 - The exact route, path, and path-addressed model context exposed by an

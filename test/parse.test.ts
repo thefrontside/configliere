@@ -1,14 +1,21 @@
 import { expect as base, type Expected } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
+import { checkpoint } from "../lib/checkpoint.ts";
 import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
-import { schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
+import { type ModelSchema, schema, transform } from "../mod.ts";
+import type {
+  AnyRoute,
+  Done,
+  IntentsOf,
+  ModelOf,
+  Route,
+} from "../lib/types.ts";
 
 let app = route(
   name("simulacrum"),
@@ -55,6 +62,177 @@ let options = command(
   option(name("dryRun"), schema(type("string | undefined"))),
 );
 
+type TransformedModel = { port: number; secure: boolean };
+
+let transformed = command(
+  name("transformed"),
+  checkpoint(),
+  transform(
+    (_options: { port: number }, model: { port: number }, _phase) => ({
+      port: model.port,
+      secure: true as boolean,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+expectType<Equal<ModelOf<typeof transformed>, TransformedModel>>(true);
+
+type FunctionModel = { port: number; secure: boolean };
+
+let transformedByFunction = command(
+  name("function-transformed"),
+  transform(
+    (
+      _options: { port: number },
+      model: { port: number },
+      _phase,
+    ): FunctionModel => ({
+      ...model,
+      secure: true,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+expectType<Equal<ModelOf<typeof transformedByFunction>, FunctionModel>>(true);
+
+let mutated = command(
+  name("mutated"),
+  transform(
+    (_options: { port: number }, model: { port: number }, _phase) => {
+      Object.assign(model, { secure: true });
+    },
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+expectType<Equal<ModelOf<typeof mutated>, { port: number }>>(true);
+
+const portSchema = type("number");
+
+let inspected = command(
+  name("inspected"),
+  transform(
+    (_options: { port: number }, model: { port: number }, phase) => {
+      if (phase.port.schema !== portSchema) {
+        throw new Error("port schema was not exposed");
+      }
+      return model;
+    },
+    option(name("port"), schema(portSchema)),
+  ),
+);
+
+const modelSchema: ModelSchema<{
+  port: number;
+  secure: boolean;
+}> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate(value) {
+      let model = value as { port: number };
+      return { value: { ...model, secure: true } };
+    },
+  },
+};
+
+const invalidModelSchema: ModelSchema<object> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate() {
+      return { value: [] };
+    },
+  },
+};
+
+let transformedBySchema = command(
+  name("schema-transformed"),
+  transform(
+    modelSchema,
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+let invalidSchemaTransform = command(
+  name("invalid-schema-transform"),
+  transform(invalidModelSchema),
+);
+
+expectType<
+  Equal<ModelOf<typeof transformedBySchema>, {
+    port: number;
+    secure: boolean;
+  }>
+>(true);
+
+let inferredOptions = command(
+  name("inferred-options"),
+  transform(
+    (options, model: { port: number }) => ({
+      ...model,
+      secure: options.port > 0,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+expectType<
+  Equal<ModelOf<typeof inferredOptions>, {
+    port: number;
+    secure: boolean;
+  }>
+>(true);
+
+transform(
+  // @ts-expect-error undeclared transform options must not be accepted
+  (_options: { port: number; missing: string }, model: { port: number }) =>
+    model,
+  option(name("port"), schema(type("number"))),
+);
+
+// @ts-expect-error transform outputs must be records
+transform((_options, _model) => []);
+
+let optionalOption = command(
+  name("optional-option"),
+  transform(
+    (options, model: { host?: string }) => ({
+      ...model,
+      host: options.host ?? "localhost",
+    }),
+    option(name("host"), schema(type("string | undefined"))),
+  ),
+);
+
+let duplicateOption = command(
+  name("duplicate-option"),
+  option(name("port"), schema(type("number"))),
+  transform(
+    (options, model: { port: number }) => ({
+      ...model,
+      copiedPort: options.port,
+    }),
+    option(name("port"), schema(type("number"))),
+  ),
+);
+
+let nestedApplications = 0;
+let countedElement = (route: AnyRoute): AnyRoute => {
+  nestedApplications += 1;
+  return route;
+};
+
+let countedTransform = command(
+  name("counted-transform"),
+  transform(
+    (_options, model: Record<string, unknown>) => model,
+    countedElement,
+  ),
+);
+
 let segments = command(
   name("simulacrum"),
   option(name("host"), schema(type("string"))),
@@ -67,6 +245,97 @@ let segments = command(
 );
 
 describe("parse()", () => {
+  it("applies a transform after checkpoint resolution", () => {
+    let step = parse(transformed, { argv: ["--port", "4100"] });
+    expectOk(step);
+
+    let result = step.resume({ ok: true, value: [] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100, secure: true } });
+  });
+
+  it("allows a transform to mutate the current model", () => {
+    let result = parse(mutated, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100, secure: true } });
+  });
+
+  it("exposes active phase parameters to a transform", () => {
+    let result = parse(inspected, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { port: 4100 } });
+  });
+
+  it("applies a Standard Schema transform", () => {
+    let result = parse(transformedBySchema, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { port: 4100, secure: true },
+    });
+  });
+
+  it("rejects non-record model transform results", () => {
+    let result = parse(invalidSchemaTransform, { argv: [] });
+    expectUnprocessable(result);
+    expect(result.issues).toMatchObject([{
+      message: "model transforms must return records",
+    }]);
+  });
+
+  it("allows an omitted optional transform option", () => {
+    let result = parse(optionalOption, { argv: [] });
+    expectOk(result);
+    expect(result).toMatchObject({ model: { host: "localhost" } });
+  });
+
+  it("passes duplicate option names to a transform", () => {
+    let result = parse(duplicateOption, { argv: ["--port", "4100"] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { port: 4100, copiedPort: 4100 },
+    });
+  });
+
+  it("applies nested transform elements once", () => {
+    expect(nestedApplications).toBe(1);
+    expect(parse(countedTransform, { argv: [] })).toMatchObject({ ok: true });
+  });
+
+  it("applies model transforms in phase order", () => {
+    let app = command(
+      name("phased"),
+      transform(
+        (_options: { before: number }, model: { before: number }, _phase) => ({
+          ...model,
+          first: true,
+        }),
+        option(name("before"), schema(type("number"))),
+      ),
+      checkpoint(),
+      transform(
+        (
+          _options: { after: string },
+          model: { before: number; first: boolean; after: string },
+          _phase,
+        ) => ({
+          ...model,
+          value: `${model.before}:${model.after}`,
+        }),
+        option(name("after"), schema(type("string"))),
+      ),
+    );
+
+    let first = parse(app, { argv: ["--before", "4100", "--after", "ok"] });
+    expectOk(first);
+    expect(first).toMatchObject({ model: { before: 4100, first: true } });
+
+    let result = first.resume({ ok: true, value: [] });
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { before: 4100, first: true, after: "ok", value: "4100:ok" },
+    });
+  });
+
   describe("help", () => {
     it("resolves either help flag against the root route", () => {
       expect(

@@ -187,6 +187,31 @@ Source precedence is explicit:
 CLI → environment → JavaScript values → schema default
 ```
 
+`transform()` groups a set of options and folds their captured values into the
+model. It takes the transform function first, followed by the options it scopes:
+
+```ts
+const app = command(
+  name("server"),
+  checkpoint(),
+  transform(
+    (options: { port: number }, model: { port: number }, phase) => ({
+      ...model,
+      port: options.port ?? model.port,
+    }),
+    option(name("port"), description("server port"), schema(z.number())),
+  ),
+);
+```
+
+Inside the function:
+
+- `options` is scoped to exactly the options declared inside the `transform()`.
+- `model` is the route model built so far.
+- `phase` exposes the active phase parameters, including their schemas.
+
+The function returns the new model, or it may mutate `model` in place.
+
 ## Pause without surrendering the type system
 
 Sometimes the route cannot be fully configured, or even fully discovered, until
