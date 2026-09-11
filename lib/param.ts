@@ -15,6 +15,11 @@ export interface Param<K extends string, T> extends Definition<K> {
   cli: CLIBinding;
   decode: Decoder;
   env?: string;
+  multiple?: boolean;
+}
+
+export interface MultipleParam<K extends string, T> extends Param<K, T[]> {
+  multiple: true;
 }
 
 export function param<
@@ -60,8 +65,26 @@ export function schema<T>(
 
 export interface SchemaTransform<T> extends Transform {
   readonly input: Param<string, unknown>;
-  readonly output: this["input"] extends Param<infer N, unknown> ? Param<N, T>
+  readonly output: this["input"] extends MultipleParam<infer N, unknown>
+    ? T extends (infer E)[] ? MultipleParam<N, E> : never
+    : this["input"] extends Param<infer N, unknown> ? Param<N, T>
     : never;
+}
+
+interface MultipleTransform extends Transform {
+  readonly input: Param<string, unknown>;
+  readonly output: this["input"] extends Param<infer N, infer T>
+    ? unknown extends T ? MultipleParam<N, unknown>
+    : T extends (infer E)[] ? MultipleParam<N, E>
+    : never
+    : never;
+}
+
+export function multiple(): TransformElement<MultipleTransform> {
+  return mark<MultipleTransform>((param: Param<string, unknown>) => ({
+    ...param,
+    multiple: true,
+  }));
 }
 
 const unknown: Schema<unknown> = {
