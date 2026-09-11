@@ -40,6 +40,7 @@ Definitions are immutable composition pipelines, not handler registrations:
 import {
   command,
   description,
+  multiple,
   name,
   option,
   route,
@@ -187,6 +188,23 @@ Source precedence is explicit:
 CLI → environment → JavaScript values → schema default
 ```
 
+Use `multiple()` when an option may be supplied more than once. The option's
+schema must describe the resulting array:
+
+```ts
+const app = command(
+  name("simulacrum"),
+  option(
+    name("config"),
+    multiple(),
+    schema(z.array(z.string())),
+  ),
+);
+```
+
+`--config one.yml --config two.yml` produces
+`{ config: ["one.yml", "two.yml"] }` in argv order.
+
 `transform()` groups a set of options and folds their captured values into the
 model. It takes the transform function first, followed by the options it scopes:
 
@@ -227,6 +245,24 @@ Dynamic phases serve two common cases:
 `checkpoint()` is the configuration-file convenience; `dynamic()` is the general
 route-extension mechanism. Both keep I/O in the application while preserving the
 exact type of what parsing can produce next.
+
+When loading multiple configuration files, resume with one `ValueSource` per
+file. Sources are layered during parameter resolution, and the first source
+containing a parameter wins. Reverse the files before resuming if later files
+should override earlier files:
+
+```ts
+const values = files
+  .map((file) => ({ name: file, value: readConfig(file) }))
+  .reverse();
+
+const result = increment.resume({ ok: true, value: values });
+```
+
+Each file can provide different parameters, which are combined automatically.
+Configliere validates those parameters individually, but it does not recursively
+merge nested objects. If required, merge per your requirements before passing
+the resulting `value`.
 
 ### Help and version cross checkpoints
 

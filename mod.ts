@@ -13,7 +13,7 @@ export type { Environment, EnvSource } from "./lib/env.ts";
 
 export { option } from "./lib/option.ts";
 
-export { param, schema } from "./lib/param.ts";
+export { multiple, param, schema } from "./lib/param.ts";
 export type { Param } from "./lib/param.ts";
 
 export { parse } from "./lib/parse.ts";

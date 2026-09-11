@@ -8,7 +8,7 @@ import { option } from "../lib/option.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
-import { type ModelSchema, schema, transform } from "../mod.ts";
+import { type ModelSchema, multiple, schema, transform } from "../mod.ts";
 import type {
   AnyRoute,
   Done,
@@ -54,6 +54,12 @@ let toggles = command(
 
 let fields = command(
   name("simulacrum"),
+  option(name("port"), schema(type("number"))),
+);
+
+let multipleOptions = command(
+  name("simulacrum"),
+  option(name("config"), multiple(), schema(type("string[]"))),
   option(name("port"), schema(type("number"))),
 );
 
@@ -252,6 +258,17 @@ describe("parse()", () => {
     let result = step.resume({ ok: true, value: [] });
     expectOk(result);
     expect(result).toMatchObject({ model: { port: 4100, secure: true } });
+  });
+
+  it("collects repeated options in argv order", () => {
+    let result = parse(multipleOptions, {
+      argv: ["--config", "one", "--port", "4100", "--config=two"],
+    });
+
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { config: ["one", "two"], port: 4100 },
+    });
   });
 
   it("allows a transform to mutate the current model", () => {
