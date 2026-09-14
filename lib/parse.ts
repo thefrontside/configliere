@@ -15,6 +15,7 @@ import type {
   Issue,
   Method,
   ModelsByRoute,
+  ModelTransformContext,
   Outcome,
   Parse,
   Path,
@@ -158,6 +159,16 @@ function resume(
       );
     }
 
+    let modeled = applyTransforms(segment, phase);
+    if (!modeled.ok) {
+      return unprocessableContent(segment, modeled.issues);
+    }
+
+    segment = {
+      ...segment,
+      model: modeled.value,
+    };
+
     if (phase.resolver) {
       // Binding the phase succeeded, but the requirement is still needed.
       let suspended = state;
@@ -165,7 +176,7 @@ function resume(
       return {
         ok: true,
         route: segment.id,
-        model: binding.model,
+        model: phase.transforms?.length ? modeled.value : binding.model,
 
         resume(result) {
           if (!result.ok) {
@@ -413,6 +424,82 @@ function resolve(
         issues: state.segments.flatMap((segment) => segment.issues),
       };
   }
+}
+
+function applyTransforms(
+  segment: Segment,
+  phase: AnyPhase,
+): Result<Record<string, unknown>> {
+  let operations = phase.transforms ?? [];
+  let model = segment.model;
+  let issues: Issue[] = [];
+  let addIssue = (issue: Issue) => issues.push(issue);
+
+  for (let op of operations) {
+    if (typeof op.transform === "function") {
+      let context: ModelTransformContext = {
+        options: pick(model, op.keys),
+        phase: phase.params,
+        addIssue,
+      };
+      let result = op.transform(context);
+      if (issues.length > 0) {
+        return { ok: false, issues };
+      }
+      if (result !== undefined) {
+        if (!record(result)) {
+          return invalidTransformResult();
+        }
+        model = { ...model, ...result };
+      }
+      continue;
+    }
+
+    let result = op.transform["~standard"].validate(pick(model, op.keys));
+    if (result instanceof Promise) {
+      return {
+        ok: false,
+        issues: [{ message: "async schemas are not allowed" }],
+      };
+    }
+    if (result.issues) {
+      return { ok: false, issues: result.issues };
+    }
+    if (!record(result.value)) {
+      return invalidTransformResult();
+    }
+    model = { ...model, ...result.value };
+  }
+
+  if (operations.length === 0) {
+    return { ok: true, value: segment.model };
+  }
+
+  return { ok: true, value: model };
+}
+
+function invalidTransformResult(): Result<Record<string, unknown>> {
+  return {
+    ok: false,
+    issues: [{ message: "model transforms must return records" }],
+  };
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function pick(
+  model: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  let options: Record<string, unknown> = {};
+  for (let key of keys) {
+    if (key in model) {
+      options[key] = model[key];
+    }
+  }
+  return options;
 }
 
 function seed(route: AnyRoute): AnyRoute {

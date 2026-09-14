@@ -58,7 +58,7 @@ export function schema<T>(
   }));
 }
 
-interface SchemaTransform<T> extends Transform {
+export interface SchemaTransform<T> extends Transform {
   readonly input: Param<string, unknown>;
   readonly output: this["input"] extends Param<infer N, unknown> ? Param<N, T>
     : never;
