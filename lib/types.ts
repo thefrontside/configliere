@@ -9,10 +9,15 @@ export type Issue = StandardSchemaV1.Issue;
 export type Schema<T> = StandardSchemaV1<T, T>;
 export type ModelSchema<T extends object> = StandardSchemaV1<unknown, T>;
 export type ModelParams = Params<Record<string, unknown>>;
+export interface ModelTransformContext<
+  Options extends Record<string, unknown> = Record<string, unknown>,
+> {
+  readonly options: Options;
+  readonly phase: ModelParams;
+  readonly addIssue: (issue: Issue) => void;
+}
 export type ModelTransformFunction = (
-  options: Record<string, unknown>,
-  model: Record<string, unknown>,
-  phase: ModelParams,
+  context: ModelTransformContext,
 ) => Record<string, unknown> | void;
 export type ModelTransform =
   | ModelSchema<object>

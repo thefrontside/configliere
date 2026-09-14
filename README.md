@@ -187,30 +187,35 @@ Source precedence is explicit:
 CLI → environment → JavaScript values → schema default
 ```
 
-`transform()` groups a set of options and folds their captured values into the
-model. It takes the transform function first, followed by the options it scopes:
+`transform()` groups a set of options and applies a transformation after their
+values have been captured. It takes the transformer first, followed by the
+options it scopes:
 
 ```ts
 const app = command(
   name("server"),
   checkpoint(),
   transform(
-    (options: { port: number }, model: { port: number }, phase) => ({
-      ...model,
-      port: options.port ?? model.port,
+    (context) => ({
+      secure: context.options.port > 0,
     }),
     option(name("port"), description("server port"), schema(z.number())),
   ),
 );
 ```
 
-Inside the function:
+For a function transformer, the single context object contains:
 
-- `options` is scoped to exactly the options declared inside the `transform()`.
-- `model` is the route model built so far.
-- `phase` exposes the active phase parameters, including their schemas.
+- `context.options`, scoped to exactly the options declared inside the
+  `transform()`.
+- `context.phase`, the active phase parameters, including their schemas.
+- `context.addIssue(issue)`, which adds a validation issue and prevents the
+  parse from producing an intent.
 
-The function returns the new model, or it may mutate `model` in place.
+The function returns fields to merge into the route model. A Standard Schema can
+be passed instead of a function. It receives the same scoped options and can
+return transformed fields or validation issues. With no scoped options, it
+receives an empty object.
 
 ## Pause without surrendering the type system
 

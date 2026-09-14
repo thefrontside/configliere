@@ -15,6 +15,7 @@ import type {
   Issue,
   Method,
   ModelsByRoute,
+  ModelTransformContext,
   Outcome,
   Parse,
   Path,
@@ -158,7 +159,7 @@ function resume(
       );
     }
 
-    let modeled = applyTransforms(segment);
+    let modeled = applyTransforms(segment, phase);
     if (!modeled.ok) {
       return unprocessableContent(segment, modeled.issues);
     }
@@ -425,27 +426,36 @@ function resolve(
   }
 }
 
-function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
-  let operations = segment.phases[0].transforms ?? [];
+function applyTransforms(
+  segment: Segment,
+  phase: AnyPhase,
+): Result<Record<string, unknown>> {
+  let operations = phase.transforms ?? [];
   let model = segment.model;
+  let issues: Issue[] = [];
+  let addIssue = (issue: Issue) => issues.push(issue);
 
   for (let op of operations) {
     if (typeof op.transform === "function") {
-      let result = op.transform(
-        pick(model, op.keys),
-        model,
-        segment.phases[0].params,
-      );
+      let context: ModelTransformContext = {
+        options: pick(model, op.keys),
+        phase: phase.params,
+        addIssue,
+      };
+      let result = op.transform(context);
+      if (issues.length > 0) {
+        return { ok: false, issues };
+      }
       if (result !== undefined) {
         if (!record(result)) {
           return invalidTransformResult();
         }
-        model = result;
+        model = { ...model, ...result };
       }
       continue;
     }
 
-    let result = op.transform["~standard"].validate(model);
+    let result = op.transform["~standard"].validate(pick(model, op.keys));
     if (result instanceof Promise) {
       return {
         ok: false,
@@ -458,7 +468,7 @@ function applyTransforms(segment: Segment): Result<Record<string, unknown>> {
     if (!record(result.value)) {
       return invalidTransformResult();
     }
-    model = result.value;
+    model = { ...model, ...result.value };
   }
 
   if (operations.length === 0) {

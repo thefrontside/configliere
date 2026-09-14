@@ -24,31 +24,64 @@ export const app = command(
   ),
   checkpoint(),
   transform(
-    (options: Options, model: Before, _phase) => {
+    (context) => {
+      let { domain, port, protocol } = context.options;
+      let parsed = domain === undefined ? undefined : parseDomain(domain);
+
+      if (domain !== undefined && parsed === undefined) {
+        context.addIssue({
+          message: `domain must be an HTTP or HTTPS host, received ${domain}`,
+        });
+      }
+
+      if (
+        parsed?.protocol !== undefined && protocol !== undefined &&
+        parsed.protocol !== protocol
+      ) {
+        context.addIssue({
+          message:
+            `domain protocol ${parsed.protocol} conflicts with protocol ${protocol}`,
+        });
+      }
+
+      if (
+        parsed?.port !== undefined && port !== undefined && parsed.port !== port
+      ) {
+        context.addIssue({
+          message: `domain port ${parsed.port} conflicts with port ${port}`,
+        });
+      }
+
+      let resolvedProtocol = protocol ?? parsed?.protocol ??
+        (port === 80 || parsed?.port === 80 ? "http" : "https");
+      let resolvedPort = port ?? parsed?.port ??
+        (resolvedProtocol === "https" ? 443 : 80);
+      let host = parsed?.host ?? "localhost";
+
       return {
-        ...model,
-        port: options.port ?? model.port,
-        domain: options.domain ?? model.domain,
+        port: resolvedPort,
+        domain: `${resolvedProtocol}://${host}:${resolvedPort}`,
+        protocol: resolvedProtocol,
       };
     },
     option(
       name("port"),
       description("server port"),
       cli(["--port", "-p"]),
-      schema(z.number()),
+      schema(z.optional(z.number().int().min(1).max(65535))),
     ),
     option(
       name("domain"),
       description("server domain"),
       cli(["--domain"]),
-      schema(z.string()),
+      schema(z.optional(z.string())),
     ),
-  ),
-  option(
-    name("protocol"),
-    description("server protocol"),
-    cli(["--protocol"]),
-    schema(z.enum(["http", "https"])),
+    option(
+      name("protocol"),
+      description("server protocol"),
+      cli(["--protocol"]),
+      schema(z.optional(z.enum(["http", "https"]))),
+    ),
   ),
   option(
     name("audience"),
@@ -58,16 +91,38 @@ export const app = command(
   ),
 );
 
-type Options = {
-  port: number;
-  domain: string;
+type Protocol = "http" | "https";
+
+type ParsedDomain = {
+  host: string;
+  port?: number;
+  protocol?: Protocol;
 };
 
-type Before = {
-  config: string;
-  port: number;
-  domain: string;
-};
+function parseDomain(value: string): ParsedDomain | undefined {
+  let hasProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(value);
+  let url: URL;
+
+  try {
+    url = new URL(hasProtocol ? value : `http://${value}`);
+  } catch {
+    return undefined;
+  }
+
+  if (
+    !["http:", "https:"].includes(url.protocol) || url.pathname !== "/" ||
+    url.search !== "" || url.hash !== "" || url.username !== "" ||
+    url.password !== ""
+  ) {
+    return undefined;
+  }
+
+  return {
+    host: url.hostname,
+    port: url.port === "" ? undefined : Number(url.port),
+    protocol: hasProtocol ? url.protocol.slice(0, -1) as Protocol : undefined,
+  };
+}
 
 // Production-use type: application code can use this inferred configuration shape.
 export type Configuration = ModelOf<typeof app>;

@@ -113,12 +113,10 @@ export interface ModelTransformElement<
   >;
 }
 
-type ModelTransformOutput<F, T extends object> = F extends
-  ModelSchema<infer Output>
-  ? Output extends Record<string, unknown> ? Output : T
-  : F extends (options: never, model: infer Input, phase: never) => infer Output
-    ? T extends Input ? (Output extends Record<string, unknown> ? Output : T)
-    : never
+type ModelTransformOutput<F> = F extends ModelSchema<infer Output>
+  ? Output extends Record<string, unknown> ? Output : {}
+  : F extends (...args: never[]) => infer Output
+    ? Output extends Record<string, unknown> ? Output : {}
   : never;
 
 export type Extension<E extends readonly Unary[]> =
@@ -317,12 +315,9 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
       ? Fold<S, E> extends infer After extends AnyRoute ? Route<
           After["name"],
           MethodsOf<After>,
-          ModelTransformOutput<F, ModelOf<After>>,
+          Merge<ModelOf<After>, ModelTransformOutput<F>>,
           ChildrenOf<After>,
-          TransformModelInLast<
-            After["phases"],
-            ModelTransformOutput<F, ModelOf<After>>
-          >
+          AddFieldsToLast<After["phases"], ModelTransformOutput<F>>
         >
       : never
     : never
@@ -496,29 +491,6 @@ type AddFieldsToLast<
     ...infer Middle extends AnyPhase[],
     AnyPhase,
   ] ? readonly [First, ...Middle, AddFields<Last<P>, Fields>]
-  : never;
-
-type TransformModelInLast<
-  P extends AnyPhases,
-  Output extends object,
-> = P extends readonly [AnyPhase] ? readonly [
-    TransformModelPhase<P[0], Output>,
-  ]
-  : P extends readonly [
-    infer First extends AnyPhase,
-    ...infer Middle extends AnyPhase[],
-    AnyPhase,
-  ] ? readonly [
-      First,
-      ...Middle,
-      TransformModelPhase<Last<P>, Output>,
-    ]
-  : never;
-
-type TransformModelPhase<P extends AnyPhase, Output extends object> = P extends
-  Next<infer _Model, infer Routes, infer Requirement>
-  ? Next<Output, Routes, Requirement>
-  : P extends Done<infer _Model, infer Routes> ? Done<Output, Routes>
   : never;
 
 type AddFields<P extends AnyPhase, Fields extends object> = P extends Next<

@@ -17,6 +17,7 @@ import type {
   ModelParams,
   ModelSchema,
   ModelTransform,
+  ModelTransformContext,
   Route,
 } from "./types.ts";
 
@@ -95,9 +96,11 @@ export function transform<
 export function transform<
   const E extends readonly Unary[],
   const F extends ((
-    options: ModelOf<Fold<RouteZero, E>>,
-    model: never,
-    phase: ModelParams,
+    context: {
+      readonly options: ModelOf<Fold<RouteZero, E>>;
+      readonly phase: ModelParams;
+      readonly addIssue: ModelTransformContext["addIssue"];
+    },
   ) => Record<string, unknown> | void),
 >(
   transform: F,
