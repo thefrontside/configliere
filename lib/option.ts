@@ -15,7 +15,7 @@ export function option<
   const E extends readonly Unary[],
 >(
   named: Definition<N>,
-  ...elements: E & Check<Param<N, unknown>, E>
+  ...elements: E & Check<Param<N, unknown>, E> & Valid<E>
 ): ElementOf<N, Fold<Param<N, unknown>, E>> {
   const added = elements.reduce<unknown>(
     (value, element) => element(value as never),
@@ -42,6 +42,10 @@ export function option<
 }
 
 type ValueOf<P> = P extends Param<string, infer T> ? T : never;
+
+type Valid<E extends readonly Unary[]> = [
+  Fold<Param<string, unknown>, E>,
+] extends [never] ? never : unknown;
 
 type ElementOf<N extends string, P> = P extends Param<N, unknown>
   ? ParamElement<N, ValueOf<P>>
