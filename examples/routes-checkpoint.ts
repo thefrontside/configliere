@@ -1,9 +1,12 @@
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import {
   checkpoint,
   command,
   description,
   name,
   option,
+  parse,
   route,
   routes,
   schema,
@@ -46,6 +49,38 @@ export const app = command(
     ),
   ),
 );
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  let step = parse(app, { argv: process.argv.slice(2) });
+  let result = !step.ok || !("resume" in step)
+    ? step
+    : step.resume({ ok: true, value: [] });
+
+  if (!result.ok || "resume" in result || result.method !== "execute") {
+    console.dir(result, { depth: null });
+  } else {
+    switch (result.route) {
+      case "/": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes-checkpoint/root");
+        console.dir(instance, { depth: null });
+        break;
+      }
+      case "/serve": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes-checkpoint/serve");
+        console.dir(instance, { depth: null });
+        break;
+      }
+      case "/database/clean": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes-checkpoint/database/clean");
+        console.dir(instance, { depth: null });
+        break;
+      }
+    }
+  }
+}
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends
   (<T>() => T extends B ? 1 : 2)

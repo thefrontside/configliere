@@ -3,8 +3,8 @@ import { brand, type IdentityElement } from "./pipeline.ts";
 import type { AnyRoute, RoutePath } from "./types.ts";
 
 export type ValueSource = {
-  name: string;
-  value: unknown;
+  readonly name: string;
+  readonly value: unknown;
 };
 
 export function withValues(
