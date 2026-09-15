@@ -148,6 +148,59 @@ describe("dynamic()", () => {
     >(true);
   });
 
+  it("preserves a concrete command supplied through dynamic input", () => {
+    let plugin = command(
+      name("serve"),
+      option(name("port"), schema(type("number"))),
+    );
+    type Plugin = typeof plugin;
+    let app = command(
+      name("simulacrum"),
+      dynamic((plugin: Plugin) => extend(routes(plugin))),
+    );
+    type Next = ContinuationOf<typeof app>;
+
+    expectType<Equal<RequirementOf<typeof app>, Plugin>>(true);
+    expectType<Equal<ChildrenOf<Next>[0]["name"], "serve">>(true);
+    expectType<Equal<ModelOf<ChildrenOf<Next>[0]>, { port: number }>>(true);
+
+    let first = parse(app, {
+      argv: ["serve", "--port", "4100"],
+    });
+    assertIncrement(first, {});
+
+    let result = first.resume({ ok: true, value: plugin });
+    expect(result).toMatchObject({
+      ok: true,
+      method: "execute",
+      route: "/serve",
+      model: { port: 4100 },
+    });
+  });
+
+  it("preserves the resume boundary for runtime-sized command extensions", () => {
+    let app = command(
+      name("simulacrum"),
+      dynamic((plugins: PluginSet) => extend(routes(...plugins.commands))),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, PluginSet>>(true);
+    expectType<Equal<ParseIncrement<typeof app>["model"], {}>>(true);
+
+    let first = parse(app, { argv: ["serve"] });
+    assertIncrement(first, {});
+
+    let result = first.resume({
+      ok: true,
+      value: { commands: [command(name("serve"))] },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      method: "execute",
+      route: "/serve",
+    });
+  });
+
   it("preserves the resume boundary for runtime-sized extensions", () => {
     let app = command(
       name("xmd"),
@@ -192,6 +245,41 @@ describe("dynamic()", () => {
         raw: string | undefined;
       }>
     >(true);
+  });
+
+  it("preserves the resume boundary for unknown requirements", () => {
+    let app = command(
+      name("xmd"),
+      option(name("path"), schema(type("string"))),
+      dynamic((input: unknown) => {
+        let declared = Array.isArray(input)
+          ? input.filter((value): value is string => typeof value === "string")
+          : [];
+        return extend(
+          ...declared.map((property) =>
+            option(name(property), schema(type("string")))
+          ),
+        );
+      }),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, unknown>>(true);
+    expectType<
+      Equal<ParseIncrement<typeof app>["model"], {
+        path: string;
+      }>
+    >(true);
+
+    let first = parse(app, {
+      argv: ["--path", "doc.md", "--author", "Ada"],
+    });
+    assertIncrement(first, { path: "doc.md" });
+
+    let result = first.resume({ ok: true, value: ["author"] });
+    expect(result).toMatchObject({
+      ok: true,
+      model: { path: "doc.md", author: "Ada" },
+    });
   });
 
   it("preserves route-level controls across phases", () => {
@@ -847,6 +935,10 @@ interface Config {
 
 interface Plugins {
   readonly names: readonly string[];
+}
+
+interface PluginSet {
+  readonly commands: readonly AnyRoute[];
 }
 
 interface Services {
