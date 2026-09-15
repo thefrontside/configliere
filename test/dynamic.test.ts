@@ -148,6 +148,52 @@ describe("dynamic()", () => {
     >(true);
   });
 
+  it("preserves the resume boundary for runtime-sized extensions", () => {
+    let app = command(
+      name("xmd"),
+      option(name("path"), schema(type("string"))),
+      dynamic((declared: readonly string[]) =>
+        extend(
+          ...declared.map((property) =>
+            option(name(property), schema(type("string")))
+          ),
+        )
+      ),
+      option(name("raw"), schema(type("string | undefined"))),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, readonly string[]>>(true);
+    expectType<
+      Equal<ParseIncrement<typeof app>["model"], {
+        path: string;
+      }>
+    >(true);
+
+    type Continued = ModelOf<ContinuationOf<typeof app>>;
+    expectType<Equal<Continued["path"], string>>(true);
+    expectType<Equal<Continued["raw"], string | undefined>>(true);
+
+    let first = parse(app, {
+      argv: ["--path", "doc.md", "--author", "Ada", "--raw", "true"],
+    });
+    assertIncrement(first, { path: "doc.md" });
+
+    let result = first.resume({ ok: true, value: ["author"] });
+    expect(result).toMatchObject({
+      ok: true,
+      model: { path: "doc.md", author: "Ada", raw: "true" },
+    });
+    if (!result.ok || result.method !== "execute") {
+      throw new Error("expected execute result");
+    }
+    expectType<
+      Equal<typeof result.model, {
+        path: string;
+        raw: string | undefined;
+      }>
+    >(true);
+  });
+
   it("preserves route-level controls across phases", () => {
     let app = command(
       name("simulacrum"),
