@@ -324,7 +324,7 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
   : D extends Batch<infer E> ? Fold<S, E>
   : D extends Dynamic<infer Requirement, infer E>
     ? S extends AnyRoute
-      ? Apply<Seed<S>, DeltaOf<E>> extends infer After extends AnyRoute ? Route<
+      ? DynamicAfter<S, E> extends infer After extends AnyRoute ? Route<
           After["name"],
           MethodsOf<After>,
           ModelOf<After>,
@@ -344,6 +344,19 @@ type IsUnion<T, Whole = T> = T extends unknown ? [Whole] extends [T] ? false
   : never;
 
 type Conservative<S> = S extends AnyRoute ? AnyRoute : unknown;
+
+type ConservativeDynamic<S extends AnyRoute> = Route<
+  S["name"],
+  MethodsOf<S>,
+  ModelOf<S>,
+  readonly [...ChildrenOf<S>, ...AnyRoute[]],
+  readonly [Done<Record<string, unknown>, readonly AnyRoute[]>]
+>;
+
+type DynamicAfter<S extends AnyRoute, E extends AnyElement> =
+  Apply<Seed<S>, DeltaOf<E>> extends infer After extends AnyRoute
+    ? AnyRoute extends After ? ConservativeDynamic<Seed<S>> : After
+    : never;
 
 type CheckMixed<
   S,
