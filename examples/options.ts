@@ -1,4 +1,6 @@
-import { cli, command, description, name, option } from "../mod.ts";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { cli, command, description, name, option, parse } from "../mod.ts";
 import { schema } from "../lib/param.ts";
 import type { ModelOf } from "../lib/types.ts";
 import { z } from "zod";
@@ -69,6 +71,22 @@ export const app = command(
 
 // Production-use type: application code can use this inferred configuration shape.
 export type Configuration = ModelOf<typeof app>;
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  let result = parse(app, { argv: process.argv.slice(2) });
+  if (!result.ok || "resume" in result || result.method !== "execute") {
+    console.dir(result, { depth: null });
+  } else {
+    switch (result.route) {
+      case "/": {
+        let instance = { route: result.route, model: result.model };
+        console.log("options/root");
+        console.dir(instance, { depth: null });
+        break;
+      }
+    }
+  }
+}
 
 // Diagnostic-only assertions: these force TypeScript to materialize representative keys.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends

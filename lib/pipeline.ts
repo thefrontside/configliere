@@ -1,7 +1,6 @@
 import type {
-  AddField,
-  AddParamToLast,
-  AddRoutesToLast,
+  AddParamToPhase,
+  AddRoutesToPhase,
   AnyPhase,
   AnyPhases,
   AnyRoute,
@@ -14,6 +13,7 @@ import type {
   Next,
   Phase,
   Route,
+  SetField,
 } from "./types.ts";
 
 export type Element<O extends Unary> = {
@@ -36,7 +36,9 @@ export type ApplyTransform<F extends Transform, S> = (
 )["output"];
 
 export interface TransformElement<F extends Transform> {
-  readonly [operation]: <S extends F["input"]>(value: S) => ApplyTransform<F, S>;
+  readonly [operation]: <S extends F["input"]>(
+    value: S,
+  ) => ApplyTransform<F, S>;
   readonly transform: F;
 
   <S extends F["input"]>(value: S): ApplyTransform<F, S>;
@@ -76,9 +78,9 @@ export interface ParamElement<K extends string, V> {
   >(route: Route<N, M, T, C, P>): Route<
     N,
     M,
-    AddField<T, K, V>,
+    SetField<T, K, V>,
     C,
-    AddParamToLast<P, K, V>
+    AddParamToPhase<P, K, V>
   >;
 }
 
@@ -97,7 +99,7 @@ export interface RoutesElement<Added extends readonly AnyRoute[]> {
     M,
     T,
     readonly [...C, ...Added],
-    AddRoutesToLast<P, Added>
+    AddRoutesToPhase<P, Added>
   >;
 }
 
@@ -114,12 +116,16 @@ export interface ModelTransformElement<
     const C extends readonly AnyRoute[],
     const P extends AnyPhases,
   >(route: Route<N, M, T, C, P>): Fold<
-    Route<N, M, T, C, P>, E
+    Route<N, M, T, C, P>,
+    E
   > extends infer After extends AnyRoute ? Route<
-    After["name"], MethodsOf<After>,
-    Merge<ModelOf<After>, ModelTransformOutput<F>>, ChildrenOf<After>,
-    AddFieldsToLast<After["phases"], ModelTransformOutput<F>>
-  > : never;
+      After["name"],
+      MethodsOf<After>,
+      Merge<ModelOf<After>, ModelTransformOutput<F>>,
+      ChildrenOf<After>,
+      SetFieldsToPhase<After["phases"], ModelTransformOutput<F>>
+    >
+    : never;
 }
 
 type ModelTransformOutput<F> = F extends ModelSchema<infer Output>
@@ -148,15 +154,20 @@ interface ConcreteExtension<E extends readonly Unary[]> {
 }
 
 export interface DynamicElement<Requirement, E extends AnyElement> {
-  readonly [operation]: DynamicOperation<Requirement, E>;
+  readonly [operation]: DynamicOperation<E>;
   readonly requirement: Requirement;
   readonly element: E;
 
-  <R extends AnyRoute>(route: R): DynamicAfter<R, E> extends
-    infer After extends AnyRoute ? Route<
-      After["name"], MethodsOf<After>, ModelOf<After>, ChildrenOf<After>,
+  <R extends AnyRoute>(
+    route: R,
+  ): DynamicAfter<R, E> extends infer After extends AnyRoute ? Route<
+      After["name"],
+      MethodsOf<After>,
+      ModelOf<After>,
+      ChildrenOf<After>,
       ConjoinPhases<R, After, Requirement>
-    > : never;
+    >
+    : never;
 }
 
 export type Seed<R extends AnyRoute> = Route<
@@ -179,11 +190,11 @@ export type ConjoinPhases<
 export type Fold<
   S,
   E extends readonly AnyPipelineElement[],
-> = number extends E["length"] ? Fallback<S>
+> = number extends E["length"] ? Widened<S>
   : E extends readonly [
     infer Head extends AnyPipelineElement,
     ...infer Tail extends readonly AnyPipelineElement[],
-  ] ? true extends IsUnion<Head> ? Fallback<S>
+  ] ? true extends IsUnion<Head> ? Widened<S>
     : Head extends AnyElement
       ? S extends AnyRoute
         ? IsStatic<Head> extends true ? TakeStatic<E> extends readonly [
@@ -243,73 +254,111 @@ export function brand<E extends AnyElement>(element: unknown): E {
 
 declare const operation: unique symbol;
 
-type MethodOperation<M extends Method> = <R extends AnyRoute>(route: R) =>
-  Route<R["name"], MethodsOf<R> | M, ModelOf<R>, ChildrenOf<R>, R["phases"]>;
+type MethodOperation<M extends Method> = <R extends AnyRoute>(
+  route: R,
+) => Route<R["name"], MethodsOf<R> | M, ModelOf<R>, ChildrenOf<R>, R["phases"]>;
 
-type ParamOperation<K extends string, V> = <R extends AnyRoute>(route: R) =>
-  WithParams<R, { [P in K]: V }>;
+type ParamOperation<K extends string, V> = <R extends AnyRoute>(
+  route: R,
+) => WithParams<R, { [P in K]: V }>;
 
 type RoutesOperation<C extends readonly AnyRoute[]> = <R extends AnyRoute>(
   route: R,
-) => Route<R["name"], MethodsOf<R>, ModelOf<R>, readonly [...ChildrenOf<R>, ...C], AddRoutesToLast<R["phases"], C>>;
+) => Route<
+  R["name"],
+  MethodsOf<R>,
+  ModelOf<R>,
+  readonly [...ChildrenOf<R>, ...C],
+  AddRoutesToPhase<R["phases"], C>
+>;
 
-type ModelTransformOperation<F, E extends readonly Unary[]> = <R extends AnyRoute>(
+type ModelTransformOperation<F, E extends readonly Unary[]> = <
+  R extends AnyRoute,
+>(
   route: R,
-) => Fold<R, E> extends infer After extends AnyRoute ? Route<After["name"], MethodsOf<After>, Merge<ModelOf<After>, ModelTransformOutput<F>>, ChildrenOf<After>, AddFieldsToLast<After["phases"], ModelTransformOutput<F>>> : never;
+) => Fold<R, E> extends infer After extends AnyRoute ? Route<
+    After["name"],
+    MethodsOf<After>,
+    Merge<ModelOf<After>, ModelTransformOutput<F>>,
+    ChildrenOf<After>,
+    SetFieldsToPhase<After["phases"], ModelTransformOutput<F>>
+  >
+  : never;
 
-type BatchOperation<E extends readonly Unary[]> = <S extends InputOfPipeline<E>>(
+type BatchOperation<E extends readonly Unary[]> = <
+  S extends InputOfPipeline<E>,
+>(
   value: S,
 ) => Fold<S, E>;
 
-type DynamicOperation<Requirement, E extends AnyElement> = <R extends AnyRoute>(
+type DynamicOperation<E extends AnyElement> = <R extends AnyRoute>(
   route: R,
 ) => DynamicAfter<R, E>;
 
-type ApplyElement<S, E extends AnyElement> = E extends IdentityElement<infer Input>
-  ? S extends Input ? S : never
+type ApplyElement<S, E extends AnyElement> = E extends
+  IdentityElement<infer Input> ? S extends Input ? S : never
   : E extends MethodElement<infer M> ? S extends AnyRoute ? Route<
-      S["name"], MethodsOf<S> | M, ModelOf<S>, ChildrenOf<S>, S["phases"]
-    > : never
-  : E extends ParamElement<infer K, infer V> ? S extends AnyRoute
-    ? WithParams<S, { [P in K]: V }>
+        S["name"],
+        MethodsOf<S> | M,
+        ModelOf<S>,
+        ChildrenOf<S>,
+        S["phases"]
+      >
+    : never
+  : E extends ParamElement<infer K, infer V>
+    ? S extends AnyRoute ? WithParams<S, { [P in K]: V }>
     : never
   : E extends RoutesElement<infer C> ? S extends AnyRoute ? Route<
-      S["name"], MethodsOf<S>, ModelOf<S>, readonly [...ChildrenOf<S>, ...C],
-      AddRoutesToLast<S["phases"], C>
-    > : never
-  : E extends ModelTransformElement<infer F, infer X> ? S extends AnyRoute
-    ? Fold<S, X> extends infer After extends AnyRoute ? Route<
-        After["name"], MethodsOf<After>,
-        Merge<ModelOf<After>, ModelTransformOutput<F>>, ChildrenOf<After>,
-        AddFieldsToLast<After["phases"], ModelTransformOutput<F>>
-      > : never
+        S["name"],
+        MethodsOf<S>,
+        ModelOf<S>,
+        readonly [...ChildrenOf<S>, ...C],
+        AddRoutesToPhase<S["phases"], C>
+      >
+    : never
+  : E extends ModelTransformElement<infer F, infer X>
+    ? S extends AnyRoute
+      ? Fold<S, X> extends infer After extends AnyRoute ? Route<
+          After["name"],
+          MethodsOf<After>,
+          Merge<ModelOf<After>, ModelTransformOutput<F>>,
+          ChildrenOf<After>,
+          SetFieldsToPhase<After["phases"], ModelTransformOutput<F>>
+        >
+      : never
     : never
   : E extends Extension<infer X> ? Fold<S, X>
-  : E extends DynamicElement<infer Requirement, infer X> ? S extends AnyRoute
-    ? DynamicAfter<S, X> extends infer After extends AnyRoute ? Route<
-        After["name"], MethodsOf<After>, ModelOf<After>, ChildrenOf<After>,
-        ConjoinPhases<S, After, Requirement>
-      > : never
+  : E extends DynamicElement<infer Requirement, infer X>
+    ? S extends AnyRoute
+      ? DynamicAfter<S, X> extends infer After extends AnyRoute ? Route<
+          After["name"],
+          MethodsOf<After>,
+          ModelOf<After>,
+          ChildrenOf<After>,
+          ConjoinPhases<S, After, Requirement>
+        >
+      : never
     : never
-  : E extends TransformElement<infer F> ? S extends F["input"]
-    ? ApplyTransform<F, S>
+  : E extends TransformElement<infer F>
+    ? S extends F["input"] ? ApplyTransform<F, S>
     : never
-  : Fallback<S>;
+  : Widened<S>;
 
 type IsStatic<E extends AnyElement> = E extends
   | IdentityElement<unknown>
   | MethodElement<Method>
   | ParamElement<string, unknown>
-  | RoutesElement<readonly AnyRoute[]> ? true : false;
+  | RoutesElement<readonly AnyRoute[]> ? true
+  : false;
 
 type IsUnion<T, Whole = T> = T extends unknown ? [Whole] extends [T] ? false
   : true
   : never;
 
 // Widened pipelines must not claim a state more specific than their input.
-type Fallback<S> = S extends AnyRoute ? AnyRoute : unknown;
+type Widened<S> = S extends AnyRoute ? AnyRoute : unknown;
 
-type ConservativeDynamic<S extends AnyRoute> = Route<
+type OpenDynamic<S extends AnyRoute> = Route<
   S["name"],
   MethodsOf<S>,
   ModelOf<S>,
@@ -319,7 +368,7 @@ type ConservativeDynamic<S extends AnyRoute> = Route<
 
 type DynamicAfter<S extends AnyRoute, E extends AnyElement> =
   ApplyElement<Seed<S>, E> extends infer After extends AnyRoute
-    ? AnyRoute extends After ? ConservativeDynamic<Seed<S>> : After
+    ? AnyRoute extends After ? OpenDynamic<Seed<S>> : After
     : never;
 
 type CheckMixed<
@@ -340,13 +389,14 @@ type CheckTail<
   : E extends readonly AnyElement[] ? E
   : CheckMixed<S, E>;
 
-type InputOf<E extends AnyPipelineElement> = E extends IdentityElement<infer Input>
-  ? Input
+type InputOf<E extends AnyPipelineElement> = E extends
+  IdentityElement<infer Input> ? Input
   : E extends TransformElement<infer F> ? F["input"]
   : E extends { readonly elements: infer X }
-    ? X extends readonly [infer Head extends AnyPipelineElement, ...AnyPipelineElement[]]
+    ? X extends
+      readonly [infer Head extends AnyPipelineElement, ...AnyPipelineElement[]]
       ? InputOf<Head>
-      : unknown
+    : unknown
   : E extends AnyElement ? AnyRoute
   : E extends (value: infer Input) => unknown ? Input
   : never;
@@ -431,39 +481,39 @@ type WithStatic<
   keyof Fields extends never ? ModelOf<R> : Merge<ModelOf<R>, Fields>,
   Routes extends readonly [] ? ChildrenOf<R>
     : readonly [...ChildrenOf<R>, ...Routes],
-  AddStaticToLast<R["phases"], Fields, Routes>
+  AddStaticToPhase<R["phases"], Fields, Routes>
 >;
 
-type AddStaticToLast<
+type AddStaticToPhase<
   P extends AnyPhases,
   Fields extends object,
   Routes extends readonly AnyRoute[],
 > = keyof Fields extends never ? Routes extends readonly [] ? P
-  : AddRoutesToLast<P, Routes>
-  : Routes extends readonly [] ? AddFieldsToLast<P, Fields>
-  : AddRoutesToLast<AddFieldsToLast<P, Fields>, Routes>;
+  : AddRoutesToPhase<P, Routes>
+  : Routes extends readonly [] ? SetFieldsToPhase<P, Fields>
+  : AddRoutesToPhase<SetFieldsToPhase<P, Fields>, Routes>;
 
 type WithParams<R extends AnyRoute, Fields extends object> = Route<
   R["name"],
   MethodsOf<R>,
   Merge<ModelOf<R>, Fields>,
   ChildrenOf<R>,
-  AddFieldsToLast<R["phases"], Fields>
+  SetFieldsToPhase<R["phases"], Fields>
 >;
 
-type AddFieldsToLast<
+type SetFieldsToPhase<
   P extends AnyPhases,
   Fields extends object,
 > = P extends readonly [infer Only extends AnyPhase]
-  ? readonly [AddFields<Only, Fields>]
+  ? readonly [SetFields<Only, Fields>]
   : P extends readonly [
     infer First extends AnyPhase,
     ...infer Middle extends AnyPhase[],
     AnyPhase,
-  ] ? readonly [First, ...Middle, AddFields<Last<P>, Fields>]
+  ] ? readonly [First, ...Middle, SetFields<Last<P>, Fields>]
   : never;
 
-type AddFields<P extends AnyPhase, Fields extends object> = P extends Next<
+type SetFields<P extends AnyPhase, Fields extends object> = P extends Next<
   infer Model,
   infer Routes,
   infer Requirement
