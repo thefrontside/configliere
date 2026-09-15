@@ -407,7 +407,7 @@ type AddRoutes<
   : never;
 
 export type AddField<T extends object, K extends string, V> = Simplify<
-  Omit<T, K> & { [P in K]: V }
+  { [P in keyof T | K]: P extends K ? V : P extends keyof T ? T[P] : never }
 >;
 
 type Simplify<T> = { [P in keyof T]: T[P] };
