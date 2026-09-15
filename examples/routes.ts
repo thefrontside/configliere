@@ -1,8 +1,11 @@
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import {
   command,
   description,
   name,
   option,
+  parse,
   route,
   routes,
   schema,
@@ -44,6 +47,34 @@ export const app = command(
     ),
   ),
 );
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  let result = parse(app, { argv: process.argv.slice(2) });
+  if (!result.ok || "resume" in result || result.method !== "execute") {
+    console.dir(result, { depth: null });
+  } else {
+    switch (result.route) {
+      case "/": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes/root");
+        console.dir(instance, { depth: null });
+        break;
+      }
+      case "/serve": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes/serve");
+        console.dir(instance, { depth: null });
+        break;
+      }
+      case "/database/clean": {
+        let instance = { route: result.route, model: result.model };
+        console.log("routes/database/clean");
+        console.dir(instance, { depth: null });
+        break;
+      }
+    }
+  }
+}
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends
   (<T>() => T extends B ? 1 : 2)
