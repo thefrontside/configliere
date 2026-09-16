@@ -1,3 +1,5 @@
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import {
   checkpoint,
   cli,
@@ -5,6 +7,7 @@ import {
   description,
   name,
   option,
+  parse,
   schema,
   transform,
   version,
@@ -126,6 +129,26 @@ function parseDomain(value: string): ParsedDomain | undefined {
 
 // Production-use type: application code can use this inferred configuration shape.
 export type Configuration = ModelOf<typeof app>;
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  let step = parse(app, { argv: process.argv.slice(2) });
+  let result = !step.ok || !("resume" in step)
+    ? step
+    : step.resume({ ok: true, value: [] });
+
+  if (!result.ok || "resume" in result || result.method !== "execute") {
+    console.dir(result, { depth: null });
+  } else {
+    switch (result.route) {
+      case "/": {
+        let instance = { route: result.route, model: result.model };
+        console.log("checkpoint-options/root");
+        console.dir(instance, { depth: null });
+        break;
+      }
+    }
+  }
+}
 
 // Diagnostic-only assertions: these force TypeScript to materialize representative keys.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends

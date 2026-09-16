@@ -5,7 +5,7 @@ import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
 import { multiple, schema } from "../lib/param.ts";
-import { version } from "../lib/route.ts";
+import { executable, route, version } from "../lib/route.ts";
 import type { Done, ModelOf } from "../lib/types.ts";
 
 describe("command()", () => {
@@ -15,6 +15,27 @@ describe("command()", () => {
     expect(result.methods).toEqual(["help", "execute"]);
     expectType<Equal<typeof result.name, "simulacrum">>(true);
     expectType<Equal<Methods<typeof result>, "help" | "execute">>(true);
+  });
+
+  it("is the executable form of route", () => {
+    let commandRoute = command(
+      name("simulacrum"),
+      option(name("port"), schema(type("number"))),
+    );
+    let explicitRoute = route(
+      name("simulacrum"),
+      executable(),
+      option(name("port"), schema(type("number"))),
+    );
+
+    expect(explicitRoute.methods).toEqual(commandRoute.methods);
+    expectType<Equal<Methods<typeof explicitRoute>, "help" | "execute">>(
+      true,
+    );
+    expectType<Equal<ModelOf<typeof explicitRoute>, { port: number }>>(true);
+    expectType<Equal<typeof explicitRoute.phases, typeof commandRoute.phases>>(
+      true,
+    );
   });
 
   it("composes the same route elements from left to right", () => {

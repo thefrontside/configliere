@@ -27,7 +27,7 @@ export interface CLIRead {
 }
 
 export interface CLIOptions {
-  switch?: true;
+  readonly switch?: true;
 }
 
 export function cli(

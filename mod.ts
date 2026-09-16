@@ -5,6 +5,7 @@ export { command } from "./lib/command.ts";
 export type { CommandZero } from "./lib/command.ts";
 
 export { checkpoint } from "./lib/checkpoint.ts";
+export { dynamic } from "./lib/dynamic.ts";
 
 export { description, name } from "./lib/definition.ts";
 

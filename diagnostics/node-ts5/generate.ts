@@ -2,7 +2,7 @@ import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const output = fileURLToPath(new URL("./fixtures/generated/", import.meta.url));
-const sizes = [5, 20, 30, 50, 75, 100, 101];
+const sizes = [5, 20, 30, 50, 75, 100, 101, 125, 150, 200];
 const modes = ["static", "checkpoint"] as const;
 
 await mkdir(output, { recursive: true });
