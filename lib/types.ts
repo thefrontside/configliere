@@ -276,7 +276,7 @@ type RequirementsAt<P extends readonly AnyPhase[]> = P extends readonly [
 type PhaseModel<P extends AnyPhase> = P extends Done<
   infer Model,
   readonly AnyRoute[]
-> ? Model
+> ? { [K in keyof Model]: Model[K] }
   : object;
 
 type ParseAt<
@@ -353,7 +353,7 @@ type AddModel<
 > = Simplify<{ [K in keyof Models | P]: K extends P ? Model : Models[K] }>;
 
 type MaterializeModels<Models extends ModelsByRoute> = {
-  [K in keyof Models]: Models[K];
+  [K in keyof Models]: { [P in keyof Models[K]]: Models[K][P] };
 };
 
 type SplitPath<S extends string> = string extends S ? Path

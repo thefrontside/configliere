@@ -3,7 +3,6 @@ import {
   brand,
   type Check,
   type Fold,
-  type Materialize,
   type MethodElement,
   type ModelTransformElement,
   type RoutesElement,
@@ -35,7 +34,7 @@ export function route<
 >(
   start: Definition<N>,
   ...elements: E & Check<RouteZero<N>, E>
-): Materialize<Fold<RouteZero<N>, E>> {
+): Fold<RouteZero<N>, E> {
   let zero: RouteZero<N> = {
     ...start,
     methods: ["help"],
@@ -50,7 +49,7 @@ export function route<
   return elements.reduce<unknown>(
     (value, element) => element(value as never),
     zero,
-  ) as Materialize<Fold<RouteZero<N>, E>>;
+  ) as Fold<RouteZero<N>, E>;
 }
 
 export function version(semver: string): MethodElement<"version"> {

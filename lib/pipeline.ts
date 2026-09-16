@@ -378,16 +378,28 @@ type CheckMixed<
   : E extends readonly [
     infer Head extends AnyPipelineElement,
     ...infer Tail extends readonly AnyPipelineElement[],
-  ] ? [Fold<S, readonly [Head]>] extends [never] ? readonly [never, ...Tail]
-    : readonly [Head, ...CheckTail<Fold<S, readonly [Head]>, Tail>]
+  ] ? CheckHead<S, Head, Tail>
   : never;
+
+type CheckHead<
+  S,
+  Head extends AnyPipelineElement,
+  Tail extends readonly AnyPipelineElement[],
+  Next = Fold<S, readonly [Head]>,
+> = [Next] extends [never]
+  ? readonly [never, ...Tail]
+  : readonly [Head, ...CheckTail<Next, Tail>];
 
 type CheckTail<
   S,
   E extends readonly AnyPipelineElement[],
 > = number extends E["length"] ? E
   : E extends readonly AnyElement[] ? E
-  : CheckMixed<S, E>;
+  : E extends readonly [
+    infer Head extends AnyPipelineElement,
+    ...infer Tail extends readonly AnyPipelineElement[],
+  ] ? CheckHead<S, Head, Tail>
+  : E;
 
 type InputOf<E extends AnyPipelineElement> = E extends
   IdentityElement<infer Input> ? Input
@@ -408,13 +420,14 @@ type InputOfPipeline<E extends readonly AnyPipelineElement[]> = E extends
   ] ? InputOf<Head>
   : unknown;
 
+// Keep chunks below the compiler's recursion limit while reducing rebuilds.
 type TakeStatic<
   E extends readonly AnyPipelineElement[],
   Fields extends readonly object[] = readonly [],
   Routes extends readonly AnyRoute[] = readonly [],
   Methods extends Method = never,
   Count extends readonly unknown[] = readonly [],
-> = Count["length"] extends 20
+> = Count["length"] extends 40
   ? readonly [MergeFields<Fields>, Routes, Methods, E]
   : E extends readonly [
     infer Head extends AnyElement,
@@ -452,23 +465,23 @@ type TakeStatic<
 
 // Collect fields before applying them so each static chunk builds the model once.
 type MergeFields<F extends readonly object[]> = {
-  [K in FieldKeys<F>]: FieldValue<F, K>;
+  [K in keyof MergeFieldList<F>]: MergeFieldList<F>[K];
 };
 
-type FieldKeys<F extends readonly object[]> = F extends readonly [
+type MergeFieldList<
+  F extends readonly object[],
+  Result extends object = {},
+> = F extends readonly [
   infer Head extends object,
   ...infer Tail extends readonly object[],
-] ? keyof Head | FieldKeys<Tail>
-  : never;
+] ? MergeFieldList<Tail, MergeObjects<Result, Head>>
+  : Result;
 
-type FieldValue<
-  F extends readonly object[],
-  K extends PropertyKey,
-> = F extends readonly [
-  ...infer Rest extends readonly object[],
-  infer Last extends object,
-] ? K extends keyof Last ? Last[K] : FieldValue<Rest, K>
-  : never;
+type MergeObjects<A extends object, B extends object> = {
+  [K in keyof A | keyof B]: K extends keyof B ? B[K]
+    : K extends keyof A ? A[K]
+    : never;
+};
 
 type WithStatic<
   R extends AnyRoute,
