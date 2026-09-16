@@ -1,5 +1,5 @@
 // deno-lint-ignore-file ban-types
-import type { Check, Fold, Materialize, Unary } from "./pipeline.ts";
+import type { Check, Fold, Unary } from "./pipeline.ts";
 import type { Definition, Done, Route } from "./types.ts";
 
 export type CommandZero<N extends string = string> = Route<
@@ -16,7 +16,7 @@ export function command<
 >(
   start: Definition<N>,
   ...elements: E & Check<CommandZero<N>, E>
-): Materialize<Fold<CommandZero<N>, E>> {
+): Fold<CommandZero<N>, E> {
   let zero: CommandZero<N> = {
     ...start,
     methods: ["help", "execute"],
@@ -31,5 +31,5 @@ export function command<
   return elements.reduce<unknown>(
     (value, element) => element(value as never),
     zero,
-  ) as Materialize<Fold<CommandZero<N>, E>>;
+  ) as Fold<CommandZero<N>, E>;
 }
