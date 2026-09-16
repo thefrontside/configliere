@@ -30,11 +30,13 @@ input → bind and expand phases → resolve route + method → intent
 
 ## Define every way into the program
 
-`route()` declares an address. `command()` declares an executable route. Every
+`route()` declares an address. `command()` declares an executable `route()`. Every
 route supports help; version and execution exist only where they are explicitly
-added.
+added. Using `command()` as the root route will make the root executable, e.g.
+`cli --config file.config.ts`.
 
-Definitions are immutable composition pipelines, not handler registrations:
+Routes are built by composing immutable definitions. Configliere describes and
+parses them; it does not register or invoke handlers.
 
 ```ts
 import {

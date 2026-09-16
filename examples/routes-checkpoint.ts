@@ -16,7 +16,7 @@ import {
 import type { ChildrenOf, ModelOf } from "../lib/types.ts";
 import { z } from "zod";
 
-export const app = command(
+export const app = route(
   name("simulacrum"),
   description("Run and manage local service simulators."),
   version("1.0.0"),
@@ -60,12 +60,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.dir(result, { depth: null });
   } else {
     switch (result.route) {
-      case "/": {
-        let instance = { route: result.route, model: result.model };
-        console.log("routes-checkpoint/root");
-        console.dir(instance, { depth: null });
-        break;
-      }
       case "/serve": {
         let instance = { route: result.route, model: result.model };
         console.log("routes-checkpoint/serve");
