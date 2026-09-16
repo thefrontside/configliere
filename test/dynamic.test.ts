@@ -14,6 +14,7 @@ import { option } from "../lib/option.ts";
 import { multiple, schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { printHelp } from "../lib/print.ts";
+import { cli } from "../lib/read.ts";
 import { route, routes, version } from "../lib/route.ts";
 import type {
   AnyRoute,
@@ -245,6 +246,54 @@ describe("dynamic()", () => {
         raw: string | undefined;
       }>
     >(true);
+  });
+
+  it("preserves the boundary for generated options with explicit CLI readers", () => {
+    let generated = (property: string) =>
+      option(
+        name(property),
+        cli([`--${property}`]),
+        schema(type("string | undefined")),
+      );
+    let app = command(
+      name("xmd"),
+      option(
+        name("file"),
+        cli(["--file"]),
+        schema(type("string")),
+      ),
+      dynamic((frontmatter: Frontmatter) =>
+        extend(...frontmatter.properties.map(generated))
+      ),
+      option(
+        name("raw"),
+        cli(["--raw"], { switch: true }),
+        schema(type("boolean | undefined")),
+      ),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, Frontmatter>>(true);
+
+    let step = parse(app, {
+      argv: ["--file", "doc.md", "--props-name", "Ada"],
+    });
+    if (!step.ok || !("resume" in step)) throw new Error("expected increment");
+    expectType<Equal<typeof step.model, { file: string }>>(true);
+
+    let result = step.resume({
+      ok: true,
+      value: { properties: ["props-name"] },
+    });
+    if (!result.ok || result.method !== "execute") {
+      throw new Error("expected execute result");
+    }
+    expect(result).toMatchObject({
+      model: { file: "doc.md", "props-name": "Ada" },
+    });
+    expectType<Equal<typeof result.model, {
+      file: string;
+      raw: boolean | undefined;
+    }>>(true);
   });
 
   it("preserves the resume boundary for unknown requirements", () => {
@@ -939,6 +988,10 @@ interface Plugins {
 
 interface PluginSet {
   readonly commands: readonly AnyRoute[];
+}
+
+interface Frontmatter {
+  readonly properties: readonly string[];
 }
 
 interface Services {

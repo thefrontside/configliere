@@ -14,6 +14,38 @@ describe("shared type examples", () => {
     expect(routesCheckpointTen.name).toBe("simulacrum");
   });
 
+  it("uses grouped roots and carries root options into child execution", () => {
+    let root = parse(routesTen, { argv: [] });
+    // top level route should not allow execute method directly
+    expect(root).toMatchObject({
+      ok: false,
+      code: "method-not-allowed",
+      route: "/",
+      method: "execute",
+    });
+
+    // serve is a child route of the top-level route
+    let result = parse(routesTen, {
+      argv: [
+        "--verbose",
+        "serve",
+        "--port",
+        "4100",
+        "--host",
+        "localhost",
+        "--protocol",
+        "http",
+      ],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      method: "execute",
+      route: "/serve",
+      model: { port: 4100, host: "localhost", protocol: "http" },
+      models: { "/": { verbose: true } },
+    });
+  });
+
   it("normalizes partially specified checkout options", () => {
     let result = resume([
       "--config",
@@ -77,7 +109,7 @@ describe("shared type examples", () => {
 
 function resume(argv: string[]) {
   let result = parse(checkpointTen, { argv });
-  if (!result.ok || result.resume === undefined) {
+  if (!result.ok || !("resume" in result)) {
     throw new Error("expected checkpoint example to pause");
   }
   return result.resume({ ok: true, value: [] });
