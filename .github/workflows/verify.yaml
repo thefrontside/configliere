@@ -28,5 +28,8 @@ jobs:
       - name: lint
         run: deno lint
 
+      - name: check
+        run: deno check mod.ts
+
       - name: test
-        run: deno test
+        run: deno task test

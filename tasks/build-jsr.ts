@@ -2,7 +2,7 @@ import jsonDeno from "../deno.json" with { type: "json" };
 
 let [version] = Deno.args;
 if (!version) {
-  throw new Error("a version argument is required to build the npm package");
+  throw new Error("a version argument is required to build the JSR package");
 }
 
 await Deno.writeTextFile(

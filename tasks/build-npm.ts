@@ -26,8 +26,7 @@ await build({
     // package.json properties
     name: "configliere",
     version,
-    description:
-      "Smart, FP configuration parser that validates all program inputs ahead of time, including config files, environment variables, and command line options using a single schema",
+    description: "Configuration for programs",
     license: "MIT",
     author: "engineering@frontside.com",
     repository: {
