@@ -290,10 +290,12 @@ describe("dynamic()", () => {
     expect(result).toMatchObject({
       model: { file: "doc.md", "props-name": "Ada" },
     });
-    expectType<Equal<typeof result.model, {
-      file: string;
-      raw: boolean | undefined;
-    }>>(true);
+    expectType<
+      Equal<typeof result.model, {
+        file: string;
+        raw: boolean | undefined;
+      }>
+    >(true);
   });
 
   it("preserves the resume boundary for unknown requirements", () => {

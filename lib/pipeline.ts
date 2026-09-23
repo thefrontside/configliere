@@ -385,8 +385,7 @@ type CheckHead<
   Head extends AnyPipelineElement,
   Tail extends readonly AnyPipelineElement[],
   Next = Fold<S, readonly [Head]>,
-> = [Next] extends [never]
-  ? readonly [never, ...Tail]
+> = [Next] extends [never] ? readonly [never, ...Tail]
   : readonly [Head, ...CheckTail<Next, Tail>];
 
 type CheckTail<
