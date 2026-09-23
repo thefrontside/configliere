@@ -8,7 +8,7 @@ import {
   type Unary,
 } from "./pipeline.ts";
 import type { CLIBinding } from "./read.ts";
-import type { Definition, Schema } from "./types.ts";
+import type { Definition, OutputOf, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
   schema: Schema<T>;
@@ -49,18 +49,19 @@ export function param<
   ) as Fold<Param<K, unknown>, E>;
 }
 
-export function schema<T>(
-  schema: Schema<T>,
-): TransformElement<SchemaTransform<T>> {
-  return mark<SchemaTransform<T>>((param: Param<string, unknown>) => ({
+export function schema<S extends Schema>(
+  schema: S,
+): TransformElement<SchemaTransform<S>> {
+  return mark<SchemaTransform<S>>((param: Param<string, unknown>) => ({
     ...param,
     schema,
   }));
 }
 
-interface SchemaTransform<T> extends Transform {
+interface SchemaTransform<S extends Schema> extends Transform {
   readonly input: Param<string, unknown>;
-  readonly output: this["input"] extends Param<infer N, unknown> ? Param<N, T>
+  readonly output: this["input"] extends Param<infer N, unknown>
+    ? Param<N, OutputOf<S>>
     : never;
 }
 
