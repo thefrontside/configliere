@@ -27,6 +27,7 @@ export function dynamic<
     phases.push({
       params: {},
       routes: [],
+      values: [],
     });
 
     return { ...route, phases } as unknown as Conjoin<

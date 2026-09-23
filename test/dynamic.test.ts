@@ -751,29 +751,6 @@ Options:
     });
 
     describe("future sources", () => {
-      // Input does not expose value or environment sources yet.
-      it.skip("lets a later phase claim an existing value source", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   dynamic((_config: Config) =>
-        //     extend(option(name("b"), prop("b")))
-        //   ),
-        // );
-        // let first = parse(app, {
-        //   argv: [],
-        //   values: [{ name: "settings", value: { b: "two" } }],
-        // });
-        // increment(first, {});
-        // let result = first.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        // expect(result).toMatchObject({
-        //   method: "execute",
-        //   model: { b: "two" },
-        // });
-      });
-
       it.skip("lets a later phase claim an existing environment source", () => {
         // let app = command(
         //   name("simulacrum"),
