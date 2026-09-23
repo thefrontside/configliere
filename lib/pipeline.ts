@@ -10,6 +10,7 @@ import type {
   Method,
   MethodsOf,
   ModelOf,
+  ModelSchema,
   Next,
   Phase,
   Route,
@@ -94,6 +95,29 @@ export interface RoutesElement<Added extends readonly AnyRoute[]> {
   >;
 }
 
+export interface ModelTransformElement<
+  F,
+  E extends readonly Unary[],
+> {
+  readonly [operation]: AddModelTransform<F, E>;
+
+  <
+    const N extends string,
+    const M extends Method,
+    const T extends object,
+    const C extends readonly AnyRoute[],
+    const P extends AnyPhases,
+  >(route: Route<N, M, T, C, P>): Apply<
+    Route<N, M, T, C, P>,
+    AddModelTransform<F, E>
+  >;
+}
+
+type ModelTransformOutput<F> = F extends ModelSchema<infer Output>
+  ? Output extends Record<string, unknown> ? Output : {}
+  : F extends (...args: never[]) => infer Output
+    ? Output extends Record<string, unknown> ? Output : {}
+  : never;
 export type Extension<E extends readonly Unary[]> =
   & Element<Batch<E>>
   & (E extends readonly AnyElement[] ? GenericExtension<E>
@@ -207,6 +231,7 @@ type Delta =
   | AddMethod<Method>
   | AddParam<string, unknown>
   | AddRoutes<readonly AnyRoute[]>
+  | AddModelTransform<unknown, readonly Unary[]>
   | Batch<readonly Unary[]>
   | Dynamic<unknown, AnyElement>
   | Custom<Transform>;
@@ -238,6 +263,14 @@ interface AddRoutes<C extends readonly AnyRoute[]> {
   readonly children: C;
 }
 
+interface AddModelTransform<
+  F,
+  E extends readonly Unary[],
+> {
+  readonly type: "model-transform";
+  readonly transform: F;
+  readonly elements: E;
+}
 interface Batch<E extends readonly Unary[]> {
   readonly type: "batch";
   readonly elements: E;
@@ -274,6 +307,17 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
         readonly [...ChildrenOf<S>, ...C],
         AddRoutesToLast<S["phases"], C>
       >
+    : never
+  : D extends AddModelTransform<infer F, infer E>
+    ? S extends AnyRoute
+      ? Fold<S, E> extends infer After extends AnyRoute ? Route<
+          After["name"],
+          MethodsOf<After>,
+          Merge<ModelOf<After>, ModelTransformOutput<F>>,
+          ChildrenOf<After>,
+          AddFieldsToLast<After["phases"], ModelTransformOutput<F>>
+        >
+      : never
     : never
   : D extends Batch<infer E> ? Fold<S, E>
   : D extends Dynamic<infer Requirement, infer E>
@@ -336,6 +380,7 @@ type InputOfDelta<D extends Delta> = D extends Identity<infer Input> ? Input
     | AddRoutes<
       readonly AnyRoute[]
     >
+    | AddModelTransform<unknown, readonly Unary[]>
     | Dynamic<unknown, AnyElement> ? AnyRoute
   : D extends Batch<infer E> ? InputOfPipeline<E>
   : D extends Custom<infer F> ? F["input"]
@@ -347,7 +392,7 @@ type TakeStatic<
   Routes extends readonly AnyRoute[] = readonly [],
   Methods extends Method = never,
   Count extends readonly unknown[] = readonly [],
-> = Count["length"] extends 20
+> = Count["length"] extends 40
   ? readonly [MergeFields<Fields>, Routes, Methods, E]
   : E extends readonly [
     infer Head extends AnyElement,

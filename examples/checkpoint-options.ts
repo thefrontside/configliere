@@ -1,21 +1,87 @@
-import { checkpoint, cli, command, description, name, option } from "../mod.ts";
-import { schema } from "../lib/param.ts";
+import {
+  checkpoint,
+  cli,
+  command,
+  description,
+  name,
+  option,
+  schema,
+  transform,
+  version,
+} from "../mod.ts";
 import type { ModelOf } from "../lib/types.ts";
 import { z } from "zod";
 
 export const app = command(
   name("auth0"),
+  description("Provision and inspect Auth0 tenants."),
+  version("1.0.0"),
   option(
-    name("port"),
-    description("server port"),
-    cli(["--port", "-p"]),
-    schema(z.number()),
-  ),
-  option(
-    name("domain"),
-    description("server domain"),
-    cli(["--domain"]),
+    name("config"),
+    description("JSON config path"),
+    cli(["--config", "-c"]),
     schema(z.string()),
+  ),
+  checkpoint(),
+  transform(
+    (context) => {
+      let { domain, port, protocol } = context.options;
+      let parsed = domain === undefined ? undefined : parseDomain(domain);
+
+      if (domain !== undefined && parsed === undefined) {
+        context.addIssue({
+          message: `domain must be an HTTP or HTTPS host, received ${domain}`,
+        });
+      }
+
+      if (
+        parsed?.protocol !== undefined && protocol !== undefined &&
+        parsed.protocol !== protocol
+      ) {
+        context.addIssue({
+          message:
+            `domain protocol ${parsed.protocol} conflicts with protocol ${protocol}`,
+        });
+      }
+
+      if (
+        parsed?.port !== undefined && port !== undefined && parsed.port !== port
+      ) {
+        context.addIssue({
+          message: `domain port ${parsed.port} conflicts with port ${port}`,
+        });
+      }
+
+      let resolvedProtocol = protocol ?? parsed?.protocol ??
+        (port === 80 || parsed?.port === 80 ? "http" : "https");
+      let resolvedPort = port ?? parsed?.port ??
+        (resolvedProtocol === "https" ? 443 : 80);
+      let host = parsed?.host ?? "localhost";
+
+      return {
+        port: resolvedPort,
+        domain: `${resolvedProtocol}://${host}:${resolvedPort}`,
+        protocol: resolvedProtocol,
+      };
+    },
+    option(
+      name("port"),
+      description("server port"),
+      cli(["--port", "-p"]),
+      schema(z.optional(z.number().int().min(1).max(65535))),
+    ),
+    option(
+      name("domain"),
+      description("server domain"),
+      cli(["--domain"]),
+      schema(z.optional(z.string())),
+    ),
+    option(
+      name("protocol"),
+      description("server protocol"),
+      cli(["--protocol"]),
+      schema(z.optional(z.enum(["http", "https"]))),
+    ),
   ),
   option(
     name("audience"),
@@ -23,53 +89,45 @@ export const app = command(
     cli(["--audience"]),
     schema(z.string()),
   ),
-  option(
-    name("clientID"),
-    description("Auth0 client ID"),
-    cli(["--client-id"]),
-    schema(z.string()),
-  ),
-  option(
-    name("protocol"),
-    description("server protocol"),
-    cli(["--protocol"]),
-    schema(z.enum(["http", "https"])),
-  ),
-  checkpoint(),
-  option(
-    name("clientSecret"),
-    description("client secret"),
-    cli(["--client-secret"]),
-    schema(z.string()),
-  ),
-  option(
-    name("scope"),
-    description("OAuth scope"),
-    cli(["--scope"]),
-    schema(z.string()),
-  ),
-  option(
-    name("rulesDirectory"),
-    description("rules directory"),
-    cli(["--rules-directory"]),
-    schema(z.string()),
-  ),
-  option(
-    name("connection"),
-    description("Auth0 connection"),
-    cli(["--connection"]),
-    schema(z.string()),
-  ),
-  option(
-    name("config"),
-    description("JSON config path"),
-    cli(["--config", "-c"]),
-    schema(z.string()),
-  ),
 );
 
+type Protocol = "http" | "https";
+
+type ParsedDomain = {
+  host: string;
+  port?: number;
+  protocol?: Protocol;
+};
+
+function parseDomain(value: string): ParsedDomain | undefined {
+  let hasProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(value);
+  let url: URL;
+
+  try {
+    url = new URL(hasProtocol ? value : `http://${value}`);
+  } catch {
+    return undefined;
+  }
+
+  if (
+    !["http:", "https:"].includes(url.protocol) || url.pathname !== "/" ||
+    url.search !== "" || url.hash !== "" || url.username !== "" ||
+    url.password !== ""
+  ) {
+    return undefined;
+  }
+
+  return {
+    host: url.hostname,
+    port: url.port === "" ? undefined : Number(url.port),
+    protocol: hasProtocol ? url.protocol.slice(0, -1) as Protocol : undefined,
+  };
+}
+
+// Production-use type: application code can use this inferred configuration shape.
 export type Configuration = ModelOf<typeof app>;
 
+// Diagnostic-only assertions: these force TypeScript to materialize representative keys.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends
   (<T>() => T extends B ? 1 : 2)
   ? (<T>() => T extends B ? 1 : 2) extends (<T>() => T extends A ? 1 : 2) ? true
@@ -79,8 +137,11 @@ type Assert<T extends true> = T;
 type ConfigIsPresent = Assert<
   Equal<"config" extends keyof Configuration ? true : false, true>
 >;
-type ConnectionIsPresent = Assert<
-  Equal<"connection" extends keyof Configuration ? true : false, true>
+type PortIsPresent = Assert<
+  Equal<"port" extends keyof Configuration ? true : false, true>
 >;
 type PortIsNumber = Assert<Equal<Configuration["port"], number>>;
 type ConfigIsString = Assert<Equal<Configuration["config"], string>>;
+type ProtocolIsEnum = Assert<
+  Equal<Configuration["protocol"], "http" | "https">
+>;
