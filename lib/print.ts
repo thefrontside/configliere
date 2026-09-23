@@ -3,8 +3,6 @@
  */
 
 import type { Param } from "./param.ts";
-import type { Flag } from "./tokenize.ts";
-import { Tokenizer } from "./tokenizer.ts";
 import type {
   AnyRoute,
   Help,
@@ -16,13 +14,32 @@ import type {
 } from "./types.ts";
 
 export function printHelp<
-  const H extends Help<AnyRoute, RoutePath>,
+  const H extends Help<RoutePath>,
 >(intent: H): string {
   let route = intent.definition;
   let subject = title(intent);
   let heading = route.version ? `${subject} ${route.version}` : subject;
-  let usage = `${subject} [OPTIONS]`;
   let children = route.phases.flatMap((phase) => phase.routes);
+  let args: Row[] = [];
+  let options: Row[] = [];
+
+  for (let param of params(route)) {
+    let syntax = param.cli.syntax;
+    if (!syntax) {
+      continue;
+    }
+
+    let row: Row = [syntax.label, param.description];
+    if (syntax.type === "argument") {
+      args.push(row);
+    } else {
+      options.push(row);
+    }
+  }
+
+  let usage = [subject, "[OPTIONS]", ...args.map(([label]) => label)].join(
+    " ",
+  );
 
   if (children.length > 0) {
     usage += route.methods.includes("execute") ? " [COMMAND]" : " <COMMAND>";
@@ -35,6 +52,10 @@ export function printHelp<
 
   lines.push("", "Usage:", `  ${usage}`);
 
+  if (args.length > 0) {
+    lines.push("", "Arguments:", ...list(args));
+  }
+
   if (children.length > 0) {
     lines.push(
       "",
@@ -42,11 +63,6 @@ export function printHelp<
       ...list(children.map((child) => [child.name, child.description])),
     );
   }
-
-  let options: Row[] = params(route).map((param) => [
-    label(param),
-    param.description,
-  ]);
 
   options.push(["-h, --help", "Print help"]);
   if (route.methods.includes("version")) {
@@ -59,7 +75,7 @@ export function printHelp<
 }
 
 export function printVersion<
-  const V extends Version<AnyRoute, RoutePath>,
+  const V extends Version<RoutePath>,
 >(intent: V): string {
   let version = intent.definition.version;
   if (!version) {
@@ -147,45 +163,6 @@ function wrap(text: string, size: number): string[] {
   }
 
   return lines;
-}
-
-function label(param: Param<string, unknown>): string {
-  let stem = dash(param.name);
-  let yes = `--${stem}`;
-  let no = `--no-${stem}`;
-  let positive = boolean(param, yes);
-  let negative = boolean(param, no);
-
-  return typeof positive === "boolean"
-    ? negative === false ? `${yes}, ${no}` : yes
-    : `--${param.name} <VALUE>`;
-}
-
-function boolean(
-  param: Param<string, unknown>,
-  text: string,
-): boolean | undefined {
-  let flag: Flag = {
-    type: "flag",
-    index: 0,
-    text,
-    flagText: text.slice(text.startsWith("--") ? 2 : 1),
-    flagType: text.startsWith("--") ? "long" : "short",
-  };
-  let read = param.cli(new Tokenizer([flag]));
-
-  return read.result.ok && read.result.value.exists &&
-      typeof read.result.value.value === "boolean"
-    ? read.result.value.value
-    : undefined;
-}
-
-function dash(name: string): string {
-  return name
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
-    .replace(/([a-z\d])([A-Z])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
-    .toLowerCase();
 }
 
 function problem(issue: Issue): string {

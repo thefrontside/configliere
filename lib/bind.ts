@@ -1,6 +1,6 @@
 import type { Maybe } from "./maybe.ts";
 import type { Param } from "./param.ts";
-import type { Symbol } from "./read.ts";
+import type { CLIRead, Symbol } from "./read.ts";
 import type { Rest } from "./rest.ts";
 import type { Result } from "./result.ts";
 import type { Word } from "./tokenize.ts";
@@ -30,43 +30,7 @@ export function fromCLI<const K extends string, T>(options: {
   readonly rest: Rest;
 }): Maybe<Binding<T>> {
   let { param, view, rest } = options;
-  let path = [param.name];
-  let read = param.cli(view);
-
-  if (!read.result.ok) {
-    return {
-      exists: true,
-      value: {
-        rest: {
-          ...rest,
-          tokens: read.claim.rest,
-        },
-        result: read.result,
-      },
-    };
-  }
-
-  if (!read.result.value.exists) {
-    return { exists: false };
-  }
-
-  let value = read.result.value.value;
-  let candidates = typeof value === "string" ? param.decode(value) : [value];
-  let result = merge(
-    decode(param, value, candidates, path),
-    read.result.issues,
-  );
-
-  return {
-    exists: true,
-    value: {
-      rest: {
-        ...rest,
-        tokens: read.claim.rest,
-      },
-      result,
-    },
-  };
+  return fromRead(param, param.cli.read(view), rest);
 }
 
 export function fromValues<const K extends string, T>(options: {
@@ -137,6 +101,15 @@ export function bindPhase(options: {
   let pending = new Map(params.map((param) => [param.name, param]));
   let results = new Map<string, Result<unknown>>();
 
+  function settle(
+    param: Param<string, unknown>,
+    binding: Binding<unknown>,
+  ): void {
+    rest = binding.rest;
+    results.set(param.name, binding.result);
+    pending.delete(param.name);
+  }
+
   function accept(
     param: Param<string, unknown>,
     attempt: Maybe<Binding<unknown>>,
@@ -145,34 +118,43 @@ export function bindPhase(options: {
       return;
     }
 
-    rest = attempt.value.rest;
-    results.set(param.name, attempt.value.result);
-    pending.delete(param.name);
+    settle(param, attempt.value);
   }
 
-  // CLI visibility grows whenever a parameter consumes the current horizon.
-  // Keep retrying provisional misses until a complete sweep leaves the first
-  // remaining word unchanged.
+  // Every pending reader proposes a claim against the same immutable view.
+  // Commit the proposal beginning earliest in argv, then recompute the view.
+  // This lets `--port 9000` outrank a positional claim on `9000` without
+  // attaching binding-policy metadata to either reader.
   while (true) {
-    let before = first(rest.tokens, segment.range);
+    let horizon = first(rest.tokens, segment.range);
+    let offer: {
+      param: Param<string, unknown>;
+      read: CLIRead;
+      index: number;
+    } | undefined;
 
     for (let param of pending.values()) {
-      let attempt = fromCLI({
-        param,
-        view: rest.tokens.view({
-          range: segment.range,
-          through: before?.index,
-        }),
-        rest,
+      let view = rest.tokens.view({
+        range: segment.range,
+        through: horizon?.index,
       });
+      let read = param.cli.read(view);
 
-      accept(param, attempt);
+      if (read.result.ok && !read.result.value.exists) {
+        continue;
+      }
+
+      let index = earliest(read.claim.tokens);
+      if (!offer || index < offer.index) {
+        offer = { param, read, index };
+      }
     }
 
-    let after = first(rest.tokens, segment.range);
-    if (after?.index === before?.index) {
+    if (!offer) {
       break;
     }
+
+    accept(offer.param, fromRead(offer.param, offer.read, rest));
   }
 
   // Address sources have stable visibility once the route is known. They are
@@ -215,6 +197,49 @@ export function bindPhase(options: {
   }
 
   return { rest, model, issues, valid };
+}
+
+function fromRead<T>(
+  param: Param<string, T>,
+  read: CLIRead,
+  rest: Rest,
+): Maybe<Binding<T>> {
+  let path = [param.name];
+
+  if (!read.result.ok) {
+    return {
+      exists: true,
+      value: {
+        rest: {
+          ...rest,
+          tokens: read.claim.rest,
+        },
+        result: read.result,
+      },
+    };
+  }
+
+  if (!read.result.value.exists) {
+    return { exists: false };
+  }
+
+  let value = read.result.value.value;
+  let candidates = typeof value === "string" ? param.decode(value) : [value];
+  let result = merge(
+    decode(param, value, candidates, path),
+    read.result.issues,
+  );
+
+  return {
+    exists: true,
+    value: {
+      rest: {
+        ...rest,
+        tokens: read.claim.rest,
+      },
+      result,
+    },
+  };
 }
 
 function decode<T>(
@@ -303,4 +328,14 @@ function first(tokens: Tokenizer<Symbol>, range: TokenRange): Word | undefined {
       return token;
     }
   }
+}
+
+function earliest(tokens: readonly Symbol[]): number {
+  let first = Infinity;
+
+  for (let token of tokens) {
+    first = Math.min(first, token.index);
+  }
+
+  return first;
 }
