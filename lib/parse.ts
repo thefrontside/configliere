@@ -1,4 +1,5 @@
 import { bindPhase } from "./bind.ts";
+import { Envs } from "./env.ts";
 import type { Symbol } from "./read.ts";
 import type { Rest } from "./rest.ts";
 import type { Result } from "./result.ts";
@@ -47,6 +48,7 @@ export function parse(
   let rest: Rest = {
     tokens: literals.rest as Tokenizer<Symbol>,
     values: new Values().mount([], input.values ?? []),
+    envs: new Envs().mount([], input.envs ?? []),
   };
 
   return resume({
@@ -85,6 +87,7 @@ function resume(
       rest: {
         ...state.rest,
         values: state.rest.values.mount(segment.path, phase.values),
+        envs: state.rest.envs.mount(segment.path, phase.envs),
       },
     };
 
@@ -351,6 +354,10 @@ function stitch(
       ...phase.values,
       ...next.values,
     ],
+    envs: [
+      ...phase.envs,
+      ...next.envs,
+    ],
   });
   phases.push(...rest);
 
@@ -415,6 +422,7 @@ function seed(route: AnyRoute): AnyRoute {
       params: {},
       routes: [],
       values: [],
+      envs: [],
     }],
   };
 }

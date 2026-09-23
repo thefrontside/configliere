@@ -749,30 +749,6 @@ Options:
         });
       });
     });
-
-    describe("future sources", () => {
-      it.skip("lets a later phase claim an existing environment source", () => {
-        // let app = command(
-        //   name("simulacrum"),
-        //   dynamic((_config: Config) =>
-        //     extend(option(name("b"), env("B")))
-        //   ),
-        // );
-        // let first = parse(app, {
-        //   argv: [],
-        //   envs: [{ name: "process", value: { B: "two" } }],
-        // });
-        // increment(first, {});
-        // let result = first.resume({
-        //   ok: true,
-        //   value: { services: [] },
-        // });
-        // expect(result).toMatchObject({
-        //   method: "execute",
-        //   model: { b: "two" },
-        // });
-      });
-    });
   });
 });
 
