@@ -6,7 +6,11 @@ import type { Result } from "./result.ts";
 import type { ValueSource } from "./values.ts";
 
 export type Issue = StandardSchemaV1.Issue;
-export type Schema<T> = StandardSchemaV1<T, T>;
+export type Schema<Input = unknown, Output = Input> = StandardSchemaV1<
+  Input,
+  Output
+>;
+export type OutputOf<S extends Schema> = StandardSchemaV1.InferOutput<S>;
 
 export interface Definition<N extends string> {
   readonly name: N;
