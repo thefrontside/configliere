@@ -43,6 +43,7 @@ export class Tokenizer<T extends AnyToken> implements Iterable<T> {
           rest: new Tokenizer(this, new Set([previous.index, token.index])),
         };
       }
+      previous = token;
     }
     return { tokens: [], rest: this };
   }
