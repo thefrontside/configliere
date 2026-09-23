@@ -25,7 +25,7 @@ or process lifetime. It is not a CLI parser whose product is a bag of flags. Its
 product is a typed intent; your application decides what that intent does.
 
 ```text
-input → route → method → required binding and validation → intent
+input → bind and expand phases → resolve route + method → intent
 ```
 
 ## Define every way into the program
@@ -151,9 +151,10 @@ An execute intent has two views of configuration:
 | `simulacrum database`                 | `method-not-allowed`; `/database` does not support execution        |
 | `simulacrum serve --port nope`        | `unprocessable-content`; invalid data never reaches the application |
 
-Command literals are routing tokens, not positional arguments. Configliere
-selects the route first, then binds options to the route segment that owns them.
-This makes identical option names on parent and child routes unambiguous.
+Command literals are routing tokens, not positional arguments. As route segments
+become discoverable, Configliere scopes parameter binding to the segment that
+owns each token. This makes identical option names on parent and child routes
+unambiguous.
 
 ## Marshal configuration into the route
 
@@ -188,9 +189,47 @@ CLI → environment → JavaScript values → schema default
 
 ## Pause without surrendering the type system
 
-Sometimes the route cannot be fully configured—or even fully discovered—until
+Sometimes the route cannot be fully configured, or even fully discovered, until
 the application performs I/O. Configliere can pause at a typed checkpoint and
-resume with the result:
+resume with the result.
+
+Dynamic phases serve two common cases:
+
+- Load a configuration file, then use its contents as value sources for later
+  parameters.
+- Load plugins, then extend the route graph with their options and routes.
+
+`checkpoint()` is the configuration-file convenience; `dynamic()` is the general
+route-extension mechanism. Both keep I/O in the application while preserving the
+exact type of what parsing can produce next.
+
+### Help and version cross checkpoints
+
+`--help` and `--version` request methods; they do not settle an intent or bypass
+parsing. Configliere cannot produce either intent until it knows the deepest
+selected route. A dynamic phase may introduce that route, its options, or its
+version.
+
+The driver must therefore resume every increment until parsing returns an
+intent—even when the arguments contain `--help` or `--version`. This applies
+recursively when one continuation exposes another increment.
+
+```text
+app --config app.json auth0 --help
+  → bind the configuration phase
+  → load configuration and resume
+  → discover /auth0
+  → HELP /auth0
+```
+
+Help and version are not escape hatches around configuration loading. Do not
+inspect `argv` to skip a checkpoint. A phase may be required by `HELP`,
+`VERSION`, or `EXECUTE`, so its driver work must be safe for all three: return
+loading and validation failures as `Result` issues, avoid command side effects,
+and defer execution until an `EXECUTE` intent. If discovery fails, report that
+failure rather than printing incomplete help for an unresolved route graph.
+Routes without dynamic phases still resolve directly; the rule is to stop only
+at an intent or failure, never merely because the arguments look informational.
 
 ```ts
 import process from "node:process";
@@ -200,14 +239,19 @@ import {
   name,
   option,
   parse,
+  printErrors,
+  printHelp,
+  printVersion,
   type Result,
   schema,
   type ValueSource,
+  version,
 } from "@frontside/configliere";
 import * as z from "zod";
 
 const app = command(
   name("server"),
+  version("1.0.0"),
   option(name("config"), schema(z.string())),
   checkpoint(),
   option(name("port"), schema(z.number())),
@@ -216,6 +260,7 @@ const app = command(
 const step = parse(app, { argv: process.argv.slice(2) });
 
 if (!step.ok) {
+  console.error(printErrors(step));
   process.exit(1);
 }
 
@@ -224,8 +269,23 @@ step.model.config; // string—the model resolved before the checkpoint
 const loaded = await load(step.model.config);
 const result = step.resume(loaded);
 
-if (result.ok && result.method === "execute") {
-  result.model; // { config: string; port: number }
+if (!result.ok) {
+  console.error(printErrors(result));
+  process.exit(1);
+}
+
+switch (result.method) {
+  case "help":
+    console.log(printHelp(result));
+    break;
+
+  case "version":
+    console.log(printVersion(result));
+    break;
+
+  case "execute":
+    result.model; // { config: string; port: number }
+    break;
 }
 
 declare function load(path: string): Promise<Result<ValueSource[]>>;
