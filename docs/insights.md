@@ -17,6 +17,12 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 - Definitions are immutable function-composition pipelines.
 - Any valid `A → B` transformation may participate in a pipeline.
 - `extend()` packages context-free composition; `extend()` is identity.
+- Static built-in route elements carry a hidden operation type and fold in
+  bounded chunks; their number is not limited by an overload tower.
+- Macros composed with `extend()` inherit that operation type without an
+  explicit registration step. Concrete unbranded `A → B` functions compose
+  directly; bespoke generic atoms use an explicit type-lambda marker because
+  TypeScript cannot otherwise apply their input-dependent output type.
 - Static definitions contain enough metadata to render help and schemas without
   parsing input.
 - Standard Schema validates values; it does not define source syntax or token
