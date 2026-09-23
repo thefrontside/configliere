@@ -48,6 +48,21 @@ describe("command()", () => {
     expectType<Equal<ModelOf<typeof result>, { config: string[] }>>(true);
   });
 
+  it("preserves an optional multiple schema output", () => {
+    let result = command(
+      name("simulacrum"),
+      option(
+        name("config"),
+        multiple(),
+        schema(type("string[] | undefined")),
+      ),
+    );
+
+    expectType<
+      Equal<ModelOf<typeof result>, { config: string[] | undefined }>
+    >(true);
+  });
+
   it("requires an array schema for multiple options", () => {
     command(
       name("simulacrum"),

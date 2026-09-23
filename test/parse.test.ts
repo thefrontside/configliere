@@ -4,10 +4,14 @@ import { type } from "arktype";
 import { command } from "../lib/command.ts";
 import { name } from "../lib/definition.ts";
 import { option } from "../lib/option.ts";
+import { brand, type IdentityElement } from "../lib/pipeline.ts";
+import type { Param } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
+import type { ReadCLI } from "../lib/read.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
 import { multiple, schema } from "../mod.ts";
+import * as z from "zod";
 import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
 
 let app = route(
@@ -61,6 +65,29 @@ let multipleNumbers = command(
   option(name("port"), multiple(), schema(type("number[]"))),
 );
 
+let multipleStrings = command(
+  name("simulacrum"),
+  option(name("config"), multiple(), schema(type("string[]"))),
+);
+
+let optionalMultipleOptions = command(
+  name("simulacrum"),
+  option(
+    name("config"),
+    multiple(),
+    schema(type("string[] | undefined")),
+  ),
+);
+
+let defaultedMultipleOptions = command(
+  name("simulacrum"),
+  option(
+    name("config"),
+    multiple(),
+    schema(z.array(z.string()).default(["default.yml"])),
+  ),
+);
+
 let options = command(
   name("simulacrum"),
   option(name("dryRun"), schema(type("string | undefined"))),
@@ -97,6 +124,62 @@ describe("parse()", () => {
     expect(result).toMatchObject({
       model: { port: [4100, 4101] },
     });
+  });
+
+  it("reports an incomplete occurrence after valid repeated options", () => {
+    let result = parse(multipleStrings, {
+      argv: ["--config", "one", "--config"],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "unprocessable-content",
+      route: "/",
+      issues: [{ message: "--config requires a value" }],
+    });
+  });
+
+  it("preserves numeric-looking repeated strings", () => {
+    let result = parse(multipleStrings, {
+      argv: ["--config", "0012", "--config", "0034"],
+    });
+
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: { config: ["0012", "0034"] },
+    });
+  });
+
+  it("lets an optional repeated option remain undefined", () => {
+    let result = parse(optionalMultipleOptions, { argv: [] });
+
+    expectOk(result);
+    expect(result).toMatchObject({ model: { config: undefined } });
+  });
+
+  it("lets a defaulting schema supply an absent repeated option", () => {
+    let result = parse(defaultedMultipleOptions, { argv: [] });
+
+    expectOk(result);
+    expect(result).toMatchObject({ model: { config: ["default.yml"] } });
+  });
+
+  it("collects repeated options from a custom singular reader", () => {
+    let app = command(
+      name("simulacrum"),
+      option(
+        name("plugin"),
+        multiple(),
+        customOption("--plugin"),
+        schema(type("string[]")),
+      ),
+    );
+    let result = parse(app, {
+      argv: ["--plugin", "one", "--plugin", "two"],
+    });
+
+    expectOk(result);
+    expect(result).toMatchObject({ model: { plugin: ["one", "two"] } });
   });
 
   describe("help", () => {
@@ -644,6 +727,42 @@ function show(value: unknown): string {
 
 function expectType<T extends true>(_value: T): void {
   // Compile-time assertion.
+}
+
+function customOption(
+  name: string,
+): IdentityElement<Param<string, unknown>> {
+  const read: ReadCLI = (tokens) => {
+    let claim = tokens.claimPair((flag, value) =>
+      flag.type === "flag" && flag.text === name && value.type === "word"
+    );
+    let [, value] = claim.tokens;
+
+    return value
+      ? {
+        claim,
+        result: {
+          ok: true,
+          value: { exists: true, value: value.text },
+          issues: [],
+        },
+      }
+      : {
+        claim,
+        result: {
+          ok: true,
+          value: { exists: false },
+          issues: [],
+        },
+      };
+  };
+
+  return brand<IdentityElement<Param<string, unknown>>>(
+    (param: Param<string, unknown>) => ({
+      ...param,
+      cli: { read },
+    }),
+  );
 }
 
 function expectOk<T extends { readonly ok: boolean }>(
