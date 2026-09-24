@@ -7,7 +7,7 @@ import { dynamic } from "../lib/dynamic.ts";
 import { env, withEnvs } from "../lib/env.ts";
 import { extend } from "../lib/extend.ts";
 import { option } from "../lib/option.ts";
-import { schema } from "../lib/param.ts";
+import { multiple, schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { route, routes } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
@@ -285,6 +285,58 @@ describe("environment binding", () => {
   });
 
   describe("precedence", () => {
+    it("prefers repeated CLI options over environment and JavaScript values", () => {
+      let app = command(
+        name("simulacrum"),
+        option(
+          name("config"),
+          multiple(),
+          schema(z.array(z.string())),
+        ),
+      );
+      let result = parse(app, {
+        argv: ["--config", "one.yml", "--config", "two.yml"],
+        envs: [{ name: "process", value: { CONFIG: "environment.yml" } }],
+        values: [{
+          name: "settings",
+          value: { config: ["value.yml"] },
+        }],
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        method: "execute",
+        model: { config: ["one.yml", "two.yml"] },
+        issues: [],
+      });
+    });
+
+    it("does not hide an incomplete repeated option with lower-priority sources", () => {
+      let app = command(
+        name("simulacrum"),
+        option(
+          name("config"),
+          multiple(),
+          schema(z.array(z.string())),
+        ),
+      );
+      let result = parse(app, {
+        argv: ["--config", "one.yml", "--config"],
+        envs: [{ name: "process", value: { CONFIG: "environment.yml" } }],
+        values: [{
+          name: "settings",
+          value: { config: ["value.yml"] },
+        }],
+      });
+
+      expect(result).toMatchObject({
+        ok: false,
+        code: "unprocessable-content",
+        route: "/",
+        issues: [{ message: "--config requires a value" }],
+      });
+    });
+
     it("prefers CLI over environment values", () => {
       let app = command(
         name("simulacrum"),

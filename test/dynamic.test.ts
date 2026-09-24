@@ -11,7 +11,7 @@ import {
 } from "../lib/dynamic.ts";
 import { extend } from "../lib/extend.ts";
 import { option } from "../lib/option.ts";
-import { schema } from "../lib/param.ts";
+import { multiple, schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { printHelp } from "../lib/print.ts";
 import { route, routes, version } from "../lib/route.ts";
@@ -352,6 +352,49 @@ describe("dynamic()", () => {
     });
 
     describe("dynamic routes", () => {
+      it("does not let a repeated parent option cross a dynamic child selector", () => {
+        let auth0 = command(
+          name("auth0"),
+          option(name("config"), multiple(), schema(type("string[]"))),
+        );
+        let app = command(
+          name("simulacrum"),
+          option(name("config"), multiple(), schema(type("string[]"))),
+          dynamic((_plugins: Plugins) => extend(routes(auth0))),
+        );
+        let increment = parse(app, {
+          argv: [
+            "--config",
+            "root.yml",
+            "auth0",
+            "--config",
+            "child.yml",
+          ],
+        });
+
+        expect(increment).toMatchObject({
+          ok: true,
+          route: "/",
+          model: { config: ["root.yml"] },
+        });
+        assertIncrementAt(increment, "/");
+
+        let result = increment.resume({
+          ok: true,
+          value: { names: ["auth0"] },
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          method: "execute",
+          route: "/auth0",
+          models: {
+            "/": { config: ["root.yml"] },
+            "/auth0": { config: ["child.yml"] },
+          },
+        });
+      });
+
       it("assigns precursor tokens to the parent of a dynamic child", () => {
         let auth0 = command(name("auth0"));
         let clean = command(

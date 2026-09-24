@@ -7,6 +7,7 @@ import { tokenize } from "../lib/tokenize.ts";
 import { Tokenizer } from "../lib/tokenizer.ts";
 
 describe("CLI reader", () => {
+  // Readers claim one occurrence; bindPhase() repeats them for multiple params.
   it("claims an incomplete option while reporting its missing value", () => {
     let read = param(
       name("port"),
@@ -19,6 +20,34 @@ describe("CLI reader", () => {
     });
     expect(texts(read.claim.tokens)).toEqual(["--port"]);
     expect(texts(read.claim.rest)).toEqual(["--verbose"]);
+  });
+
+  it("reads only the first option occurrence with a separate value", () => {
+    let read = param(
+      name("config"),
+      cli(["--config"]),
+    ).cli.read(symbols(["--config", "one", "--config", "two"]));
+
+    expect(read.result).toEqual({
+      ok: true,
+      value: { exists: true, value: "one" },
+      issues: [],
+    });
+    expect(texts(read.claim.rest)).toEqual(["--config", "two"]);
+  });
+
+  it("reads only the first setter occurrence", () => {
+    let read = param(
+      name("config"),
+      cli(["--config"]),
+    ).cli.read(symbols(["--config=one", "--config=two"]));
+
+    expect(read.result).toEqual({
+      ok: true,
+      value: { exists: true, value: "one" },
+      issues: [],
+    });
+    expect(texts(read.claim.rest)).toEqual(["--config=two"]);
   });
 });
 
