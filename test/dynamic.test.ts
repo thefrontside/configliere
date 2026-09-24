@@ -14,6 +14,7 @@ import { option } from "../lib/option.ts";
 import { multiple, schema } from "../lib/param.ts";
 import { parse } from "../lib/parse.ts";
 import { printHelp } from "../lib/print.ts";
+import { cli } from "../lib/read.ts";
 import { route, routes, version } from "../lib/route.ts";
 import type {
   AnyRoute,
@@ -146,6 +147,190 @@ describe("dynamic()", () => {
         readonly [Done<{ port: number; domain: string }, []>]
       >
     >(true);
+  });
+
+  it("preserves a concrete command supplied through dynamic input", () => {
+    let plugin = command(
+      name("serve"),
+      option(name("port"), schema(type("number"))),
+    );
+    type Plugin = typeof plugin;
+    let app = command(
+      name("simulacrum"),
+      dynamic((plugin: Plugin) => extend(routes(plugin))),
+    );
+    type Next = ContinuationOf<typeof app>;
+
+    expectType<Equal<RequirementOf<typeof app>, Plugin>>(true);
+    expectType<Equal<ChildrenOf<Next>[0]["name"], "serve">>(true);
+    expectType<Equal<ModelOf<ChildrenOf<Next>[0]>, { port: number }>>(true);
+
+    let first = parse(app, {
+      argv: ["serve", "--port", "4100"],
+    });
+    assertIncrement(first, {});
+
+    let result = first.resume({ ok: true, value: plugin });
+    expect(result).toMatchObject({
+      ok: true,
+      method: "execute",
+      route: "/serve",
+      model: { port: 4100 },
+    });
+  });
+
+  it("preserves the resume boundary for runtime-sized command extensions", () => {
+    let app = command(
+      name("simulacrum"),
+      dynamic((plugins: PluginSet) => extend(routes(...plugins.commands))),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, PluginSet>>(true);
+    expectType<Equal<ParseIncrement<typeof app>["model"], {}>>(true);
+
+    let first = parse(app, { argv: ["serve"] });
+    assertIncrement(first, {});
+
+    let result = first.resume({
+      ok: true,
+      value: { commands: [command(name("serve"))] },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      method: "execute",
+      route: "/serve",
+    });
+  });
+
+  it("preserves the resume boundary for runtime-sized extensions", () => {
+    let app = command(
+      name("xmd"),
+      option(name("path"), schema(type("string"))),
+      dynamic((declared: readonly string[]) =>
+        extend(
+          ...declared.map((property) =>
+            option(name(property), schema(type("string")))
+          ),
+        )
+      ),
+      option(name("raw"), schema(type("string | undefined"))),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, readonly string[]>>(true);
+    expectType<
+      Equal<ParseIncrement<typeof app>["model"], {
+        path: string;
+      }>
+    >(true);
+
+    type Continued = ModelOf<ContinuationOf<typeof app>>;
+    expectType<Equal<Continued["path"], string>>(true);
+    expectType<Equal<Continued["raw"], string | undefined>>(true);
+
+    let first = parse(app, {
+      argv: ["--path", "doc.md", "--author", "Ada", "--raw", "true"],
+    });
+    assertIncrement(first, { path: "doc.md" });
+
+    let result = first.resume({ ok: true, value: ["author"] });
+    expect(result).toMatchObject({
+      ok: true,
+      model: { path: "doc.md", author: "Ada", raw: "true" },
+    });
+    if (!result.ok || result.method !== "execute") {
+      throw new Error("expected execute result");
+    }
+    expectType<
+      Equal<typeof result.model, {
+        path: string;
+        raw: string | undefined;
+      }>
+    >(true);
+  });
+
+  it("preserves the boundary for generated options with explicit CLI readers", () => {
+    let generated = (property: string) =>
+      option(
+        name(property),
+        cli([`--${property}`]),
+        schema(type("string | undefined")),
+      );
+    let app = command(
+      name("xmd"),
+      option(
+        name("file"),
+        cli(["--file"]),
+        schema(type("string")),
+      ),
+      dynamic((frontmatter: Frontmatter) =>
+        extend(...frontmatter.properties.map(generated))
+      ),
+      option(
+        name("raw"),
+        cli(["--raw"], { switch: true }),
+        schema(type("boolean | undefined")),
+      ),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, Frontmatter>>(true);
+
+    let step = parse(app, {
+      argv: ["--file", "doc.md", "--props-name", "Ada"],
+    });
+    if (!step.ok || !("resume" in step)) throw new Error("expected increment");
+    expectType<Equal<typeof step.model, { file: string }>>(true);
+
+    let result = step.resume({
+      ok: true,
+      value: { properties: ["props-name"] },
+    });
+    if (!result.ok || result.method !== "execute") {
+      throw new Error("expected execute result");
+    }
+    expect(result).toMatchObject({
+      model: { file: "doc.md", "props-name": "Ada" },
+    });
+    expectType<
+      Equal<typeof result.model, {
+        file: string;
+        raw: boolean | undefined;
+      }>
+    >(true);
+  });
+
+  it("preserves the resume boundary for unknown requirements", () => {
+    let app = command(
+      name("xmd"),
+      option(name("path"), schema(type("string"))),
+      dynamic((input: unknown) => {
+        let declared = Array.isArray(input)
+          ? input.filter((value): value is string => typeof value === "string")
+          : [];
+        return extend(
+          ...declared.map((property) =>
+            option(name(property), schema(type("string")))
+          ),
+        );
+      }),
+    );
+
+    expectType<Equal<RequirementOf<typeof app>, unknown>>(true);
+    expectType<
+      Equal<ParseIncrement<typeof app>["model"], {
+        path: string;
+      }>
+    >(true);
+
+    let first = parse(app, {
+      argv: ["--path", "doc.md", "--author", "Ada"],
+    });
+    assertIncrement(first, { path: "doc.md" });
+
+    let result = first.resume({ ok: true, value: ["author"] });
+    expect(result).toMatchObject({
+      ok: true,
+      model: { path: "doc.md", author: "Ada" },
+    });
   });
 
   it("preserves route-level controls across phases", () => {
@@ -801,6 +986,14 @@ interface Config {
 
 interface Plugins {
   readonly names: readonly string[];
+}
+
+interface PluginSet {
+  readonly commands: readonly AnyRoute[];
+}
+
+interface Frontmatter {
+  readonly properties: readonly string[];
 }
 
 interface Services {

@@ -11,11 +11,11 @@ import type { CLIBinding } from "./read.ts";
 import type { Definition, OutputOf, Schema } from "./types.ts";
 
 export interface Param<K extends string, T> extends Definition<K> {
-  schema: Schema<T>;
-  cli: CLIBinding;
-  decode: Decoder;
-  env?: string;
-  multiple?: boolean;
+  readonly schema: Schema<T>;
+  readonly cli: CLIBinding;
+  readonly decode: Decoder;
+  readonly env?: string;
+  readonly multiple?: boolean;
 }
 
 export interface MultipleParam<K extends string, T> extends Param<K, T> {
