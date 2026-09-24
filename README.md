@@ -187,6 +187,36 @@ Source precedence is explicit:
 CLI → environment → JavaScript values → schema default
 ```
 
+`transform()` groups a set of options and applies a transformation after their
+values have been captured. It takes the transformer first, followed by the
+options it scopes:
+
+```ts
+const app = command(
+  name("server"),
+  checkpoint(),
+  transform(
+    (context) => ({
+      secure: context.options.port > 0,
+    }),
+    option(name("port"), description("server port"), schema(z.number())),
+  ),
+);
+```
+
+For a function transformer, the single context object contains:
+
+- `context.options`, scoped to exactly the options declared inside the
+  `transform()`.
+- `context.phase`, the active phase parameters, including their schemas.
+- `context.addIssue(issue)`, which adds a validation issue and prevents the
+  parse from producing an intent.
+
+The function returns fields to merge into the route model. A Standard Schema can
+be passed instead of a function. It receives the same scoped options and can
+return transformed fields or validation issues. With no scoped options, it
+receives an empty object.
+
 ## Pause without surrendering the type system
 
 Sometimes the route cannot be fully configured, or even fully discovered, until
