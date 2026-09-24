@@ -100,6 +100,7 @@ export function bindPhase(options: {
   let params = Object.values(phase.params) as Param<string, unknown>[];
   let pending = new Map(params.map((param) => [param.name, param]));
   let results = new Map<string, Result<unknown>>();
+  let captures = new Map<string, Capture>();
 
   function settle(
     param: Param<string, unknown>,
@@ -136,11 +137,9 @@ export function bindPhase(options: {
     for (let param of pending.values()) {
       let view = rest.tokens.view({
         range: segment.range,
-        // Repeated options must see every occurrence in the phase, not only
-        // the first option/value pair before the binding horizon.
-        through: param.multiple ? undefined : horizon?.index,
+        through: horizon?.index,
       });
-      let read = param.cli.read(view, param.multiple);
+      let read = param.cli.read(view);
 
       if (read.result.ok && !read.result.value.exists) {
         continue;
@@ -156,7 +155,45 @@ export function bindPhase(options: {
       break;
     }
 
+    if (
+      offer.param.multiple && offer.read.result.ok &&
+      offer.read.result.value.exists
+    ) {
+      rest = { ...rest, tokens: offer.read.claim.rest };
+      let capture = captures.get(offer.param.name) ?? {
+        values: [],
+        issues: [],
+      };
+      captures.set(offer.param.name, {
+        values: [
+          ...capture.values,
+          offer.read.result.value.value,
+        ],
+        issues: [
+          ...capture.issues,
+          ...(offer.read.result.issues ?? []),
+        ],
+      });
+      continue;
+    }
+
     accept(offer.param, fromRead(offer.param, offer.read, rest));
+  }
+
+  for (let param of pending.values()) {
+    let capture = captures.get(param.name);
+    if (!capture) {
+      continue;
+    }
+
+    results.set(
+      param.name,
+      merge(
+        decodeMany(param, capture.values, [param.name]),
+        capture.issues,
+      ),
+    );
+    pending.delete(param.name);
   }
 
   // Address sources have stable visibility once the route is known. They are
@@ -201,6 +238,11 @@ export function bindPhase(options: {
   return { rest, model, issues, valid };
 }
 
+type Capture = {
+  values: unknown[];
+  issues: Issue[];
+};
+
 function fromRead<T>(
   param: Param<string, T>,
   read: CLIRead,
@@ -226,13 +268,11 @@ function fromRead<T>(
   }
 
   let value = read.result.value.value;
-  let result = Array.isArray(value) ? decodeMany(param, value, path) : decode(
-    param,
-    value,
-    typeof value === "string" ? param.decode(value) : [value],
-    path,
+  let candidates = typeof value === "string" ? param.decode(value) : [value];
+  let result = merge(
+    decode(param, value, candidates, path),
+    read.result.issues,
   );
-  result = merge(result, read.result.issues);
 
   return {
     exists: true,
@@ -251,25 +291,46 @@ function decodeMany<T>(
   values: unknown[],
   path: string[],
 ): Result<T> {
-  let candidates: unknown[][] = [[]];
+  return decode(param, values, candidates(param, values), path);
+}
 
-  for (let value of values) {
-    let decoded = typeof value === "string" ? param.decode(value) : [value];
-    candidates = candidates.flatMap((prefix) =>
-      decoded.map((candidate) => [...prefix, candidate])
-    );
+function* candidates<T>(
+  param: Param<string, T>,
+  values: readonly unknown[],
+  index = 0,
+  prefix: readonly unknown[] = [],
+): Iterable<unknown[]> {
+  if (index === values.length) {
+    yield [...prefix];
+    return;
   }
 
-  return decode(param, values, candidates, path);
+  let value = values[index];
+  let decoded = typeof value === "string" ? param.decode(value) : [value];
+  for (let candidate of decoded) {
+    yield* candidates(param, values, index + 1, [...prefix, candidate]);
+  }
 }
 
 function decode<T>(
   param: Param<string, T>,
   value: unknown,
-  candidates: unknown[],
+  candidates: Iterable<unknown>,
   path: string[],
 ): Result<T> {
-  if (candidates.length === 0) {
+  let issues: readonly Issue[] | undefined;
+  let found = false;
+
+  for (let candidate of candidates) {
+    found = true;
+    let result = validate(param, candidate, path);
+    if (result.ok) {
+      return result;
+    }
+    issues = issues ?? result.issues;
+  }
+
+  if (!found) {
     return {
       ok: false,
       issues: [{
@@ -277,16 +338,6 @@ function decode<T>(
         path,
       }],
     };
-  }
-
-  let issues: readonly Issue[] | undefined;
-
-  for (let candidate of candidates) {
-    let result = validate(param, candidate, path);
-    if (result.ok) {
-      return result;
-    }
-    issues = issues ?? result.issues;
   }
 
   return {

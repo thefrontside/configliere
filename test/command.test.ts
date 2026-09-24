@@ -63,16 +63,23 @@ describe("command()", () => {
     >(true);
   });
 
-  it("requires an array schema for multiple options", () => {
+  it("keeps a multiple schema output authoritative", () => {
+    let result = command(
+      name("simulacrum"),
+      option(name("config"), multiple(), schema(type("string"))),
+    );
+
+    expectType<Equal<ModelOf<typeof result>, { config: string }>>(true);
+  });
+
+  it("allows multiple before or after the schema", () => {
     command(
       name("simulacrum"),
-      // @ts-expect-error multiple options must validate arrays
       option(name("config"), multiple(), schema(type("string"))),
     );
 
     command(
       name("simulacrum"),
-      // @ts-expect-error multiple options must validate arrays
       option(name("config"), schema(type("string")), multiple()),
     );
   });

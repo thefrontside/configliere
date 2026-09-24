@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { name } from "../lib/definition.ts";
-import { multiple, param } from "../lib/param.ts";
+import { param } from "../lib/param.ts";
 import { cli, type Symbol } from "../lib/read.ts";
 import { tokenize } from "../lib/tokenize.ts";
 import { Tokenizer } from "../lib/tokenizer.ts";
 
 describe("CLI reader", () => {
+  // Readers claim one occurrence; bindPhase() repeats them for multiple params.
   it("claims an incomplete option while reporting its missing value", () => {
     let read = param(
       name("port"),
@@ -21,34 +22,32 @@ describe("CLI reader", () => {
     expect(texts(read.claim.rest)).toEqual(["--verbose"]);
   });
 
-  it("collects repeated options with separate values", () => {
+  it("reads only the first option occurrence with a separate value", () => {
     let read = param(
       name("config"),
-      multiple(),
       cli(["--config"]),
-    ).cli.read(symbols(["--config", "one", "--config", "two"]), true);
+    ).cli.read(symbols(["--config", "one", "--config", "two"]));
 
     expect(read.result).toEqual({
       ok: true,
-      value: { exists: true, value: ["one", "two"] },
+      value: { exists: true, value: "one" },
       issues: [],
     });
-    expect(texts(read.claim.rest)).toEqual([]);
+    expect(texts(read.claim.rest)).toEqual(["--config", "two"]);
   });
 
-  it("collects repeated setter options in argv order", () => {
+  it("reads only the first setter occurrence", () => {
     let read = param(
       name("config"),
-      multiple(),
       cli(["--config"]),
-    ).cli.read(symbols(["--config=one", "--config=two"]), true);
+    ).cli.read(symbols(["--config=one", "--config=two"]));
 
     expect(read.result).toEqual({
       ok: true,
-      value: { exists: true, value: ["one", "two"] },
+      value: { exists: true, value: "one" },
       issues: [],
     });
-    expect(texts(read.claim.rest)).toEqual([]);
+    expect(texts(read.claim.rest)).toEqual(["--config=two"]);
   });
 });
 
