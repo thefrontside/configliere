@@ -363,6 +363,34 @@ describe("parse()", () => {
     });
   });
 
+  it("exposes nested transform outputs to the enclosing transform", () => {
+    let app = command(
+      name("nested-output"),
+      transform(
+        (context) => ({
+          outer: context.options.inner.toUpperCase(),
+        }),
+        transform(
+          (context) => ({
+            inner: context.options.raw,
+          }),
+          option(name("raw"), schema(type("string"))),
+        ),
+      ),
+    );
+
+    let result = parse(app, { argv: ["--raw", "ok"] });
+
+    expectOk(result);
+    expect(result).toMatchObject({
+      model: {
+        raw: "ok",
+        inner: "ok",
+        outer: "OK",
+      },
+    });
+  });
+
   it("applies model transforms in phase order", () => {
     let app = command(
       name("phased"),
