@@ -14,6 +14,8 @@ import type {
   Input,
   Issue,
   Method,
+  ModelOperation,
+  ModelSchema,
   ModelsByRoute,
   ModelTransformContext,
   Outcome,
@@ -434,11 +436,16 @@ function applyTransforms(
   let model = segment.model;
   let issues: Issue[] = [];
   let addIssue = (issue: Issue) => issues.push(issue);
+  let outputs = new Map<ModelOperation, readonly string[]>();
 
   for (let op of operations) {
-    if (typeof op.transform === "function") {
+    let keys = scope(op, outputs);
+    if (
+      typeof op.transform === "function" &&
+      !("~standard" in op.transform)
+    ) {
       let context: ModelTransformContext = {
-        options: pick(model, op.keys),
+        options: pick(model, keys),
         phase: phase.params,
         addIssue,
       };
@@ -451,11 +458,15 @@ function applyTransforms(
           return invalidTransformResult();
         }
         model = { ...model, ...result };
+        outputs.set(op, Object.keys(result));
+      } else {
+        outputs.set(op, []);
       }
       continue;
     }
 
-    let result = op.transform["~standard"].validate(pick(model, op.keys));
+    let schema = op.transform as ModelSchema<object>;
+    let result = schema["~standard"].validate(pick(model, keys));
     if (result instanceof Promise) {
       return {
         ok: false,
@@ -469,6 +480,7 @@ function applyTransforms(
       return invalidTransformResult();
     }
     model = { ...model, ...result.value };
+    outputs.set(op, Object.keys(result.value));
   }
 
   if (operations.length === 0) {
@@ -500,6 +512,17 @@ function pick(
     }
   }
   return options;
+}
+
+function scope(
+  op: ModelOperation,
+  outputs: ReadonlyMap<ModelOperation, readonly string[]>,
+): readonly string[] {
+  let keys = [...op.keys];
+  for (let dep of op.deps ?? []) {
+    keys.push(...outputs.get(dep) ?? []);
+  }
+  return [...new Set(keys)];
 }
 
 function seed(route: AnyRoute): AnyRoute {

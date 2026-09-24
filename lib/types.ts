@@ -29,6 +29,7 @@ export type ModelTransform =
 export interface ModelOperation {
   readonly transform: ModelTransform;
   readonly keys: readonly string[];
+  readonly deps?: readonly ModelOperation[];
 }
 
 export interface Definition<N extends string> {

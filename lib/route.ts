@@ -2,6 +2,7 @@
 import {
   brand,
   type Check,
+  type DynamicElement,
   type Fold,
   type Materialize,
   type MethodElement,
@@ -91,7 +92,7 @@ export function transform<
   const E extends readonly Unary[],
 >(
   transform: ModelSchema<T>,
-  ...elements: E & Check<RouteZero, E>
+  ...elements: E & Check<RouteZero, E> & SamePhase<E>
 ): ModelTransformElement<ModelSchema<T>, E>;
 export function transform<
   const E extends readonly Unary[],
@@ -104,7 +105,7 @@ export function transform<
   ) => Record<string, unknown> | void),
 >(
   transform: F,
-  ...elements: E & Check<RouteZero, E>
+  ...elements: E & Check<RouteZero, E> & SamePhase<E>
 ): ModelTransformElement<F, E>;
 export function transform(
   transform: ModelTransform,
@@ -112,18 +113,31 @@ export function transform(
 ): ModelTransformElement<ModelTransform, readonly Unary[]> {
   return brand<ModelTransformElement<ModelTransform, readonly Unary[]>>(
     (route: AnyRoute) => {
-      let before = params(route);
-      let next = apply(route, elements);
-      let nextParams = params(next);
-      let added = keys(next).filter((key) => before[key] !== nextParams[key]);
+      let before = route.phases[route.phases.length - 1].params;
+      let previous = route.phases.flatMap((phase) => phase.transforms ?? []);
+      // Apply the transform elements first so their parameters and nested transforms define scope.
+      let next = elements.reduce<unknown>(
+        // Unary erases each input type; Fold and Check enforce composition publicly.
+        (value, element) => element(value as never),
+        route,
+      ) as AnyRoute;
+      let nextParams = next.phases[next.phases.length - 1].params;
+      // Scope only parameters introduced by these transform elements.
+      let added = Object.keys(nextParams).filter((key) =>
+        before[key] !== nextParams[key]
+      );
+      // Nested transforms produce model fields, so track their outputs separately.
+      let deps = next.phases.flatMap((phase) => phase.transforms ?? [])
+        .filter((op) => !previous.includes(op));
 
+      // Run the transform in the final phase, after all its inputs are bound.
       let phases = [...next.phases];
       let phase = phases.pop()!;
       phases.push({
         ...phase,
         transforms: [
           ...(phase.transforms ?? []),
-          { transform, keys: added },
+          { transform, keys: added, deps },
         ],
       });
 
@@ -135,17 +149,16 @@ export function transform(
   );
 }
 
-function apply(route: AnyRoute, elements: readonly Unary[]): AnyRoute {
-  return elements.reduce<unknown>(
-    (value, element) => element(value as never),
-    route,
-  ) as AnyRoute;
-}
-
-function params(route: AnyRoute): ModelParams {
-  return route.phases[route.phases.length - 1].params;
-}
-
-function keys(route: AnyRoute): string[] {
-  return Object.keys(params(route));
-}
+// Transform elements must declare inputs in the phase where the transform runs.
+type SamePhase<
+  E extends readonly Unary[],
+  All extends readonly Unary[] = E,
+> = number extends E["length"] ? E
+  : E extends readonly [
+    infer Head extends Unary,
+    ...infer Tail extends readonly Unary[],
+  ]
+    ? Head extends DynamicElement<infer Requirement, infer Element>
+      ? readonly [never, ...Tail]
+    : SamePhase<Tail, All>
+  : All;
