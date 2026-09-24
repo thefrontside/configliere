@@ -8,12 +8,7 @@ import { parse } from "../lib/parse.ts";
 import { route, routes, version } from "../lib/route.ts";
 import { toggle } from "../lib/toggle.ts";
 import { schema } from "../mod.ts";
-import type {
-  AnyRoute,
-  Done,
-  IntentsOf,
-  Route,
-} from "../lib/types.ts";
+import type { AnyRoute, Done, IntentsOf, Route } from "../lib/types.ts";
 
 let app = route(
   name("simulacrum"),
