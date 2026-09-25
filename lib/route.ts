@@ -13,8 +13,6 @@ import type { AnyRoute, Definition, Done, Route } from "./types.ts";
 export type RouteZero<N extends string = string> = Route<
   N,
   "help",
-  {},
-  [],
   [Done<{}, []>]
 >;
 

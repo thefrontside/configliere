@@ -1,10 +1,10 @@
-import { type Param, param } from "./param.ts";
+import { type Param, param, type ParamModel } from "./param.ts";
 import { dasherize } from "./dasherize.ts";
 import {
   brand,
   type Check,
   type Fold,
-  type ParamElement,
+  type ModelElement,
   type Unary,
 } from "./pipeline.ts";
 import { cli } from "./read.ts";
@@ -44,5 +44,5 @@ export function option<
 type ValueOf<P> = P extends Param<string, infer T> ? T : never;
 
 type ElementOf<N extends string, P> = P extends Param<N, unknown>
-  ? ParamElement<N, ValueOf<P>>
+  ? ModelElement<ParamModel<N, ValueOf<P>>>
   : never;

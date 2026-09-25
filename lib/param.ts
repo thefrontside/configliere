@@ -3,6 +3,7 @@ import {
   type Check,
   type Fold,
   mark,
+  type ModelPatch,
   type Transform,
   type TransformElement,
   type Unary,
@@ -16,6 +17,8 @@ export interface Param<K extends string, T> extends Definition<K> {
   decode: Decoder;
   env?: string;
 }
+
+export type ParamModel<K extends string, V> = ModelPatch<{ [P in K]: V }>;
 
 export function param<
   const K extends string,
@@ -51,17 +54,19 @@ export function param<
 
 export function schema<S extends Schema>(
   schema: S,
-): TransformElement<SchemaTransform<S>> {
-  return mark<SchemaTransform<S>>((param: Param<string, unknown>) => ({
-    ...param,
-    schema,
-  }));
+): TransformElement<SchemaTransform<OutputOf<S>>> {
+  return mark<SchemaTransform<OutputOf<S>>>(
+    (param: Param<string, unknown>) => ({
+      ...param,
+      schema,
+    }),
+  );
 }
 
-interface SchemaTransform<S extends Schema> extends Transform {
+interface SchemaTransform<Output> extends Transform {
   readonly input: Param<string, unknown>;
   readonly output: this["input"] extends Param<infer N, unknown>
-    ? Param<N, OutputOf<S>>
+    ? Param<N, Output>
     : never;
 }
 

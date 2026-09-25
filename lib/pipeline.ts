@@ -1,15 +1,11 @@
 import type {
-  AddField,
-  AddParamToLast,
   AddRoutesToLast,
   AnyPhase,
   AnyPhases,
   AnyRoute,
-  ChildrenOf,
   Done,
   Method,
   MethodsOf,
-  ModelOf,
   Next,
   Phase,
   Route,
@@ -34,10 +30,40 @@ export type ApplyTransform<F extends Transform, S> = (
   F & { readonly input: S }
 )["output"];
 
+export interface ModelTransform extends Transform {
+  readonly input: object;
+  readonly output: object;
+}
+
+// We don’t need ModelPatch semantically. It is only a TypeScript
+// performance marker. Additive transforms expose their fields only so
+// static folds can batch them. ModelPatch exposes that additive field
+// set so the fold can combine twenty parameter operations into one
+// model update. Without it, every parameter must be applied as
+// another higher-kinded transform. Even with five-item
+// chunks and materializing after every step—and the 100-option tests
+// hit TS2589: type instantiation is excessively deep.
+export interface ModelPatch<Fields extends object> extends ModelTransform {
+  readonly fields: Fields;
+  readonly input: object;
+  readonly output: ApplyModelPatch<this["input"], Fields>;
+}
+
+export type ApplyModelPatch<
+  Model extends object,
+  Fields extends object,
+> = SimplifyModel<Omit<Model, keyof Fields> & Fields>;
+
 export interface TransformElement<F extends Transform> {
   readonly [operation]: Custom<F>;
 
   <S extends F["input"]>(value: S): ApplyTransform<F, S>;
+}
+
+export interface ModelElement<F extends ModelTransform> {
+  readonly [operation]: TransformModel<F>;
+
+  <R extends AnyRoute>(route: R): Apply<R, TransformModel<F>>;
 }
 
 export interface IdentityElement<S> {
@@ -52,28 +78,8 @@ export interface MethodElement<Added extends Method> {
   <
     const N extends string,
     const M extends Method,
-    const T extends object,
-    const C extends readonly AnyRoute[],
     const P extends AnyPhases,
-  >(route: Route<N, M, T, C, P>): Route<N, M | Added, T, C, P>;
-}
-
-export interface ParamElement<K extends string, V> {
-  readonly [operation]: AddParam<K, V>;
-
-  <
-    const N extends string,
-    const M extends Method,
-    const T extends object,
-    const C extends readonly AnyRoute[],
-    const P extends AnyPhases,
-  >(route: Route<N, M, T, C, P>): Route<
-    N,
-    M,
-    AddField<T, K, V>,
-    C,
-    AddParamToLast<P, K, V>
-  >;
+  >(route: Route<N, M, P>): Route<N, M | Added, P>;
 }
 
 export interface RoutesElement<Added extends readonly AnyRoute[]> {
@@ -82,14 +88,10 @@ export interface RoutesElement<Added extends readonly AnyRoute[]> {
   <
     const N extends string,
     const M extends Method,
-    const T extends object,
-    const C extends readonly AnyRoute[],
     const P extends AnyPhases,
-  >(route: Route<N, M, T, C, P>): Route<
+  >(route: Route<N, M, P>): Route<
     N,
     M,
-    T,
-    readonly [...C, ...Added],
     AddRoutesToLast<P, Added>
   >;
 }
@@ -121,8 +123,6 @@ export interface DynamicElement<Requirement, E extends AnyElement> {
 export type Seed<R extends AnyRoute> = Route<
   R["name"],
   MethodsOf<R>,
-  ModelOf<R>,
-  ChildrenOf<R>,
   readonly [Phase<{}, [], never>]
 >;
 
@@ -162,15 +162,11 @@ export type Materialize<S> = AnyRoute extends S ? S
   : S extends Route<
     infer N,
     infer M,
-    infer Model,
-    infer Children,
     infer Phases
   > ? WithExtras<
       Route<
         N,
         M,
-        { [K in keyof Model]: Model[K] },
-        Children,
         {
           [K in keyof Phases]: Phases[K] extends AnyPhase
             ? MaterializePhase<Phases[K]>
@@ -205,7 +201,7 @@ declare const operation: unique symbol;
 type Delta =
   | Identity<unknown>
   | AddMethod<Method>
-  | AddParam<string, unknown>
+  | TransformModel<ModelTransform>
   | AddRoutes<readonly AnyRoute[]>
   | Batch<readonly Unary[]>
   | Dynamic<unknown, AnyElement>
@@ -214,7 +210,7 @@ type Delta =
 type StaticDelta =
   | Identity<unknown>
   | AddMethod<Method>
-  | AddParam<string, unknown>
+  | TransformModel<ModelPatch<object>>
   | AddRoutes<readonly AnyRoute[]>;
 
 interface Identity<S> {
@@ -227,10 +223,9 @@ interface AddMethod<M extends Method> {
   readonly method: M;
 }
 
-interface AddParam<K extends string, V> {
-  readonly type: "param";
-  readonly key: K;
-  readonly value: V;
+interface TransformModel<F extends ModelTransform> {
+  readonly type: "model";
+  readonly transform: F;
 }
 
 interface AddRoutes<C extends readonly AnyRoute[]> {
@@ -259,19 +254,14 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
   : D extends AddMethod<infer M> ? S extends AnyRoute ? Route<
         S["name"],
         MethodsOf<S> | M,
-        ModelOf<S>,
-        ChildrenOf<S>,
         S["phases"]
       >
     : never
-  : D extends AddParam<infer K, infer V>
-    ? S extends AnyRoute ? WithParams<S, { [P in K]: V }>
+  : D extends TransformModel<infer F> ? S extends AnyRoute ? WithModel<S, F>
     : never
   : D extends AddRoutes<infer C> ? S extends AnyRoute ? Route<
         S["name"],
         MethodsOf<S>,
-        ModelOf<S>,
-        readonly [...ChildrenOf<S>, ...C],
         AddRoutesToLast<S["phases"], C>
       >
     : never
@@ -281,8 +271,6 @@ type Apply<S, D extends Delta> = Delta extends D ? Conservative<S>
       ? Apply<Seed<S>, DeltaOf<E>> extends infer After extends AnyRoute ? Route<
           After["name"],
           MethodsOf<After>,
-          ModelOf<After>,
-          ChildrenOf<After>,
           ConjoinPhases<S, After, Requirement>
         >
       : never
@@ -332,7 +320,7 @@ type InputOfPipeline<E extends readonly AnyPipelineElement[]> = E extends
 type InputOfDelta<D extends Delta> = D extends Identity<infer Input> ? Input
   : D extends
     | AddMethod<Method>
-    | AddParam<string, unknown>
+    | TransformModel<ModelTransform>
     | AddRoutes<
       readonly AnyRoute[]
     >
@@ -341,6 +329,7 @@ type InputOfDelta<D extends Delta> = D extends Identity<infer Input> ? Input
   : D extends Custom<infer F> ? F["input"]
   : never;
 
+// Bound each scan; Fold resumes with E, so this is not an element limit.
 type TakeStatic<
   E extends readonly AnyPipelineElement[],
   Fields extends readonly object[] = readonly [],
@@ -366,9 +355,10 @@ type TakeStatic<
         Methods | M,
         readonly [...Count, unknown]
       >
-    : DeltaOf<Head> extends AddParam<infer K, infer V> ? TakeStatic<
+    : DeltaOf<Head> extends TransformModel<ModelPatch<infer Added>>
+      ? TakeStatic<
         Tail,
-        readonly [...Fields, { [P in K]: V }],
+        readonly [...Fields, Added],
         Routes,
         Methods,
         readonly [...Count, unknown]
@@ -383,7 +373,6 @@ type TakeStatic<
     : readonly [MergeFields<Fields>, Routes, Methods, E]
   : readonly [MergeFields<Fields>, Routes, Methods, E];
 
-// Collect fields before applying them so each static chunk builds the model once.
 type MergeFields<F extends readonly object[]> = {
   [K in FieldKeys<F>]: FieldValue<F, K>;
 };
@@ -403,6 +392,19 @@ type FieldValue<
 ] ? K extends keyof Last ? Last[K] : FieldValue<Rest, K>
   : never;
 
+type WithModel<
+  R extends AnyRoute,
+  F extends ModelTransform,
+> = ApplyModel<PhaseModel<Last<R["phases"]>>, F> extends infer Model
+  ? [Model] extends [never] ? never
+  : Model extends object ? Route<
+      R["name"],
+      MethodsOf<R>,
+      ReplaceLastModel<R["phases"], MaterializeModel<Model>>
+    >
+  : never
+  : never;
+
 type WithStatic<
   R extends AnyRoute,
   Fields extends object,
@@ -411,9 +413,6 @@ type WithStatic<
 > = Route<
   R["name"],
   MethodsOf<R> | Methods,
-  keyof Fields extends never ? ModelOf<R> : Merge<ModelOf<R>, Fields>,
-  Routes extends readonly [] ? ChildrenOf<R>
-    : readonly [...ChildrenOf<R>, ...Routes],
   AddStaticToLast<R["phases"], Fields, Routes>
 >;
 
@@ -426,36 +425,53 @@ type AddStaticToLast<
   : Routes extends readonly [] ? AddFieldsToLast<P, Fields>
   : AddRoutesToLast<AddFieldsToLast<P, Fields>, Routes>;
 
-type WithParams<R extends AnyRoute, Fields extends object> = Route<
-  R["name"],
-  MethodsOf<R>,
-  Merge<ModelOf<R>, Fields>,
-  ChildrenOf<R>,
-  AddFieldsToLast<R["phases"], Fields>
->;
-
 type AddFieldsToLast<
   P extends AnyPhases,
   Fields extends object,
+> = ReplaceLastModel<P, AddFields<PhaseModel<Last<P>>, Fields>>;
+
+type AddFields<Model extends object, Fields extends object> = ApplyModelPatch<
+  Model,
+  Fields
+>;
+
+type ReplaceLastModel<
+  P extends AnyPhases,
+  Model extends object,
 > = P extends readonly [infer Only extends AnyPhase]
-  ? readonly [AddFields<Only, Fields>]
+  ? readonly [WithPhaseModel<Only, Model>]
   : P extends readonly [
     infer First extends AnyPhase,
     ...infer Middle extends AnyPhase[],
     AnyPhase,
-  ] ? readonly [First, ...Middle, AddFields<Last<P>, Fields>]
+  ] ? readonly [First, ...Middle, WithPhaseModel<Last<P>, Model>]
   : never;
 
-type AddFields<P extends AnyPhase, Fields extends object> = P extends Next<
-  infer Model,
+type WithPhaseModel<P extends AnyPhase, Model extends object> = P extends Next<
+  infer _Current,
   infer Routes,
   infer Requirement
-> ? Next<Merge<Model, Fields>, Routes, Requirement>
-  : P extends Done<infer Model, infer Routes> ? Done<
-      Merge<Model, Fields>,
-      Routes
-    >
+> ? Next<Model, Routes, Requirement>
+  : P extends Done<infer _Current, infer Routes> ? Done<Model, Routes>
   : never;
+
+type PhaseModel<P extends AnyPhase> = P extends Next<
+  infer Model,
+  readonly AnyRoute[],
+  infer _Requirement
+> ? Model
+  : P extends Done<infer Model, readonly AnyRoute[]> ? Model
+  : never;
+
+type ApplyModel<
+  Model extends object,
+  F extends ModelTransform,
+> = Model extends F["input"] ? ApplyTransform<F, Model>
+  : never;
+
+type MaterializeModel<Model extends object> = SimplifyModel<Model>;
+
+type SimplifyModel<Model> = { [K in keyof Model]: Model[K] };
 
 type Last<P extends AnyPhases> = P extends readonly [
   ...AnyPhase[],
@@ -499,12 +515,6 @@ type WithRequirement<
   ? Phase<Model, Children, Requirement>
   : never;
 
-type Merge<A extends object, B extends object> = Simplify<
-  Omit<A, keyof B> & B
->;
-
-type Simplify<T> = { [K in keyof T]: T[K] };
-
 type MaterializePhase<P extends AnyPhase> = P extends Next<
   infer Model,
   infer Routes,
@@ -523,8 +533,6 @@ type MaterializePhase<P extends AnyPhase> = P extends Next<
 type RouteKeys = keyof Route<
   string,
   Method,
-  object,
-  readonly AnyRoute[],
   AnyPhases
 >;
 

@@ -90,6 +90,9 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 
 - The resolved route has a directly typed `model`.
 - The result also carries path-addressed `models` for every matched route.
+- A route's phase tuple is the single source of truth for both its aggregate
+  model and its children; public helpers derive those views instead of caching
+  them as additional route type parameters.
 - Route identity and result projection are separate concerns.
 - Namespacing is a mounting/address operation, not something plugin authors
   repeat locally.
@@ -116,7 +119,9 @@ The detailed phase-binding design is recorded in [Binding](./binding.md).
 - A failed requirement never invokes the resolver.
 - `RequirementsOf<R>` preserves requirement order; `RequirementOf<R>` is its
   head.
-- `ContinuationOf<R>` removes the current phase.
+- `ContinuationOf<R>` settles the current unresolved phase and retains it as
+  immutable type history, so later continuations can derive the aggregate model
+  without a separate model cache.
 - The static result type says whether parsing yields another increment or an
   intent; callers should not need a runtime `done` check.
 - Help and version may require resolving earlier phases when those phases can

@@ -563,8 +563,6 @@ describe("pipeline fold", () => {
     type Base = Route<
       "base",
       "help",
-      { readonly existing?: number },
-      [],
       readonly [Done<{ readonly existing?: number }, []>]
     >;
 

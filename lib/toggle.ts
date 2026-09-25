@@ -1,11 +1,11 @@
 import { boolean as decode } from "./decode.ts";
 import { dasherize } from "./dasherize.ts";
-import { type Param, param, schema } from "./param.ts";
+import { type Param, param, type ParamModel, schema } from "./param.ts";
 import {
   brand,
   type Check,
   type Fold,
-  type ParamElement,
+  type ModelElement,
   type Unary,
 } from "./pipeline.ts";
 import type { CLIRead, ReadCLI } from "./read.ts";
@@ -50,7 +50,7 @@ export function toggle<
 type ValueOf<P> = P extends Param<string, infer T> ? T : never;
 
 type ElementOf<N extends string, P> = P extends Param<N, unknown>
-  ? ParamElement<N, ValueOf<P>>
+  ? ModelElement<ParamModel<N, ValueOf<P>>>
   : never;
 
 function binding(

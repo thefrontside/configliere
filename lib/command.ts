@@ -5,8 +5,6 @@ import type { Definition, Done, Route } from "./types.ts";
 export type CommandZero<N extends string = string> = Route<
   N,
   "help" | "execute",
-  {},
-  [],
   [Done<{}, []>]
 >;
 
