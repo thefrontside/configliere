@@ -19,7 +19,10 @@ export function command<
     ...start,
     methods: ["help", "execute"],
     phases: [{
-      params: {},
+      model: {
+        params: {},
+        steps: [],
+      },
       routes: [],
       values: [],
       envs: [],

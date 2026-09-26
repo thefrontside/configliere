@@ -281,7 +281,19 @@ function state(argv: string[]): Rest {
 
 function phase(params: Record<string, Param<string, unknown>>) {
   return {
-    params,
+    model: {
+      params,
+      steps: Object.keys(params).map((name) => (
+        current: object,
+        bindings: Record<string, unknown>,
+      ) => ({
+        ok: true as const,
+        value: {
+          ...current,
+          [name]: bindings[name],
+        },
+      })),
+    },
     routes: [],
     values: [],
     envs: [],

@@ -28,9 +28,18 @@ export function argument<
       let phase = phases.pop()!;
       phases.push({
         ...phase,
-        params: {
-          ...phase.params,
-          [added.name]: added,
+        model: {
+          params: {
+            ...phase.model.params,
+            [added.name]: added,
+          },
+          steps: phase.model.steps.concat((current, bindings) => ({
+            ok: true,
+            value: {
+              ...current,
+              [added.name]: bindings[added.name],
+            },
+          })),
         },
       });
 

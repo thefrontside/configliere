@@ -97,7 +97,7 @@ export function bindPhase(options: {
 }): PhaseBinding {
   let { phase, segment } = options;
   let rest = options.rest;
-  let params = Object.values(phase.params) as Param<string, unknown>[];
+  let params = Object.values(phase.model.params) as Param<string, unknown>[];
   let pending = new Map(params.map((param) => [param.name, param]));
   let results = new Map<string, Result<unknown>>();
 
@@ -179,7 +179,7 @@ export function bindPhase(options: {
     results.set(param.name, validate(param, undefined, [param.name]));
   }
 
-  let model: Record<string, unknown> = {};
+  let bindings: Record<string, unknown> = {};
   let issues: Issue[] = [];
   let valid = true;
 
@@ -188,11 +188,21 @@ export function bindPhase(options: {
   for (let param of params) {
     let result = results.get(param.name)!;
     issues.push(...result.issues ?? []);
-
     if (result.ok) {
-      model[param.name] = result.value;
+      bindings[param.name] = result.value;
     } else {
       valid = false;
+    }
+  }
+
+  let model = {};
+  for (let step of phase.model.steps) {
+    let result = step(model, bindings);
+    if (!result.ok) {
+      issues.push(...result.issues);
+      break;
+    } else {
+      model = result.value;
     }
   }
 

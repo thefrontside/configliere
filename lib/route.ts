@@ -27,7 +27,10 @@ export function route<
     ...start,
     methods: ["help"],
     phases: [{
-      params: {},
+      model: {
+        params: {},
+        steps: [],
+      },
       routes: [],
       values: [],
       envs: [],

@@ -24,7 +24,10 @@ export function dynamic<
         ) => (input: never) => AnyRoute,
       });
       phases.push({
-        params: {},
+        model: {
+          params: {},
+          steps: [],
+        },
         routes: [],
         values: [],
         envs: [],

@@ -42,7 +42,10 @@ export type Next<
   T,
 > = {
   readonly [phaseModel]?: Model;
-  readonly params: Params;
+  readonly model: {
+    params: Params;
+    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
+  }
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
@@ -56,7 +59,10 @@ export type Done<
   Routes extends readonly AnyRoute[],
 > = {
   readonly [phaseModel]?: Model;
-  readonly params: Params;
+  readonly model: {
+    params: Params;
+    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
+  }
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
@@ -105,7 +111,10 @@ export interface AnyRoute extends Definition<string> {
 
 export interface AnyPhase {
   readonly [phaseModel]?: object;
-  readonly params: Params;
+  readonly model: {
+    params: Params;
+    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
+  };
   readonly routes: readonly AnyRoute[];
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
