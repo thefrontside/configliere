@@ -38,6 +38,8 @@ export type { RouteZero } from "./lib/route.ts";
 
 export { toggle } from "./lib/toggle.ts";
 
+export { transform } from "./lib/transform.ts";
+
 export { withValues } from "./lib/values.ts";
 export type { ValueSource } from "./lib/values.ts";
 

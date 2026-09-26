@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { type } from "arktype";
 import { command } from "../lib/command.ts";
+import { checkpoint } from "../lib/checkpoint.ts";
 import { name } from "../lib/definition.ts";
 import {
   type ConjoinPhases,
@@ -20,6 +21,8 @@ import type {
   ChildrenOf,
   ContinuationOf,
   Done,
+  Execute,
+  Help,
   MethodsOf,
   ModelOf,
   Next,
@@ -29,29 +32,26 @@ import type {
   RequirementsOf,
   Route,
   RoutePath,
+  Version,
 } from "../lib/types.ts";
 import { toggle } from "../lib/toggle.ts";
 
 describe("dynamic()", () => {
-  it("starts its extension with aggregate state and a fresh phase", () => {
+  it("starts its extension with a fresh phase", () => {
     type Child = Route<
       "serve",
       "help" | "execute",
-      { port: number },
-      [],
       readonly [Done<{ port: number }, []>]
     >;
     type Before = Route<
       "simulacrum",
       "help" | "execute",
-      { config: string },
-      readonly [Child],
       readonly [Done<{ config: string }, readonly [Child]>]
     >;
     type Next = Seed<Before>;
 
-    expectType<Equal<ModelOf<Next>, { config: string }>>(true);
-    expectType<Equal<ChildrenOf<Next>, readonly [Child]>>(true);
+    expectType<Equal<ModelOf<Next>, {}>>(true);
+    expectType<Equal<ChildrenOf<Next>, readonly []>>(true);
     expectType<
       Equal<PhasesOf<Next>, readonly [Done<{}, []>]>
     >(true);
@@ -61,8 +61,6 @@ describe("dynamic()", () => {
     type A = Route<
       "simulacrum",
       "help" | "execute",
-      { a: string; b: number },
-      [],
       readonly [
         Next<{ a: string }, [], Config>,
         Done<{ b: number }, []>,
@@ -71,8 +69,6 @@ describe("dynamic()", () => {
     type B = Route<
       "simulacrum",
       "help" | "execute",
-      { a: string; b: number; c: boolean; d: string },
-      [],
       readonly [
         Next<{ c: boolean }, [], Plugins>,
         Done<{ d: string }, []>,
@@ -143,7 +139,10 @@ describe("dynamic()", () => {
     expectType<
       Equal<
         PhasesOf<Next>,
-        readonly [Done<{ port: number; domain: string }, []>]
+        readonly [
+          Done<{ config: string }, []>,
+          Done<{ port: number; domain: string }, []>,
+        ]
       >
     >(true);
   });
@@ -185,6 +184,44 @@ describe("dynamic()", () => {
           Next<{}, [], Config>,
           Done<{ port: number }, []>,
         ]
+      >
+    >(true);
+  });
+
+  it("derives path models and final intents from the phase tuple", () => {
+    let app = route(
+      name("simulacrum"),
+      version("1.2.0"),
+      option(name("config"), schema(type("string"))),
+      checkpoint(),
+      dynamic(() => routes(command(name("dyn")))),
+      option(name("delay"), schema(type("number"))),
+      routes(
+        command(
+          name("serve"),
+          option(name("port"), schema(type("number"))),
+        ),
+      ),
+    );
+
+    type Final = Extract<
+      Parse<ContinuationOf<ContinuationOf<typeof app>>>,
+      { readonly ok: true }
+    >;
+    type Root = { config: string; delay: number };
+
+    expectType<Equal<ModelOf<typeof app, "/">, Root>>(true);
+    expectType<Equal<ModelOf<typeof app, "/dyn">, {}>>(true);
+    expectType<Equal<ModelOf<typeof app, "/serve">, { port: number }>>(true);
+    expectType<
+      Equal<
+        Final,
+        | Help<"/">
+        | Version<"/">
+        | Help<"/dyn">
+        | Execute<"/dyn", { "/": Root; "/dyn": {} }>
+        | Help<"/serve">
+        | Execute<"/serve", { "/": Root; "/serve": { port: number } }>
       >
     >(true);
   });

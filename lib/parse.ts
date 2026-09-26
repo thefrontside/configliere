@@ -51,7 +51,7 @@ export function parse(
     envs: new Envs().mount([], input.envs ?? []),
   };
 
-  return resume({
+  return advance({
     segments: [{
       id: "/",
       route,
@@ -70,7 +70,8 @@ export function parse(
     literals: literals.tokens,
   });
 }
-function resume(
+
+function advance(
   state: ParserState,
 ): Outcome<AnyIntent | AnyIncrement> {
   while (true) {
@@ -203,7 +204,7 @@ function resume(
             ],
           };
 
-          return resume({
+          return advance({
             ...suspended,
             segments: replace(suspended.segments, index, next),
           });
@@ -342,10 +343,17 @@ function stitch(
   phases.push({
     ...phase,
     ...next,
-    params: {
-      ...phase.params,
-      ...next.params,
+    model: {
+      params: {
+        ...phase.model.params,
+        ...next.model.params,
+      },
+      steps: [
+        ...phase.model.steps,
+        ...next.model.steps,
+      ],
     },
+
     routes: [
       ...phase.routes,
       ...next.routes,
@@ -419,7 +427,10 @@ function seed(route: AnyRoute): AnyRoute {
   return {
     ...route,
     phases: [{
-      params: {},
+      model: {
+        params: {},
+        steps: [],
+      },
       routes: [],
       values: [],
       envs: [],

@@ -13,8 +13,6 @@ import type { AnyRoute, Definition, Done, Route } from "./types.ts";
 export type RouteZero<N extends string = string> = Route<
   N,
   "help",
-  {},
-  [],
   [Done<{}, []>]
 >;
 
@@ -29,7 +27,10 @@ export function route<
     ...start,
     methods: ["help"],
     phases: [{
-      params: {},
+      model: {
+        params: {},
+        steps: [],
+      },
       routes: [],
       values: [],
       envs: [],

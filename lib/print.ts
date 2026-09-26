@@ -109,7 +109,7 @@ type Row = readonly [label: string, description?: string];
 
 function params(route: AnyRoute): Param<string, unknown>[] {
   return route.phases.flatMap((phase) =>
-    Object.values(phase.params) as Param<string, unknown>[]
+    Object.values(phase.model.params) as Param<string, unknown>[]
   );
 }
 

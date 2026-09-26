@@ -409,15 +409,11 @@ describe("parse()", () => {
       type Plain = Route<
         "simulacrum",
         "help",
-        Empty,
-        [],
         readonly [Done<Empty, []>]
       >;
       type Versioned = Route<
         "simulacrum",
         "help" | "version",
-        Empty,
-        [],
         readonly [Done<Empty, []>]
       >;
 
