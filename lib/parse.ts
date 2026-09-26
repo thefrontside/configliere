@@ -351,7 +351,7 @@ function stitch(
       steps: [
         ...phase.model.steps,
         ...next.model.steps,
-      ]
+      ],
     },
 
     routes: [

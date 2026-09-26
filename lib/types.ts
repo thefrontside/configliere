@@ -44,8 +44,11 @@ export type Next<
   readonly [phaseModel]?: Model;
   readonly model: {
     params: Params;
-    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
-  }
+    steps: ((
+      previous: object,
+      bindings: Record<string, unknown>,
+    ) => Result<object>)[];
+  };
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
@@ -61,8 +64,11 @@ export type Done<
   readonly [phaseModel]?: Model;
   readonly model: {
     params: Params;
-    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
-  }
+    steps: ((
+      previous: object,
+      bindings: Record<string, unknown>,
+    ) => Result<object>)[];
+  };
   readonly routes: Routes;
   readonly values: readonly ValueSource[];
   readonly envs: readonly EnvSource[];
@@ -113,7 +119,10 @@ export interface AnyPhase {
   readonly [phaseModel]?: object;
   readonly model: {
     params: Params;
-    steps: ((previous: object, bindings: Record<string, unknown>) => Result<object>)[];
+    steps: ((
+      previous: object,
+      bindings: Record<string, unknown>,
+    ) => Result<object>)[];
   };
   readonly routes: readonly AnyRoute[];
   readonly values: readonly ValueSource[];

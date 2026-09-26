@@ -283,7 +283,8 @@ function phase(params: Record<string, Param<string, unknown>>) {
   return {
     model: {
       params,
-      steps: Object.keys(params).map((name) => (
+      steps: Object.keys(params).map((name) =>
+      (
         current: object,
         bindings: Record<string, unknown>,
       ) => ({

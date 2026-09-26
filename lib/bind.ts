@@ -199,6 +199,7 @@ export function bindPhase(options: {
   for (let step of phase.model.steps) {
     let result = step(model, bindings);
     if (!result.ok) {
+      valid = false;
       issues.push(...result.issues);
       break;
     } else {
